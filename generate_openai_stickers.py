@@ -111,6 +111,36 @@ CATEGORIES = {
             "a close group of four original adventure mice celebrating together with stars and confetti",
         ],
     },
+    "numberblocks": {
+        "label": "Numberblocks",
+        "ideas": [
+            "Numberblock One bouncing happily with one bright star",
+            "Numberblock Two dancing with two colourful balloons",
+            "Numberblock Three juggling three shiny balls",
+            "Numberblock Four making a proud square pose with four sparkle bursts",
+            "Numberblock Five giving a cheerful high five surrounded by five stars",
+            "Numberblock Six rolling a playful dice beside six confetti shapes",
+            "Numberblock Seven making a rainbow leap with seven colourful rays",
+            "Numberblock Eight posing like a friendly octopus hero with eight playful arms",
+            "Numberblock Nine making a neat three-by-three celebration pose with starbursts",
+            "Numberblock Ten standing proudly with both hands raised amid colourful confetti",
+        ],
+    },
+    "alphablocks": {
+        "label": "Alphablocks",
+        "ideas": [
+            "Alphablock A jumping beside a small red apple with happy star doodles",
+            "Alphablock B bouncing with a bright striped ball and musical doodles",
+            "Alphablock C wearing a playful superhero cape in a flying pose",
+            "Alphablock D dancing energetically with colourful music notes",
+            "Alphablock E making an excited leap surrounded by electric sparkle doodles",
+            "Alphablock F holding a cheerful flower with butterflies and hearts",
+            "Alphablock G wearing explorer goggles and holding a tiny treasure map",
+            "Alphablock H waving happily beneath a little party hat with confetti",
+            "Alphablocks A, B and C sharing a joyful team high five",
+            "a compact group of colourful Alphablocks celebrating together with stars",
+        ],
+    },
 }
 
 
@@ -130,6 +160,16 @@ def make_prompt(label, idea, number, retry_number):
         if label in {"Bow Mouse", "Adventure Mouse"}
         else f"Make the characters faithfully recognisable as {label}."
     )
+    if label == "Numberblocks":
+        symbol_instruction = (
+            "Keep the essential numeral on each Numberblocks character clear and accurate, but include no other words or letters."
+        )
+    elif label == "Alphablocks":
+        symbol_instruction = (
+            "Keep the essential letter on each Alphablocks character clear and accurate, but include no other words or numbers."
+        )
+    else:
+        symbol_instruction = "Include no words, letters or numbers."
     return (
         f"Create exactly one premium die-cut children's reward sticker featuring {idea}. "
         f"{identity_instruction} High-end polished 3D CGI cartoon rendering, "
@@ -138,7 +178,7 @@ def make_prompt(label, idea, number, retry_number):
         "vinyl cut-line and a few colourful stars, hearts, action lines or confetti immediately around the subject. "
         "Transparent background outside the sticker cut-line. Exactly one sticker design in the image, even when "
         "the design contains a character group. No sticker sheet, no separate panels, no scenery, no black background, "
-        "no checkerboard, no words, no letters, no numbers, no logo, no watermark, no interface elements, no cropped "
+        f"no checkerboard, no logo, no watermark, no interface elements. {symbol_instruction} No cropped "
         f"heads or limbs.{retry_instruction}"
     )
 
