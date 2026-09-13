@@ -96,6 +96,7 @@ systemctl daemon-reload
 systemctl reset-failed little-sounds-ai-stickers.service 2>/dev/null || true
 systemctl start little-sounds-ai-stickers.service
 sleep 2
+rm -f /etc/little-sounds-openai.env
 
 if systemctl is-failed --quiet little-sounds-ai-stickers.service; then
   echo "The generator could not start:"
