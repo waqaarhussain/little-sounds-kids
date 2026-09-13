@@ -3,71 +3,121 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#45bdf3">
+  <meta name="theme-color" content="#5c45bd">
   <meta name="description" content="A colourful home for books and activities for little learners.">
   <title>Little Learners</title>
   <link rel="stylesheet" href="/assets/site-shell.css">
   <style>
-    :root { color-scheme:light; --ink:#243557; --blue:#1976d2; --red:#ef3f43; --yellow:#ffd73d; --green:#36a953; }
+    :root { color-scheme:light; --ink:#263657; --navy:#253469; --purple:#7158e8; --pink:#ef4f85; --yellow:#ffdc55; --blue:#45bff1; --green:#38b66a; }
     * { box-sizing:border-box; }
     html,body { min-height:100%; }
-    body { margin:0; min-width:320px; color:var(--ink); font-family:ui-rounded,"Arial Rounded MT Bold","Trebuchet MS",system-ui,sans-serif; background:radial-gradient(ellipse at 8% 10%,#fff 0 4.5rem,transparent 4.6rem),radial-gradient(ellipse at 16% 12%,#fff 0 6rem,transparent 6.1rem),radial-gradient(ellipse at 92% 18%,rgba(255,255,255,.94) 0 6rem,transparent 6.1rem),linear-gradient(180deg,#55c7f6 0%,#dff6ff 52%,#f6df86 100%); overflow-x:hidden; -webkit-tap-highlight-color:transparent; }
-    a:focus-visible { outline:5px solid rgba(27,61,111,.38); outline-offset:5px; }
-    .shell { width:min(1180px,100%); min-height:100svh; margin:auto; padding:max(78px,calc(env(safe-area-inset-top) + 68px)) clamp(16px,4vw,52px) max(26px,env(safe-area-inset-bottom)); display:grid; grid-template-rows:auto 1fr auto; gap:22px; }
-    .topbar { display:flex; align-items:center; justify-content:space-between; gap:18px; }
-    .brand { display:flex; align-items:center; gap:11px; color:#fff; font-size:clamp(1.3rem,3vw,1.8rem); font-weight:950; letter-spacing:-.04em; text-shadow:0 3px 0 #1674b2; }
-    .brand-mark { width:48px; aspect-ratio:1; border-radius:16px; display:grid; place-items:center; background:linear-gradient(135deg,#ff403f,#ff921f); box-shadow:0 7px 0 #c62c30; text-shadow:none; transform:rotate(-4deg); }
-    .grown { padding:9px 15px; border-radius:999px; color:#174f85; background:rgba(255,255,255,.82); font-weight:900; }
-    .main { display:grid; grid-template-columns:minmax(250px,.8fr) minmax(320px,1.2fr); align-items:center; gap:clamp(28px,7vw,84px); }
-    .intro h1 { margin:0; color:#fff; font-size:clamp(3.2rem,8vw,6.2rem); line-height:.88; letter-spacing:-.075em; text-shadow:0 7px 0 #187ab9; }
-    .intro h1 span { color:var(--yellow); text-shadow:0 7px 0 #da9413; }
-    .intro p { max-width:470px; margin:22px 0 0; font-size:clamp(1.08rem,2.4vw,1.38rem); line-height:1.45; font-weight:900; }
-    .stars { margin-top:20px; font-size:clamp(1.7rem,4vw,2.8rem); letter-spacing:.15em; filter:drop-shadow(0 4px 1px rgba(81,83,27,.2)); }
-    .cover-link { position:relative; width:min(500px,90vw); margin:auto; display:block; color:inherit; text-decoration:none; transform:rotate(1.6deg); transition:transform .18s ease; }
-    .cover-link:hover { transform:rotate(0) translateY(-7px) scale(1.01); }
-    .cover-link:active { transform:scale(.98); }
-    .cover { position:relative; isolation:isolate; aspect-ratio:4/4.7; overflow:hidden; border:10px solid #fff; border-radius:36px; padding:clamp(22px,4vw,38px) clamp(18px,4vw,34px); background:linear-gradient(180deg,#55c9fa 0%,#e7f9ff 55%,#f5dc7c 55% 100%); box-shadow:0 26px 0 #0a67b7,0 38px 65px rgba(19,67,106,.32); text-align:center; }
-    .cover::before { content:""; position:absolute; z-index:-1; width:118%; height:72%; left:-9%; top:-37%; border-radius:50%; border:clamp(12px,2.5vw,21px) solid #ef3f43; box-shadow:0 0 0 clamp(12px,2.5vw,21px) #ff9b24,0 0 0 clamp(24px,5vw,42px) #ffd83d,0 0 0 clamp(36px,7.5vw,63px) #42af58,0 0 0 clamp(48px,10vw,84px) #247bda,0 0 0 clamp(60px,12.5vw,105px) #754ccf; }
-    .cloud { position:absolute; top:13%; width:33%; height:13%; border-radius:999px; background:rgba(255,255,255,.92); filter:drop-shadow(0 4px 0 rgba(36,118,183,.12)); z-index:-1; }
-    .cloud.one { left:-8%; } .cloud.two { right:-7%; top:19%; }
-    .cover-title { margin:19% 0 0; font-size:clamp(2.25rem,6.7vw,4.15rem); line-height:.9; letter-spacing:-.06em; font-weight:1000; text-shadow:0 4px 0 #fff; }
-    .cover-title .my { color:#236fd0; } .cover-title .fun { color:#ee4041; } .cover-title .phonics { color:#30a94e; } .cover-title .book { color:#6845cc; }
-    .ribbon { display:inline-block; margin-top:13px; padding:7px 18px; background:var(--yellow); color:#614600; border-radius:7px; box-shadow:0 4px 0 #d0a916; font-weight:950; font-size:clamp(.76rem,2vw,1rem); transform:rotate(-1deg); }
-    .abc { display:flex; justify-content:center; align-items:end; gap:clamp(10px,4vw,28px); margin:clamp(18px,4vw,31px) 0 4px; font-size:clamp(3.3rem,10vw,6.2rem); line-height:.8; font-weight:1000; text-shadow:0 5px 0 #fff; }
-    .abc span:nth-child(1){color:#ef4145;transform:rotate(-8deg)} .abc span:nth-child(2){color:#2476d9;transform:translateY(-7px)} .abc span:nth-child(3){color:#3db24f;transform:rotate(7deg)}
-    .friends { display:flex; justify-content:center; align-items:end; gap:clamp(4px,2vw,13px); margin-top:8px; font-size:clamp(2.7rem,8.5vw,5.5rem); filter:drop-shadow(0 5px 2px rgba(62,57,31,.17)); }
-    .mini-book { width:82%; margin:7px auto 0; padding:8px 12px; border:4px solid #2287dc; border-radius:8px 8px 22px 22px; background:#fffdf0; box-shadow:0 7px 0 #0d64aa; font-size:clamp(1.25rem,4vw,2.3rem); letter-spacing:.3em; }
-    .open-label { position:absolute; z-index:3; left:50%; bottom:-22px; transform:translateX(-50%); min-width:max-content; padding:14px 24px; border-radius:999px; color:#fff; background:var(--red); box-shadow:0 7px 0 #b9252f; font-size:clamp(1rem,2.4vw,1.2rem); font-weight:1000; }
-    .activities { width:min(520px,92vw); margin:auto; display:grid; gap:34px; }
-    .activities .cover-link { width:100%; }
-    .trace-link { display:grid; grid-template-columns:110px 1fr auto; align-items:center; gap:16px; padding:15px 20px; border:7px solid #fff; border-radius:28px; color:var(--ink); background:linear-gradient(135deg,#fff,#fff4bd); box-shadow:0 10px 0 #e29d23,0 18px 35px rgba(50,75,105,.18); text-decoration:none; transform:rotate(-1deg); }
-    .trace-link:hover { transform:translateY(-4px) rotate(0); }
-    .trace-letter { display:grid; place-items:center; aspect-ratio:1; border-radius:20px; color:#ef476f; background:#fff; border:5px dashed #ef476f; font-size:4.6rem; font-weight:1000; line-height:1; }
-    .trace-copy strong { display:block; font-size:clamp(1.3rem,3vw,1.75rem); }
-    .trace-copy span { display:block; margin-top:5px; font-weight:850; }
-    .trace-arrow { color:#fff; padding:10px; border-radius:50%; background:#ef476f; font-size:1.2rem; font-weight:1000; }
-    .footer { text-align:center; font-weight:900; color:#725b1a; }
-    @media (max-width:760px) { .shell{gap:28px}.grown{display:none}.main{grid-template-columns:1fr;text-align:center;gap:30px}.intro h1{font-size:clamp(3.2rem,16vw,5rem)}.intro p{margin:14px auto 0}.stars{margin-top:12px}.activities{width:min(390px,87vw)}.cover-link{width:100%}.cover{border-width:7px;border-radius:28px;box-shadow:0 18px 0 #0a67b7,0 27px 48px rgba(19,67,106,.27)}.trace-link{grid-template-columns:82px 1fr auto;text-align:left}.trace-letter{font-size:3.4rem} }
-    @media (max-width:390px) { .friends{margin-top:3px}.mini-book{margin-top:3px} }
-    @media (prefers-reduced-motion:reduce) { *{transition:none!important} }
+    body {
+      margin:0;
+      min-width:320px;
+      color:var(--ink);
+      font-family:ui-rounded,"Arial Rounded MT Bold","Trebuchet MS",system-ui,sans-serif;
+      background:
+        radial-gradient(circle at 9% 13%,rgba(255,255,255,.88) 0 3.8rem,transparent 3.9rem),
+        radial-gradient(circle at 91% 24%,rgba(255,255,255,.76) 0 5rem,transparent 5.1rem),
+        linear-gradient(155deg,#7359e8 0%,#54c9ef 43%,#dff8f1 70%,#ffe58e 100%);
+      overflow-x:hidden;
+      -webkit-tap-highlight-color:transparent;
+    }
+    a:focus-visible { outline:5px solid rgba(35,49,99,.42); outline-offset:5px; }
+    .shell {
+      width:min(1120px,100%);
+      min-height:100svh;
+      margin:auto;
+      padding:max(82px,calc(env(safe-area-inset-top) + 72px)) clamp(16px,4vw,48px) max(26px,env(safe-area-inset-bottom));
+      display:grid;
+      grid-template-rows:auto auto 1fr auto;
+      gap:clamp(18px,4vw,32px);
+    }
+    .brand {
+      width:max-content;
+      max-width:calc(100% - 160px);
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:9px 16px 9px 10px;
+      border:4px solid rgba(255,255,255,.92);
+      border-radius:999px;
+      color:#fff;
+      background:var(--navy);
+      box-shadow:0 7px 0 rgba(24,34,79,.48);
+      font-size:clamp(1rem,3vw,1.45rem);
+      font-weight:1000;
+      letter-spacing:-.025em;
+    }
+    .brand-mark { width:42px; aspect-ratio:1; display:grid; place-items:center; border-radius:14px; background:linear-gradient(135deg,#ff4f6f,#ffad32); box-shadow:0 4px 0 #bd334d; }
+    .hero { max-width:760px; margin:auto; text-align:center; }
+    .hero h1 { margin:0; color:var(--navy); font-size:clamp(2.55rem,8vw,5.2rem); line-height:.92; letter-spacing:-.06em; text-shadow:0 4px 0 rgba(255,255,255,.85); }
+    .hero h1 span { color:#fff; text-shadow:0 5px 0 #4d39ae; }
+    .hero p { margin:14px auto 0; max-width:570px; font-size:clamp(1rem,2.6vw,1.25rem); line-height:1.4; font-weight:950; }
+    .activity-grid {
+      width:min(950px,100%);
+      margin:0 auto;
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(180px,220px));
+      justify-content:center;
+      align-content:start;
+      gap:clamp(15px,3vw,24px);
+    }
+    .activity-card {
+      position:relative;
+      width:100%;
+      aspect-ratio:1/1.08;
+      min-width:0;
+      display:grid;
+      grid-template-rows:1fr auto;
+      overflow:hidden;
+      border:6px solid #fff;
+      border-radius:29px;
+      color:var(--ink);
+      background:rgba(255,255,255,.94);
+      box-shadow:0 10px 0 var(--card-shadow),0 18px 34px rgba(34,48,96,.2);
+      text-decoration:none;
+      transition:transform .16s ease,box-shadow .16s ease;
+    }
+    .activity-card:hover { transform:translateY(-5px); }
+    .activity-card:active { transform:translateY(3px); box-shadow:0 5px 0 var(--card-shadow); }
+    .activity-visual { position:relative; min-height:0; display:grid; place-items:center; overflow:hidden; background:var(--card-bg); }
+    .activity-copy { min-height:82px; padding:12px 13px 14px; display:grid; align-content:center; text-align:center; }
+    .activity-copy strong { display:block; font-size:1.22rem; line-height:1.05; }
+    .activity-copy span { display:block; margin-top:5px; color:#5e6d87; font-size:.78rem; line-height:1.15; font-weight:850; }
+    .phonics-card { --card-shadow:#2e64b5; --card-bg:linear-gradient(180deg,#72d7fa 0 62%,#ffe47b 62%); }
+    .rainbow { position:absolute; width:190px; height:120px; top:-53px; border:12px solid #ef4b5a; border-radius:50%; box-shadow:0 0 0 12px #ff9f29,0 0 0 24px #ffdc45,0 0 0 36px #46b96d,0 0 0 48px #377fd3,0 0 0 60px #7953d0; }
+    .phonics-letters { z-index:1; display:flex; gap:5px; align-items:end; font-size:3.8rem; line-height:1; font-weight:1000; text-shadow:0 4px 0 #fff; }
+    .phonics-letters span:nth-child(1){color:#ef4656;transform:rotate(-7deg)}
+    .phonics-letters span:nth-child(2){color:#2778d8;transform:translateY(-7px)}
+    .phonics-letters span:nth-child(3){color:#35ac58;transform:rotate(7deg)}
+    .picture-row { position:absolute; z-index:2; bottom:8px; font-size:1.65rem; letter-spacing:.08em; filter:drop-shadow(0 3px 1px rgba(42,57,82,.18)); }
+    .tracing-card { --card-shadow:#c23b69; --card-bg:linear-gradient(145deg,#fff8d2,#f5e8ff); }
+    .trace-paper { width:72%; aspect-ratio:1; display:grid; place-items:center; border:5px solid #fff; border-radius:22px; background:repeating-linear-gradient(0deg,#fff 0 25px,#eaf2fc 26px,#fff 27px); box-shadow:0 7px 18px rgba(74,64,120,.16); transform:rotate(-3deg); }
+    .trace-letter { color:transparent; -webkit-text-stroke:3px #ef4f85; font-size:6rem; line-height:1; font-weight:1000; text-shadow:3px 3px 0 rgba(239,79,133,.13); }
+    .pencil { position:absolute; right:18px; bottom:13px; font-size:2.7rem; transform:rotate(-30deg); filter:drop-shadow(0 4px 2px rgba(61,53,82,.18)); }
+    .footer { align-self:end; color:#604d19; text-align:center; font-weight:950; }
+    @media(max-width:560px){
+      .shell{gap:21px}.brand{max-width:calc(100% - 145px);padding-right:12px}.brand-mark{width:36px}.hero h1{font-size:clamp(2.5rem,13vw,4rem)}
+      .activity-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.activity-card{border-width:5px;border-radius:23px}.activity-copy{min-height:76px;padding:10px 8px 12px}.activity-copy strong{font-size:1.02rem}.activity-copy span{font-size:.69rem}.phonics-letters{font-size:3rem}.rainbow{transform:scale(.78)}.trace-letter{font-size:4.8rem}.pencil{font-size:2.1rem;right:8px}
+    }
+    @media(max-width:355px){.activity-grid{grid-template-columns:1fr;width:190px}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
   </style>
 </head>
 <body>
   <main class="shell">
-    <header class="topbar"><div class="brand"><span class="brand-mark">📚</span><span>Little Learners</span></div></header>
-    <section class="main">
-      <div class="intro"><h1>Pick a<br><span>fun book!</span></h1><p>Tap a cover to start playing, listening and learning.</p><div class="stars" aria-hidden="true">⭐ 🌈 ⭐</div></div>
-      <div class="activities">
-        <a class="cover-link" href="/phonicsbook/" aria-label="Open My Fun Phonics Book">
-          <div class="cover"><i class="cloud one"></i><i class="cloud two"></i><h2 class="cover-title"><span class="my">My</span> <span class="fun">Fun</span><br><span class="phonics">Phonics</span> <span class="book">Book</span></h2><div class="ribbon">LETTERS, SOUNDS AND PICTURES</div><div class="abc" aria-hidden="true"><span>A</span><span>B</span><span>C</span></div><div class="friends" aria-hidden="true">🍎 🐘 🐱 🐶</div><div class="mini-book" aria-hidden="true">🍎 ⚽ 🐱 ⭐</div></div>
-          <span class="open-label">Open the book ▶</span>
-        </a>
-        <a class="trace-link" href="/handwriting/" aria-label="Open fun tracing">
-          <span class="trace-letter" aria-hidden="true">A</span>
-          <span class="trace-copy"><strong>Fun Tracing</strong><span>Letters, numbers and shapes ✏️</span></span>
-          <span class="trace-arrow" aria-hidden="true">▶</span>
-        </a>
-      </div>
+    <header><div class="brand"><span class="brand-mark">📚</span><span>Little Learners</span></div></header>
+    <section class="hero"><h1>Pick something<br><span>fun to learn!</span></h1><p>Tap an activity to start playing, listening and learning.</p></section>
+    <section class="activity-grid" aria-label="Learning activities">
+      <a class="activity-card phonics-card" href="/phonicsbook/" aria-label="Open My Fun Phonics Book">
+        <span class="activity-visual" aria-hidden="true"><i class="rainbow"></i><span class="phonics-letters"><span>A</span><span>B</span><span>C</span></span><span class="picture-row">🍎 🐘 🐱 🐶</span></span>
+        <span class="activity-copy"><strong>Fun Phonics</strong><span>Letters, sounds and pictures</span></span>
+      </a>
+      <a class="activity-card tracing-card" href="/handwriting/" aria-label="Open Fun Tracing">
+        <span class="activity-visual" aria-hidden="true"><span class="trace-paper"><span class="trace-letter">A</span></span><span class="pencil">✏️</span></span>
+        <span class="activity-copy"><strong>Fun Tracing</strong><span>Letters, numbers and shapes</span></span>
+      </a>
     </section>
     <footer class="footer">Made for little learners ❤️</footer>
   </main>

@@ -108,6 +108,18 @@ def initialise_database() -> None:
             );
             CREATE INDEX IF NOT EXISTS catalog_stickers_category_active
                 ON catalog_stickers(category, active, serial);
+            CREATE TABLE IF NOT EXISTS sticker_history (
+                category TEXT NOT NULL,
+                sha256 TEXT NOT NULL,
+                phash TEXT,
+                dhash TEXT,
+                colorhash TEXT,
+                prompt TEXT,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(category, sha256)
+            );
+            INSERT OR IGNORE INTO sticker_history(category, sha256, phash, dhash, colorhash, prompt, created_at)
+            SELECT category, sha256, phash, dhash, colorhash, prompt, created_at FROM catalog_stickers;
             CREATE TABLE IF NOT EXISTS catalog_rewards (
                 profile TEXT NOT NULL,
                 position INTEGER NOT NULL,
@@ -464,16 +476,6 @@ def activity_progress():
         if not device:
             return jsonify({"error": "Choose a profile first."}), 401
         profile = device["profile"]
-        if profile == PARENT_PROFILE:
-            return jsonify(
-                {
-                    "activity": activity,
-                    "completed_items": [],
-                    "count": 0,
-                    "total": len(ACTIVITY_ITEMS[activity]),
-                    "parent_preview": True,
-                }
-            )
         completed = [
             row[0]
             for row in connection.execute(
@@ -487,6 +489,7 @@ def activity_progress():
                 "completed_items": completed,
                 "count": len(completed),
                 "total": len(ACTIVITY_ITEMS[activity]),
+                "parent_preview": profile == PARENT_PROFILE,
             }
         )
 
@@ -504,18 +507,6 @@ def complete_activity_item():
             return jsonify({"error": "Choose a profile first."}), 401
         profile = device["profile"]
         total = len(ACTIVITY_ITEMS[activity])
-        if profile == PARENT_PROFILE:
-            return jsonify(
-                {
-                    "parent_preview": True,
-                    "activity": activity,
-                    "item": item,
-                    "count": 0,
-                    "total": total,
-                    "exercise_completed": False,
-                }
-            )
-
         connection.execute("BEGIN IMMEDIATE")
         cursor = connection.execute(
             "INSERT OR IGNORE INTO activity_progress(profile, activity, item, completed_at) VALUES (?, ?, ?, ?)",
@@ -527,7 +518,7 @@ def complete_activity_item():
                 (profile, activity),
             ).fetchone()[0]
         )
-        exercise_completed = count == total
+        exercise_completed = count == total and cursor.rowcount == 1
         cycle = None
         reward_token = None
         if exercise_completed:
@@ -541,21 +532,22 @@ def complete_activity_item():
                 "INSERT INTO activity_completions(profile, activity, cycle, completed_at) VALUES (?, ?, ?, ?)",
                 (profile, activity, cycle, now()),
             )
-            connection.execute(
-                "DELETE FROM activity_progress WHERE profile = ? AND activity = ?",
-                (profile, activity),
-            )
-            connection.execute(
-                "DELETE FROM pending_rewards WHERE profile = ? AND activity = ?",
-                (profile, activity),
-            )
-            reward_token = secrets.token_urlsafe(24)
-            connection.execute(
-                "INSERT INTO pending_rewards(token, profile, activity, cycle, created_at) VALUES (?, ?, ?, ?, ?)",
-                (reward_token, profile, activity, cycle, now()),
-            )
+            if profile != PARENT_PROFILE:
+                connection.execute(
+                    "DELETE FROM activity_progress WHERE profile = ? AND activity = ?",
+                    (profile, activity),
+                )
+                connection.execute(
+                    "DELETE FROM pending_rewards WHERE profile = ? AND activity = ?",
+                    (profile, activity),
+                )
+                reward_token = secrets.token_urlsafe(24)
+                connection.execute(
+                    "INSERT INTO pending_rewards(token, profile, activity, cycle, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (reward_token, profile, activity, cycle, now()),
+                )
         completed_items = []
-        if not exercise_completed:
+        if not exercise_completed or profile == PARENT_PROFILE:
             completed_items = [
                 row[0]
                 for row in connection.execute(
@@ -575,6 +567,7 @@ def complete_activity_item():
                 "cycle": cycle,
                 "reward_token": reward_token,
                 "completed_items": completed_items,
+                "parent_preview": profile == PARENT_PROFILE,
             }
         )
 

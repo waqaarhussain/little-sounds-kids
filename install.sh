@@ -10,6 +10,7 @@ parent_profile="${LITTLE_SOUNDS_PARENT:-}"
 child_one="${LITTLE_SOUNDS_CHILD_1:-}"
 child_two="${LITTLE_SOUNDS_CHILD_2:-}"
 switch_pin="${LITTLE_SOUNDS_PIN:-}"
+sticker_backup_url="${LITTLE_SOUNDS_STICKER_BACKUP_URL:-https://github.com/waqaarhussain/little-sounds-kids/releases/download/sticker-pack/little-sounds-sticker-pack.tar.gz}"
 
 if [ -z "$parent_profile" ] || [ -z "$child_one" ] || [ -z "$child_two" ] || [ -z "$switch_pin" ]; then
   if [ ! -t 0 ]; then
@@ -82,6 +83,8 @@ python3 -m venv /opt/little-sounds-ai-venv
 install -d -m 0755 /opt/little-sounds
 install -m 0755 "$installer_dir/generate_stickers.py" /opt/little-sounds/generate_stickers.py
 install -m 0755 "$installer_dir/generate" /usr/local/bin/generate
+install -m 0755 "$installer_dir/sticker_pack.py" /opt/little-sounds/sticker_pack.py
+install -m 0755 "$installer_dir/backup-stickers" /usr/local/bin/backup-stickers
 install -d -m 0700 /root/stickers/catalog
 install -d -m 0755 /var/www/little-sounds/sticker-images
 install -d -m 0755 /var/www/little-sounds/sticker-generator
@@ -213,6 +216,16 @@ for attempt in 1 2 3 4 5 6 7 8 9 10; do
   sleep 1
 done
 
+if curl -fsSL --retry 3 --retry-delay 2 "$sticker_backup_url" -o "$work_dir/sticker-pack.tar.gz"; then
+  echo "Restoring the reusable sticker pack..."
+  python3 /opt/little-sounds/sticker_pack.py restore "$work_dir/sticker-pack.tar.gz"
+  chown -R www-data:www-data /var/lib/little-sounds
+  chmod -R a+rX /var/www/little-sounds/sticker-images
+  systemctl restart little-sounds
+else
+  echo "No reusable sticker pack is published yet. Run generate after installation."
+fi
+
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q '^Status: active'; then
   ufw allow 'Nginx HTTP'
 fi
@@ -226,3 +239,4 @@ echo "Fun tracing: http://${server_ip}/handwriting/"
 echo "Sticker book: http://${server_ip}/stickers/"
 echo
 echo "When you are ready to create or refill stickers, run: generate"
+echo "After the first complete generation, save the reusable pack with: backup-stickers"

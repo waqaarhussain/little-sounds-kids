@@ -36,7 +36,7 @@
         radial-gradient(ellipse at 12% 13%, #fff 0 4.2rem, transparent 4.3rem),
         radial-gradient(ellipse at 19% 15%, #fff 0 5.4rem, transparent 5.5rem),
         radial-gradient(ellipse at 88% 8%, rgba(255,255,255,.9) 0 5rem, transparent 5.1rem),
-        linear-gradient(180deg, #65cffa 0%, #dff6ff 52%, #f7e49b 100%);
+        linear-gradient(155deg, #765ce8 0%, #61cef1 38%, #ddf8f0 68%, #ffe58e 100%);
       background-attachment: fixed;
       transition: background-color 300ms ease;
       -webkit-tap-highlight-color: transparent;
@@ -74,6 +74,11 @@
       font-size: clamp(1.2rem, 3vw, 1.65rem);
       font-weight: 950;
       letter-spacing: -0.04em;
+      padding: 7px 13px 7px 7px;
+      border: 3px solid rgba(255,255,255,.92);
+      border-radius: 999px;
+      background: rgba(255,255,255,.92);
+      box-shadow: 0 6px 0 rgba(39,48,101,.22);
     }
 
     .brand-mark {
@@ -503,7 +508,7 @@
     }
 
     @media (max-width: 760px) {
-      body { background: linear-gradient(180deg, #69cff8 0, #def6ff 42%, #f8e5a2 100%); }
+      body { background: linear-gradient(155deg, #765ce8 0, #68d1f1 38%, #dff8f0 68%, #ffe79b 100%); }
       .app { gap: 13px; }
       .brand span:last-child { display: none; }
       .book { padding: 25px 9px 15px; border-width: 5px; }
@@ -821,7 +826,12 @@
         });
         const progress = await response.json();
         if (!response.ok) throw new Error(progress.error || "Progress could not be saved.");
-        if (progress.parent_preview) return;
+        if (progress.parent_preview) {
+          quizStatus.textContent = progress.new_item
+            ? `Yes! ${progress.count} of ${progress.total} letters completed and saved. ⭐`
+            : `You already completed ${letter}. ${progress.count} of ${progress.total} finished. ⭐`;
+          return;
+        }
         if (progress.exercise_completed) {
           quizStatus.textContent = "You completed A to Z! Choose your sticker! 🌟";
           await window.ProfileShell.claimReward(progress.reward_token);

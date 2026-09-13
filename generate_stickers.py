@@ -126,6 +126,16 @@ def ensure_schema(connection):
         );
         CREATE INDEX IF NOT EXISTS catalog_stickers_category_active
             ON catalog_stickers(category, active, serial);
+        CREATE TABLE IF NOT EXISTS sticker_history (
+            category TEXT NOT NULL,
+            sha256 TEXT NOT NULL,
+            phash TEXT,
+            dhash TEXT,
+            colorhash TEXT,
+            prompt TEXT,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY(category, sha256)
+        );
         CREATE TABLE IF NOT EXISTS catalog_rewards (
             profile TEXT NOT NULL,
             position INTEGER NOT NULL,
@@ -137,6 +147,8 @@ def ensure_schema(connection):
             UNIQUE(profile, sticker_id),
             FOREIGN KEY(sticker_id) REFERENCES catalog_stickers(id)
         );
+        INSERT OR IGNORE INTO sticker_history(category, sha256, phash, dhash, colorhash, prompt, created_at)
+        SELECT category, sha256, phash, dhash, colorhash, prompt, created_at FROM catalog_stickers;
         """
     )
     connection.commit()
@@ -266,7 +278,12 @@ def save_sticker(connection, category, serial, image, prompt, active=0, staged=1
     sha256, png_bytes = image_sha(image)
     phash, dhash, colorhash = fingerprints(image)
     existing = connection.execute(
-        "SELECT sha256, phash, dhash, colorhash FROM catalog_stickers WHERE category = ?", (category,)
+        """
+        SELECT sha256, phash, dhash, colorhash FROM catalog_stickers WHERE category = ?
+        UNION
+        SELECT sha256, phash, dhash, colorhash FROM sticker_history WHERE category = ?
+        """,
+        (category, category),
     ).fetchall()
     if too_similar(existing, sha256, phash, dhash, colorhash):
         raise ValueError("The result was too similar to an existing design.")
@@ -280,6 +297,13 @@ def save_sticker(connection, category, serial, image, prompt, active=0, staged=1
         """,
         (category, serial, f"/sticker-images/{category}/{serial:04d}.webp", active, staged,
          utc_now(), sha256, phash, dhash, colorhash, prompt),
+    )
+    connection.execute(
+        """
+        INSERT OR IGNORE INTO sticker_history(category, sha256, phash, dhash, colorhash, prompt, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (category, sha256, phash, dhash, colorhash, prompt, utc_now()),
     )
     connection.commit()
 
@@ -407,7 +431,7 @@ def write_status(connection, running=True, message=""):
     for category, details in THEMES.items():
         active, used_active, staged = inventory(connection, category)
         history = int(connection.execute(
-            "SELECT COUNT(*) FROM catalog_stickers WHERE category = ?", (category,)
+            "SELECT COUNT(*) FROM sticker_history WHERE category = ?", (category,)
         ).fetchone()[0])
         images = connection.execute(
             "SELECT serial, image_path, active, staged FROM catalog_stickers WHERE category = ? ORDER BY serial DESC LIMIT 20",
@@ -503,6 +527,7 @@ def main():
     if errors:
         raise RuntimeError(message)
     print(message, flush=True)
+    print("Run backup-stickers once generation finishes to save this sticker pack for future VPS resets.", flush=True)
 
 
 if __name__ == "__main__":

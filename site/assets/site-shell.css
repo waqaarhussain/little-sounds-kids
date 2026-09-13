@@ -1,11 +1,14 @@
 .site-tools {
-  position: fixed;
-  z-index: 90;
+  position: fixed !important;
+  z-index: 250;
   top: max(12px, env(safe-area-inset-top));
   right: max(12px, env(safe-area-inset-right));
+  left: auto;
   display: flex;
   align-items: center;
   gap: 9px;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
 }
 
 .site-tool-button {

@@ -1,6 +1,7 @@
 (function () {
   "use strict";
 
+  const AUDIO_VERSION = "20260913-uk2";
   const player = new Audio();
   player.preload = "auto";
   player.playsInline = true;
@@ -8,6 +9,11 @@
   unlockPlayer.playsInline = true;
   let currentSource = "";
   let unlocked = false;
+
+  function versioned(source) {
+    if (!source || !source.startsWith("/audio/")) return source;
+    return `${source}${source.includes("?") ? "&" : "?"}v=${AUDIO_VERSION}`;
+  }
 
   function stop() {
     player.pause();
@@ -20,7 +26,7 @@
     if (!source) return false;
     stop();
     currentSource = source;
-    player.src = source;
+    player.src = versioned(source);
     player.currentTime = 0;
     try {
       await player.play();
@@ -48,7 +54,7 @@
     sources.filter(Boolean).forEach(source => {
       const audio = new Audio();
       audio.preload = "metadata";
-      audio.src = source;
+      audio.src = versioned(source);
     });
   }
 

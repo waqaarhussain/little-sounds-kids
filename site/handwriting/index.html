@@ -9,12 +9,12 @@
   <style>
     :root { color-scheme:light; --ink:#29395b; --pink:#f05d78; --pink-dark:#c83856; --blue:#4c78ea; }
     * { box-sizing:border-box; }
-    body { margin:0; min-width:320px; min-height:100svh; color:var(--ink); font-family:ui-rounded,"Arial Rounded MT Bold",system-ui,sans-serif; background:radial-gradient(circle at 10% 10%,#fff 0 4rem,transparent 4.1rem),linear-gradient(150deg,#60cdf7,#e8f9ff 52%,#ffe88e); -webkit-tap-highlight-color:transparent; }
+    body { margin:0; min-width:320px; min-height:100svh; color:var(--ink); font-family:ui-rounded,"Arial Rounded MT Bold",system-ui,sans-serif; background:radial-gradient(circle at 10% 10%,rgba(255,255,255,.9) 0 4rem,transparent 4.1rem),linear-gradient(155deg,#765ce8 0%,#61cef1 40%,#e2f9f2 69%,#ffe58e 100%); -webkit-tap-highlight-color:transparent; }
     button { font:inherit; }
     .shell { width:min(1180px,100%); margin:auto; padding:max(82px,calc(env(safe-area-inset-top) + 72px)) clamp(12px,3vw,38px) max(28px,env(safe-area-inset-bottom)); }
     .top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
     .back { padding:12px 18px; border-radius:999px; color:#28405f; background:#fff; box-shadow:0 5px 0 #bed3ed; text-decoration:none; font-weight:950; }
-    h1 { flex:1; margin:0; color:#fff; font-size:clamp(2rem,6vw,4rem); text-shadow:0 5px 0 #287db1; text-align:center; }
+    h1 { flex:1; margin:0; color:#fff; font-size:clamp(2rem,6vw,4rem); text-shadow:0 5px 0 #4936a8; text-align:center; }
     .tabs { display:flex; justify-content:center; flex-wrap:wrap; gap:10px; margin:0 auto 18px; }
     .tab { border:4px solid #fff; border-radius:999px; padding:11px 19px; color:#30415f; background:#e9f2ff; box-shadow:0 5px 0 #b9cdeb; font-weight:1000; }
     .tab.current { color:#fff; background:var(--pink); box-shadow:0 5px 0 var(--pink-dark); }
@@ -84,6 +84,7 @@
     let active = false;
     let lastPoint = null;
     let inkDistance = 0;
+    let announcedSelection = false;
 
     const safeSlug = value => value.toLowerCase().replace(/[^a-z0-9]+/g,"-");
     const activityForMode = value => value;
@@ -116,6 +117,7 @@
 
     function selectItem(id, playSound) {
       selected = sets[mode].find(item => item.id === id) || sets[mode][0];
+      announcedSelection = false;
       document.getElementById("itemName").textContent = selected.label;
       document.getElementById("message").textContent = "";
       clearDrawing();
@@ -216,15 +218,16 @@
     }
 
     function point(event) { const rect=drawing.getBoundingClientRect(); return {x:event.clientX-rect.left,y:event.clientY-rect.top}; }
-    drawing.addEventListener("pointerdown",event=>{active=true;lastPoint=point(event);drawing.setPointerCapture(event.pointerId);});
+    drawing.addEventListener("pointerdown",event=>{if(!announcedSelection)playItemSound();active=true;lastPoint=point(event);drawing.setPointerCapture(event.pointerId);});
     drawing.addEventListener("pointermove",event=>{if(!active)return;const next=point(event);inkDistance+=Math.hypot(next.x-lastPoint.x,next.y-lastPoint.y);drawingContext.beginPath();drawingContext.moveTo(lastPoint.x,lastPoint.y);drawingContext.lineTo(next.x,next.y);drawingContext.stroke();lastPoint=next;});
     drawing.addEventListener("pointerup",()=>{active=false;lastPoint=null;});
     drawing.addEventListener("pointercancel",()=>{active=false;lastPoint=null;});
 
     function clearDrawing() { drawingContext.clearRect(0,0,drawing.width,drawing.height); inkDistance=0; document.getElementById("message").textContent=""; setupPen(); }
-    function playItemSound() {
+    async function playItemSound() {
       const path=mode==="letters"?`/audio/phonics/${selected.id.toLowerCase()}.mp3`:`/audio/tracing/${safeSlug(selected.id)}.mp3`;
-      window.SiteAudio.play(path);
+      announcedSelection=await window.SiteAudio.play(path);
+      return announcedSelection;
     }
 
     async function finishItem() {
@@ -236,29 +239,29 @@
         const data=await response.json();
         if(!response.ok) throw new Error(data.error||"Could not save progress");
         completed=new Set(data.completed_items||[]);
-        if(data.exercise_completed){
+        if(data.exercise_completed&&data.reward_token){
           message.textContent=`Amazing! You completed all ${mode}! Choose your sticker ⭐`;
-          window.SiteAudio.play("/audio/ui/well-done.mp3");
-          setTimeout(()=>window.ProfileShell.claimReward(data.reward_token),900);
+          setTimeout(()=>window.ProfileShell.claimReward(data.reward_token),500);
           completed=new Set();
+        } else if(data.exercise_completed){
+          message.textContent=`All ${mode} completed and saved! ⭐`;
         } else if(data.already_completed){
           message.textContent=`You already completed ${selected.label}. Pick another one! ✓`;
         } else {
           message.textContent=`Well done tracing ${selected.label}! ⭐`;
-          window.SiteAudio.play("/audio/ui/well-done.mp3");
         }
         renderChoices(); updateProgress();
       } catch(error){message.textContent=error.message||"Could not save that yet. Try again.";}
     }
 
     document.querySelectorAll(".tab").forEach(tab=>tab.addEventListener("click",async()=>{
-      mode=tab.dataset.mode;selected=sets[mode][0];document.querySelectorAll(".tab").forEach(item=>item.classList.toggle("current",item===tab));document.getElementById("itemName").textContent=selected.label;clearDrawing();drawGuide(board.clientWidth,board.clientHeight);await loadProgress();
+      mode=tab.dataset.mode;selected=sets[mode][0];announcedSelection=false;document.querySelectorAll(".tab").forEach(item=>item.classList.toggle("current",item===tab));document.getElementById("itemName").textContent=selected.label;clearDrawing();drawGuide(board.clientWidth,board.clientHeight);playItemSound();await loadProgress();
     }));
     document.getElementById("soundItem").addEventListener("click",playItemSound);
     document.getElementById("clearButton").addEventListener("click",clearDrawing);
     document.getElementById("finishButton").addEventListener("click",finishItem);
     new ResizeObserver(resizeCanvas).observe(board);
-    window.ProfileShell.ready.then(loadProgress).catch(loadProgress);
+    window.ProfileShell.ready.then(async()=>{await loadProgress();await playItemSound();}).catch(loadProgress);
   </script>
 </body>
 </html>
