@@ -81,34 +81,34 @@ CATEGORIES = {
             "the three PJ Masks heroes celebrating together with fists raised and confetti",
         ],
     },
-    "minnie-mouse": {
-        "label": "Minnie Mouse",
+    "bow-mouse": {
+        "label": "Bow Mouse",
         "ideas": [
-            "Minnie Mouse waving in her classic polka-dot bow and dress with hearts",
-            "Minnie Mouse twirling happily in a sparkling pink party dress",
-            "Minnie Mouse dressed as a cheerful baker holding a decorated cupcake",
-            "Minnie Mouse dressed as an artist holding a paintbrush and colourful palette",
-            "Minnie Mouse gardening with a bright flower and butterfly doodles",
-            "Minnie Mouse in a playful space explorer outfit floating among stars",
-            "Minnie Mouse celebrating a birthday with a tiny gift and confetti",
-            "Minnie Mouse and Daisy Duck sharing a joyful high five",
-            "Minnie Mouse and Mickey Mouse dancing together in a compact happy pose",
-            "Minnie Mouse celebrating with Daisy, Mickey, Donald and Goofy as a close group",
+            "an original cheerful girl mouse with soft brown fur, a huge rainbow polka-dot bow and turquoise dungarees, waving with hearts",
+            "an original cream-furred girl mouse with a flower crown and purple tutu, twirling among sparkles",
+            "an original grey girl mouse baker wearing a mint apron and holding a decorated cupcake",
+            "an original golden-furred girl mouse artist in paint-splashed overalls holding a palette",
+            "an original white girl mouse gardener wearing a sunflower hat beside a bright flower and butterfly doodles",
+            "an original lilac girl mouse space explorer floating playfully among stars",
+            "an original caramel girl mouse celebrating a birthday with a tiny gift and confetti",
+            "two original girl mouse friends in contrasting colourful outfits sharing a joyful high five",
+            "an original girl mouse ballerina making a graceful leap with ribbons and stars",
+            "a close group of four original mouse friends in varied colourful outfits celebrating together",
         ],
     },
-    "mickey-mouse": {
-        "label": "Mickey Mouse",
+    "adventure-mouse": {
+        "label": "Adventure Mouse",
         "ideas": [
-            "Mickey Mouse waving in his classic red shorts and yellow shoes with stars",
-            "Mickey Mouse dressed as a magician making colourful sparkles appear",
-            "Mickey Mouse in a playful astronaut suit floating beside a small moon",
-            "Mickey Mouse dressed as an explorer holding a tiny treasure map",
-            "Mickey Mouse happily playing a bright red guitar with music-note doodles",
-            "Mickey Mouse celebrating a birthday with a party hat and confetti",
-            "Mickey Mouse kicking a football in an energetic action pose",
-            "Mickey Mouse and Pluto cuddling in a joyful compact composition",
-            "Mickey Mouse, Donald Duck and Goofy sharing a funny team pose",
-            "Mickey Mouse celebrating with Minnie, Donald, Daisy, Goofy and Pluto as a close group",
+            "an original cheerful boy mouse with sandy fur, a blue aviator cap and orange dungarees, waving with stars",
+            "an original silver boy mouse magician in a purple waistcoat making colourful sparkles appear",
+            "an original chocolate-brown boy mouse astronaut in a teal spacesuit floating beside a small moon",
+            "an original cream boy mouse explorer wearing a green backpack and holding a tiny treasure map",
+            "an original cinnamon-furred boy mouse happily playing a bright blue guitar with music-note doodles",
+            "an original grey boy mouse celebrating a birthday in a striped party hat with confetti",
+            "an original tan boy mouse footballer in a green kit kicking a football in an energetic action pose",
+            "an original white boy mouse superhero in a yellow cape making a joyful flying pose",
+            "three original boy mouse friends dressed as an explorer, inventor and pilot sharing a funny team pose",
+            "a close group of four original adventure mice celebrating together with stars and confetti",
         ],
     },
 }
@@ -125,9 +125,14 @@ def make_prompt(label, idea, number, retry_number):
             f" This is alternate attempt {retry_number + 1}; make the silhouette, pose, camera angle, "
             "facial expression and decorative doodles substantially different from earlier designs."
         )
+    identity_instruction = (
+        "Create a wholly original character that is not based on any existing franchise, celebrity or public figure."
+        if label in {"Bow Mouse", "Adventure Mouse"}
+        else f"Make the characters faithfully recognisable as {label}."
+    )
     return (
-        f"Create exactly one premium die-cut children's reward sticker featuring {idea}, "
-        f"faithfully recognisable as the {label} characters. High-end polished 3D CGI cartoon rendering, "
+        f"Create exactly one premium die-cut children's reward sticker featuring {idea}. "
+        f"{identity_instruction} High-end polished 3D CGI cartoon rendering, "
         "soft detailed fur or fabric, expressive friendly face, joyful preschool energy, vivid clean colours, "
         "studio-quality lighting, full character visible, centred compact composition. Add a thick smooth white "
         "vinyl cut-line and a few colourful stars, hearts, action lines or confetti immediately around the subject. "
