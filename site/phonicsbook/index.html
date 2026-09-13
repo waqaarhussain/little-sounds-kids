@@ -1,0 +1,915 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#42b9f5">
+  <meta name="description" content="A colourful, interactive phonics book for little learners.">
+  <title>Little Sounds</title>
+  <link rel="stylesheet" href="/assets/site-shell.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%236c4cff'/%3E%3Cpath d='M18 47 28 17h9l10 30h-8l-2-7H27l-2 7Zm11-14h6l-3-10Z' fill='white'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #233253;
+      --muted: #55627a;
+      --page: #dff5ff;
+      --card: rgba(255, 255, 255, 0.92);
+      --accent: #6c4cff;
+      --accent-dark: #4a2bd4;
+      --soft: #ece7ff;
+      --sun: #ffd34d;
+      --good: #1d9a6c;
+      --shadow: 0 18px 55px rgba(55, 38, 117, 0.14);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      font-family: ui-rounded, "Arial Rounded MT Bold", "Nunito", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse at 12% 13%, #fff 0 4.2rem, transparent 4.3rem),
+        radial-gradient(ellipse at 19% 15%, #fff 0 5.4rem, transparent 5.5rem),
+        radial-gradient(ellipse at 88% 8%, rgba(255,255,255,.9) 0 5rem, transparent 5.1rem),
+        linear-gradient(180deg, #65cffa 0%, #dff6ff 52%, #f7e49b 100%);
+      background-attachment: fixed;
+      transition: background-color 300ms ease;
+      -webkit-tap-highlight-color: transparent;
+      overflow-x: hidden;
+    }
+
+    button { font: inherit; }
+
+    button:focus-visible {
+      outline: 4px solid rgba(36, 31, 60, 0.26);
+      outline-offset: 3px;
+    }
+
+    .app {
+      width: min(1120px, 100%);
+      min-height: 100svh;
+      margin: 0 auto;
+      padding: max(78px, calc(env(safe-area-inset-top) + 68px)) clamp(16px, 4vw, 42px) max(22px, env(safe-area-inset-bottom));
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 18px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: clamp(1.2rem, 3vw, 1.65rem);
+      font-weight: 950;
+      letter-spacing: -0.04em;
+    }
+
+    .brand-mark {
+      width: 42px;
+      aspect-ratio: 1;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      color: white;
+      background: linear-gradient(135deg, #ff403f, #ff8d1d);
+      box-shadow: 0 7px 0 #c6272c;
+      transform: rotate(-4deg);
+    }
+
+    .top-actions { display: flex; gap: 9px; }
+
+    .round-button {
+      min-width: 48px;
+      height: 48px;
+      border: 0;
+      border-radius: 16px;
+      color: var(--ink);
+      background: white;
+      box-shadow: 0 7px 22px rgba(55, 38, 117, 0.12);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      font-size: 1.35rem;
+      transition: transform 130ms ease, box-shadow 130ms ease;
+    }
+
+    .round-button:active { transform: translateY(2px) scale(0.97); }
+
+    .book {
+      position: relative;
+      background: #1a7bd7;
+      border: 7px solid #fff;
+      border-radius: clamp(26px, 4vw, 42px);
+      box-shadow: var(--shadow);
+      padding: clamp(28px, 4vw, 46px) clamp(14px, 3vw, 32px) clamp(18px, 3vw, 30px);
+      overflow: hidden;
+      isolation: isolate;
+      display: grid;
+      align-content: center;
+    }
+
+    .book::before,
+    .book::after {
+      content: "";
+      position: absolute;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .book::before {
+      width: 100%; height: 18px; left: 0; top: 0;
+      background: linear-gradient(90deg, #ff3b30 0 16.6%, #ff961f 16.6% 33.2%, #ffd83d 33.2% 49.8%, #36b75b 49.8% 66.4%, #1976d2 66.4% 83%, #7b4cd9 83%);
+    }
+
+    .book::after {
+      width: 110px; height: 110px; right: -34px; top: 35px;
+      border-radius: 50%; background: #ffdb3f; opacity: .95;
+      box-shadow: 0 0 0 12px rgba(255,219,63,.2);
+    }
+
+    .page {
+      display: grid;
+      grid-template-columns: minmax(190px, 0.72fr) minmax(0, 1.55fr);
+      gap: clamp(24px, 5vw, 58px);
+      align-items: stretch;
+      position: relative;
+      z-index: 1;
+      border-radius: clamp(20px, 3vw, 30px);
+      padding: clamp(16px, 3vw, 30px);
+      background: linear-gradient(90deg, #fffdf0 0%, #fffdf8 49.5%, #e6d49e 50%, #fffdf8 50.5%, #fffdf0 100%);
+      box-shadow: inset 0 0 0 3px #ead995, 0 11px 0 #0e5fae;
+      animation: page-in 300ms ease both;
+    }
+
+    @keyframes page-in {
+      from { opacity: 0; transform: translateX(18px) scale(0.985); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .letter-side { text-align: center; display: grid; place-content: center; }
+
+    .count {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-weight: 850;
+      font-size: 0.95rem;
+      margin-bottom: 12px;
+    }
+
+    .count-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .letter-button {
+      width: min(265px, 100%);
+      aspect-ratio: 1;
+      margin: 0 auto;
+      border: 0;
+      border-radius: 38%;
+      color: white;
+      background: var(--accent);
+      box-shadow:
+        0 16px 0 var(--accent-dark),
+        0 24px 40px color-mix(in srgb, var(--accent), transparent 66%);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      position: relative;
+      transform: rotate(-2deg);
+      transition: transform 150ms ease, box-shadow 150ms ease;
+    }
+
+    .letter-button::after {
+      content: "🔊";
+      position: absolute;
+      right: 8%;
+      top: 8%;
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--ink);
+      background: var(--sun);
+      font-size: 1.2rem;
+      box-shadow: 0 5px 0 rgba(151, 111, 0, 0.25);
+    }
+
+    .letter-button:active {
+      transform: translateY(8px) rotate(1deg) scale(0.985);
+      box-shadow: 0 8px 0 var(--accent-dark), 0 14px 30px color-mix(in srgb, var(--accent), transparent 72%);
+    }
+
+    .big-letter {
+      font-family: "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif;
+      font-size: clamp(7rem, 18vw, 11rem);
+      line-height: 0.8;
+      letter-spacing: -0.09em;
+      text-shadow: 0 6px 0 rgba(0, 0, 0, 0.09);
+      padding-right: 0.08em;
+    }
+
+    .sound-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      margin-top: 26px;
+      padding: 9px 18px;
+      border-radius: 999px;
+      color: var(--accent-dark);
+      background: var(--soft);
+      font-size: clamp(1.25rem, 3vw, 1.6rem);
+      font-weight: 950;
+      letter-spacing: 0.02em;
+    }
+
+    .picture-side { min-width: 0; }
+
+    .prompt {
+      margin: 0 0 18px;
+      text-align: center;
+      font-size: clamp(1.1rem, 2.6vw, 1.5rem);
+      font-weight: 900;
+      color: #175fbd;
+      text-shadow: 0 2px 0 #fff;
+    }
+
+    .pictures {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: clamp(12px, 2.6vw, 20px);
+    }
+
+    .picture-card {
+      min-height: clamp(145px, 19vw, 205px);
+      border: 3px solid #ffd53d;
+      border-radius: clamp(22px, 3vw, 30px);
+      padding: 12px;
+      background: #fff4b5;
+      box-shadow: 0 10px 26px rgba(57, 41, 108, 0.1);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      gap: 3px;
+      transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+    }
+
+    .picture-card:hover { transform: translateY(-4px) rotate(-0.5deg); }
+    .picture-card:nth-child(2) { background: #dff5ff; border-color: #53bff0; }
+    .picture-card:nth-child(3) { background: #e6f8d5; border-color: #65bd4c; }
+    .picture-card:nth-child(4) { background: #ffe3eb; border-color: #f36a85; }
+    .picture-card:active { transform: scale(0.97); }
+
+    .picture-card.heard {
+      border-color: var(--accent);
+      box-shadow: 0 10px 28px color-mix(in srgb, var(--accent), transparent 76%);
+    }
+
+    .picture-emoji {
+      font-size: clamp(4rem, 9vw, 6.5rem);
+      line-height: 1;
+      filter: drop-shadow(0 7px 5px rgba(40, 26, 90, 0.12));
+      transform-origin: bottom center;
+    }
+
+    .picture-card:active .picture-emoji,
+    .picture-card.heard .picture-emoji { animation: bounce 440ms ease; }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0) scale(1); }
+      45% { transform: translateY(-14px) scale(1.08) rotate(3deg); }
+    }
+
+    .word {
+      font-size: clamp(1.05rem, 2.5vw, 1.35rem);
+      font-weight: 950;
+      letter-spacing: -0.02em;
+    }
+
+    .word .first { color: var(--accent); font-size: 1.18em; }
+
+    .page-actions {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .action-button {
+      min-height: 54px;
+      border: 0;
+      border-radius: 18px;
+      padding: 12px 18px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 950;
+      color: white;
+      background: var(--accent);
+      box-shadow: 0 6px 0 var(--accent-dark);
+      transition: transform 130ms ease, box-shadow 130ms ease;
+    }
+
+    .action-button.secondary {
+      color: var(--ink);
+      background: var(--sun);
+      box-shadow: 0 6px 0 #d5a917;
+    }
+
+    .action-button:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--accent-dark); }
+    .action-button.secondary:active { box-shadow: 0 2px 0 #d5a917; }
+
+    .bottom-nav {
+      display: grid;
+      grid-template-columns: 1fr minmax(150px, 1.2fr) 1fr;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .nav-button {
+      min-height: 56px;
+      border: 0;
+      border-radius: 19px;
+      padding: 12px 18px;
+      color: var(--ink);
+      background: white;
+      box-shadow: 0 7px 20px rgba(55, 38, 117, 0.11);
+      cursor: pointer;
+      font-weight: 950;
+      font-size: 1rem;
+      transition: transform 130ms ease;
+    }
+
+    .nav-button:active { transform: scale(0.97); }
+    .nav-button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .progress {
+      height: 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.85);
+      overflow: hidden;
+      box-shadow: inset 0 2px 6px rgba(52, 35, 111, 0.08);
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 3.846%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent), white 20%));
+      transition: width 300ms ease;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: rgba(28, 21, 57, 0.48);
+      backdrop-filter: blur(7px);
+    }
+
+    .overlay[hidden] { display: none; }
+
+    .panel {
+      width: min(680px, 100%);
+      max-height: min(760px, 90svh);
+      overflow: auto;
+      border-radius: 34px;
+      padding: clamp(22px, 5vw, 36px);
+      background: #fff;
+      box-shadow: 0 24px 80px rgba(18, 11, 49, 0.3);
+      text-align: center;
+      animation: pop 220ms ease both;
+    }
+
+    @keyframes pop {
+      from { transform: scale(0.87); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .panel h2 {
+      margin: 0 0 6px;
+      font-size: clamp(1.55rem, 5vw, 2.3rem);
+      letter-spacing: -0.04em;
+    }
+
+    .panel p { margin: 0 0 22px; color: var(--muted); font-size: 1.05rem; font-weight: 800; }
+
+    .quiz-target {
+      color: var(--accent-dark);
+      font-size: 1.2em;
+    }
+
+    .quiz-choices {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .quiz-choice {
+      min-height: 155px;
+      border: 3px solid var(--soft);
+      border-radius: 24px;
+      background: white;
+      cursor: pointer;
+      font-size: clamp(3.8rem, 12vw, 6rem);
+      transition: transform 150ms ease, background 150ms ease;
+    }
+
+    .quiz-choice:active { transform: scale(0.95); }
+    .quiz-choice.wrong { animation: shake 330ms ease; background: #fff0f2; }
+    .quiz-choice.right { animation: bounce 440ms ease; background: #e8fff6; border-color: var(--good); }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-8px) rotate(-2deg); }
+      75% { transform: translateX(8px) rotate(2deg); }
+    }
+
+    .quiz-status {
+      min-height: 44px;
+      margin-top: 18px;
+      color: var(--good);
+      font-size: 1.35rem;
+      font-weight: 950;
+    }
+
+    .close-button { margin-top: 8px; }
+
+    .alphabet-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+    }
+
+    .alphabet-letter {
+      aspect-ratio: 1;
+      border: 0;
+      border-radius: 14px;
+      color: var(--ink);
+      background: var(--soft);
+      font-size: clamp(1.1rem, 4vw, 1.45rem);
+      font-weight: 950;
+      cursor: pointer;
+    }
+
+    .alphabet-letter.current { color: white; background: var(--accent); }
+
+    .confetti {
+      position: fixed;
+      z-index: 30;
+      top: -30px;
+      width: 13px;
+      height: 20px;
+      border-radius: 4px;
+      pointer-events: none;
+      animation: fall 1100ms cubic-bezier(.19,.68,.56,1) forwards;
+    }
+
+    @keyframes fall {
+      to { transform: translate3d(var(--drift), 110vh, 0) rotate(680deg); opacity: 0.7; }
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 760px) {
+      body { background: linear-gradient(180deg, #69cff8 0, #def6ff 42%, #f8e5a2 100%); }
+      .app { gap: 13px; }
+      .brand span:last-child { display: none; }
+      .book { padding: 25px 9px 15px; border-width: 5px; }
+      .page { grid-template-columns: 1fr; gap: 20px; padding: 15px 11px 18px; background: #fffdf0; }
+      .letter-button { width: min(180px, 48vw); border-radius: 34%; box-shadow: 0 10px 0 var(--accent-dark); }
+      .letter-button::after { width: 36px; height: 36px; font-size: 1rem; }
+      .big-letter { font-size: clamp(6.4rem, 30vw, 8rem); }
+      .sound-pill { margin-top: 17px; min-height: 42px; }
+      .prompt { margin-bottom: 12px; }
+      .picture-card { min-height: 126px; padding: 8px; }
+      .picture-emoji { font-size: clamp(3.5rem, 19vw, 5rem); }
+      .page-actions { margin-top: 14px; }
+      .action-button { flex: 1; min-width: 135px; }
+      .bottom-nav { grid-template-columns: 1fr 1fr; }
+      .progress { grid-column: 1 / -1; grid-row: 1; }
+      .nav-button { grid-row: 2; }
+      .quiz-choices { grid-template-columns: repeat(3, 1fr); }
+      .quiz-choice { min-height: 115px; }
+      .alphabet-grid { grid-template-columns: repeat(6, 1fr); }
+    }
+
+    @media (max-width: 400px) {
+      .round-button { min-width: 44px; height: 44px; }
+      .picture-card { min-height: 112px; }
+      .picture-emoji { font-size: 3.3rem; }
+      .word { font-size: 1rem; }
+      .action-button { font-size: 0.92rem; padding-inline: 10px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">Aa</span><span>My Fun Phonics Book</span></div>
+      <div class="top-actions">
+        <a class="round-button" href="/" aria-label="Back to Little Learners home" style="text-decoration:none">🏠</a>
+        <button class="round-button" id="alphabetButton" type="button" aria-label="Choose a letter">🔤</button>
+        <button class="round-button" id="soundButton" type="button" aria-label="Turn sound off" aria-pressed="true">🔊</button>
+      </div>
+    </header>
+
+    <section class="book" aria-live="polite">
+      <div class="page" id="page"></div>
+    </section>
+
+    <nav class="bottom-nav" aria-label="Book pages">
+      <button class="nav-button" id="backButton" type="button">◀ Back</button>
+      <div class="progress" aria-hidden="true"><div class="progress-bar" id="progressBar"></div></div>
+      <button class="nav-button" id="nextButton" type="button">Next ▶</button>
+    </nav>
+  </main>
+
+  <div class="overlay" id="quizOverlay" hidden>
+    <section class="panel" role="dialog" aria-modal="true" aria-labelledby="quizTitle">
+      <h2 id="quizTitle"></h2>
+      <p>Tap the right picture.</p>
+      <div class="quiz-choices" id="quizChoices"></div>
+      <div class="quiz-status" id="quizStatus" aria-live="assertive"></div>
+      <button class="action-button close-button" id="quizClose" type="button">Back to my book</button>
+    </section>
+  </div>
+
+  <div class="overlay" id="alphabetOverlay" hidden>
+    <section class="panel" role="dialog" aria-modal="true" aria-labelledby="alphabetTitle">
+      <h2 id="alphabetTitle">Pick a letter</h2>
+      <p>Where shall we go?</p>
+      <div class="alphabet-grid" id="alphabetGrid"></div>
+      <button class="action-button close-button" id="alphabetClose" type="button">Close</button>
+    </section>
+  </div>
+
+  <div class="sr-only" id="announcement" aria-live="assertive"></div>
+
+  <script src="/assets/audio-player.js"></script>
+  <script src="/assets/site-shell.js"></script>
+  <script>
+    const letters = [
+      { l: "A", sound: "ah", display: "a a a", colour: "#f05d78", dark: "#c83856", soft: "#ffe4ea", items: [["🍎","apple"],["🐜","ant"],["🐊","alligator"],["🪓","axe"]] },
+      { l: "B", sound: "buh", display: "b b b", colour: "#4c78ea", dark: "#3154b9", soft: "#e3ebff", items: [["⚽","ball"],["🐻","bear"],["🍌","banana"],["🦋","butterfly"]] },
+      { l: "C", sound: "kuh", display: "c c c", colour: "#13a884", dark: "#08795e", soft: "#dcfff5", items: [["🐈","cat"],["🚗","car"],["🥤","cup"],["🦀","crab"]] },
+      { l: "D", sound: "duh", display: "d d d", colour: "#f08a24", dark: "#bd5d09", soft: "#fff0dc", items: [["🐕","dog"],["🦆","duck"],["🥁","drum"],["🦕","dinosaur"]] },
+      { l: "E", sound: "eh", display: "e e e", colour: "#8b5cf6", dark: "#6534c9", soft: "#eee6ff", items: [["🥚","egg"],["🐘","elephant"],["💪","elbow"],["✉️","envelope"]] },
+      { l: "F", sound: "ffff", display: "ffff", colour: "#e65193", dark: "#ad2967", soft: "#ffe5f1", items: [["🐟","fish"],["🐸","frog"],["🦊","fox"],["🌸","flower"]] },
+      { l: "G", sound: "guh", display: "g g g", colour: "#37a64a", dark: "#227532", soft: "#e2f9e6", items: [["🐐","goat"],["🍇","grapes"],["🎁","gift"],["🪿","goose"]] },
+      { l: "H", sound: "huh", display: "h h h", colour: "#ec6b39", dark: "#b5441e", soft: "#ffeadf", items: [["🎩","hat"],["🐔","hen"],["🦛","hippo"],["🏠","house"]] },
+      { l: "I", sound: "ih", display: "i i i", colour: "#00a6c8", dark: "#00758f", soft: "#daf8ff", items: [["🧊","ice"],["🦟","insect"],["🖋️","ink"],["🦎","iguana"]] },
+      { l: "J", sound: "juh", display: "j j j", colour: "#e04b48", dark: "#ad2b29", soft: "#ffe5e4", items: [["🍓","jam"],["✈️","jet"],["🫙","jar"],["🪼","jellyfish"]] },
+      { l: "K", sound: "kuh", display: "k k k", colour: "#6956d9", dark: "#4634a9", soft: "#ebe8ff", items: [["🪁","kite"],["👑","king"],["🐈","kitten"],["🐨","koala"]] },
+      { l: "L", sound: "llll", display: "llll", colour: "#e8a31b", dark: "#ae7300", soft: "#fff3d6", items: [["🦁","lion"],["🍃","leaf"],["💡","lamp"],["🍋","lemon"]] },
+      { l: "M", sound: "mmmm", display: "mmmm", colour: "#c34caf", dark: "#90307f", soft: "#fbe1f7", items: [["🌙","moon"],["🐭","mouse"],["🥛","milk"],["🐒","monkey"]] },
+      { l: "N", sound: "nnnn", display: "nnnn", colour: "#1b9c79", dark: "#0f7056", soft: "#dff9f1", items: [["🪺","nest"],["🥅","net"],["👃","nose"],["🥜","nut"]] },
+      { l: "O", sound: "aw", display: "o o o", colour: "#ff7a45", dark: "#c64b1c", soft: "#ffe9df", items: [["🐙","octopus"],["🍊","orange"],["🐂","ox"],["🦩","ostrich"]] },
+      { l: "P", sound: "puh", display: "p p p", colour: "#ee527f", dark: "#b82c56", soft: "#ffe2eb", items: [["🐖","pig"],["🖊️","pen"],["🍕","pizza"],["🐼","panda"]] },
+      { l: "Q", sound: "kwuh", display: "qu qu qu", colour: "#7952c9", dark: "#51318f", soft: "#eee5ff", items: [["👸","queen"],["🪶","quill"],["🧵","quilt"],["❓","question"]] },
+      { l: "R", sound: "rrrr", display: "rrrr", colour: "#df4a3f", dark: "#a92b24", soft: "#ffe4e1", items: [["🐇","rabbit"],["🌧️","rain"],["🤖","robot"],["🚀","rocket"]] },
+      { l: "S", sound: "ssss", display: "ssss", colour: "#f2b51d", dark: "#b47c00", soft: "#fff4d5", items: [["☀️","sun"],["🧦","sock"],["🐍","snake"],["⭐","star"]] },
+      { l: "T", sound: "tuh", display: "t t t", colour: "#2c9ed9", dark: "#1571a4", soft: "#dff5ff", items: [["🐯","tiger"],["🌳","tree"],["🚂","train"],["🐢","turtle"]] },
+      { l: "U", sound: "uh", display: "u u u", colour: "#9b58d3", dark: "#6d359c", soft: "#f2e4ff", items: [["☂️","umbrella"],["⬆️","up"],["👨","uncle"],["⬇️","under"]] },
+      { l: "V", sound: "vvvv", display: "vvvv", colour: "#d84e82", dark: "#9f2857", soft: "#ffe5ef", items: [["🚐","van"],["🏺","vase"],["🎻","violin"],["🌋","volcano"]] },
+      { l: "W", sound: "wuh", display: "w w w", colour: "#237ebf", dark: "#155689", soft: "#e1f2ff", items: [["🐋","whale"],["🕸️","web"],["⌚","watch"],["🍉","watermelon"]] },
+      { l: "X", sound: "ks", display: "ks ks ks", colour: "#5365d8", dark: "#3545a4", soft: "#e6e9ff", items: [["📦","box"],["🦊","fox"],["6️⃣","six"],["🪓","axe"]] },
+      { l: "Y", sound: "yuh", display: "y y y", colour: "#df941a", dark: "#a66500", soft: "#fff0d3", items: [["🐂","yak"],["🧶","yarn"],["💛","yellow"],["🪀","yo-yo"]] },
+      { l: "Z", sound: "zzzz", display: "zzzz", colour: "#41a95a", dark: "#25783a", soft: "#e1f8e6", items: [["🦓","zebra"],["🤐","zip"],["0️⃣","zero"],["🦁","zoo"]] }
+    ];
+
+    const page = document.getElementById("page");
+    const backButton = document.getElementById("backButton");
+    const nextButton = document.getElementById("nextButton");
+    const progressBar = document.getElementById("progressBar");
+    const soundButton = document.getElementById("soundButton");
+    const alphabetButton = document.getElementById("alphabetButton");
+    const quizOverlay = document.getElementById("quizOverlay");
+    const quizTitle = document.getElementById("quizTitle");
+    const quizChoices = document.getElementById("quizChoices");
+    const quizStatus = document.getElementById("quizStatus");
+    const quizClose = document.getElementById("quizClose");
+    const alphabetOverlay = document.getElementById("alphabetOverlay");
+    const alphabetGrid = document.getElementById("alphabetGrid");
+    const alphabetClose = document.getElementById("alphabetClose");
+    const announcement = document.getElementById("announcement");
+
+    let current = 0;
+    let soundOn = true;
+    let touchStartX = 0;
+    let quizAnswer = "";
+
+    function escapeText(value) {
+      return String(value).replace(/[&<>"]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[character]);
+    }
+
+    function stopSpeech() {
+      window.SiteAudio.stop();
+    }
+
+    function audioSlug(value) {
+      return String(value).toLowerCase().replace(/\s+/g, "-");
+    }
+
+    function playClip(source) {
+      if (!soundOn) return;
+      window.SiteAudio.play(source);
+    }
+
+    function playLetterSound(letter) {
+      playClip(`/audio/phonics/${letter.toLowerCase()}.mp3`);
+    }
+
+    function playWord(word) {
+      playClip(`/audio/words/${audioSlug(word)}.mp3`);
+    }
+
+    function playPage(letter) {
+      playClip(`/audio/pages/${letter.toLowerCase()}.mp3`);
+    }
+
+    function playFindPrompt(word) {
+      playClip(`/audio/find/${audioSlug(word)}.mp3`);
+    }
+
+    function playSuccess(letter, word) {
+      playClip(`/audio/success/${letter.toLowerCase()}-${audioSlug(word)}.mp3`);
+    }
+
+    function playDing() {
+      if (!soundOn) return;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      const context = new AudioContextClass();
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(0.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.22, context.currentTime + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.6);
+      gain.connect(context.destination);
+      [659.25, 987.77].forEach((frequency, position) => {
+        const oscillator = context.createOscillator();
+        oscillator.type = "sine";
+        oscillator.frequency.value = frequency;
+        oscillator.connect(gain);
+        oscillator.start(context.currentTime + position * 0.1);
+        oscillator.stop(context.currentTime + 0.62);
+      });
+    }
+
+    function highlightedWord(word, letter) {
+      const lower = word.toLowerCase();
+      const target = letter.toLowerCase();
+      const position = lower.indexOf(target);
+      if (position < 0) return escapeText(word);
+      return `${escapeText(word.slice(0, position))}<span class="first">${escapeText(word[position])}</span>${escapeText(word.slice(position + 1))}`;
+    }
+
+    function setTheme(item) {
+      const root = document.documentElement.style;
+      root.setProperty("--accent", item.colour);
+      root.setProperty("--accent-dark", item.dark);
+      root.setProperty("--soft", item.soft);
+      root.setProperty("--page", item.soft);
+      document.querySelector('meta[name="theme-color"]').setAttribute("content", item.colour);
+    }
+
+    function render() {
+      const item = letters[current];
+      setTheme(item);
+      page.style.animation = "none";
+      page.offsetHeight;
+      page.style.animation = "";
+      page.innerHTML = `
+        <section class="letter-side">
+          <div class="count"><span class="count-dot"></span>${current + 1} of ${letters.length}</div>
+          <button class="letter-button" id="letterButton" type="button" aria-label="Hear the sound for ${item.l}">
+            <span class="big-letter">${item.l}</span>
+          </button>
+          <div class="sound-pill" aria-hidden="true">${item.display}</div>
+        </section>
+        <section class="picture-side">
+          <h1 class="prompt">Tap a picture and listen!</h1>
+          <div class="pictures">
+            ${item.items.map(([emoji, word], index) => `
+              <button class="picture-card" type="button" data-index="${index}" aria-label="Hear ${word}">
+                <span class="picture-emoji" aria-hidden="true">${emoji}</span>
+                <span class="word">${highlightedWord(word, item.l)}</span>
+              </button>
+            `).join("")}
+          </div>
+          <div class="page-actions">
+            <button class="action-button" id="readButton" type="button">🔊 Read this page</button>
+            <button class="action-button secondary" id="gameButton" type="button">🎯 Find the picture</button>
+          </div>
+        </section>
+      `;
+      document.getElementById("letterButton").addEventListener("click", () => playLetterSound(item.l));
+      document.getElementById("readButton").addEventListener("click", () => playPage(item.l));
+      document.getElementById("gameButton").addEventListener("click", openQuiz);
+      page.querySelectorAll(".picture-card").forEach(card => {
+        card.addEventListener("click", () => {
+          const chosen = item.items[Number(card.dataset.index)][1];
+          page.querySelectorAll(".picture-card").forEach(other => other.classList.remove("heard"));
+          card.classList.add("heard");
+          playWord(chosen);
+        });
+      });
+      backButton.disabled = current === 0;
+      nextButton.textContent = current === letters.length - 1 ? "Start again ↻" : "Next ▶";
+      progressBar.style.width = `${((current + 1) / letters.length) * 100}%`;
+      announcement.textContent = `Letter ${item.l}. Page ${current + 1} of ${letters.length}.`;
+      window.SiteAudio.preload([
+        `/audio/phonics/${item.l.toLowerCase()}.mp3`,
+        `/audio/pages/${item.l.toLowerCase()}.mp3`,
+        ...item.items.map(entry => `/audio/words/${audioSlug(entry[1])}.mp3`)
+      ]);
+      renderAlphabet();
+    }
+
+    function goTo(index) {
+      stopSpeech();
+      current = (index + letters.length) % letters.length;
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function shuffle(array) {
+      return [...array].sort(() => Math.random() - 0.5);
+    }
+
+    function openQuiz() {
+      const item = letters[current];
+      const answerIndex = Math.floor(Math.random() * item.items.length);
+      const answer = item.items[answerIndex];
+      const others = letters
+        .filter((_, index) => index !== current)
+        .flatMap(letter => letter.items)
+        .filter(entry => entry[1] !== answer[1]);
+      const choices = shuffle([answer, ...shuffle(others).slice(0, 2)]);
+      quizAnswer = answer[1];
+      quizTitle.innerHTML = `Can you find the <span class="quiz-target">${escapeText(answer[1])}</span>?`;
+      quizChoices.innerHTML = choices.map(([emoji, word]) => `<button class="quiz-choice" type="button" data-word="${escapeText(word)}" aria-label="${escapeText(word)}">${emoji}</button>`).join("");
+      quizStatus.textContent = "";
+      quizOverlay.hidden = false;
+      quizChoices.querySelector("button")?.focus();
+      playFindPrompt(answer[1]);
+      quizChoices.querySelectorAll("button").forEach(button => button.addEventListener("click", checkQuiz));
+    }
+
+    function checkQuiz(event) {
+      const button = event.currentTarget;
+      if (button.dataset.word === quizAnswer) {
+        quizChoices.querySelectorAll("button").forEach(choice => choice.disabled = true);
+        button.classList.add("right");
+        quizStatus.textContent = `Yes! ${quizAnswer}! ⭐`;
+        playDing();
+        makeConfetti();
+        playSuccess(letters[current].l, quizAnswer);
+        completePhonicsLetter(letters[current].l);
+      } else {
+        button.classList.remove("wrong");
+        button.offsetHeight;
+        button.classList.add("wrong");
+        quizStatus.textContent = "Try another one!";
+        playClip("/audio/ui/try-another-one.mp3");
+      }
+    }
+
+    async function completePhonicsLetter(letter) {
+      try {
+        await window.ProfileShell.ready;
+        const response = await fetch("/api/progress/complete", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ activity: "phonics", item: letter })
+        });
+        const progress = await response.json();
+        if (!response.ok) throw new Error(progress.error || "Progress could not be saved.");
+        if (progress.parent_preview) return;
+        if (progress.exercise_completed) {
+          quizStatus.textContent = "You completed A to Z! Choose your sticker! 🌟";
+          await window.ProfileShell.claimReward(progress.reward_token);
+        } else if (progress.new_item) {
+          quizStatus.textContent = `Yes! ${progress.count} of ${progress.total} letters completed. ⭐`;
+        } else {
+          quizStatus.textContent = `You already completed ${letter}. ${progress.count} of ${progress.total} finished. ⭐`;
+        }
+      } catch (error) {
+        console.warn("Phonics progress could not be saved:", error);
+      }
+    }
+
+    function makeConfetti() {
+      const colours = ["#f05d78", "#ffd34d", "#4c78ea", "#13a884", "#8b5cf6"];
+      for (let index = 0; index < 30; index += 1) {
+        const piece = document.createElement("i");
+        piece.className = "confetti";
+        piece.style.left = `${Math.random() * 100}vw`;
+        piece.style.background = colours[index % colours.length];
+        piece.style.setProperty("--drift", `${Math.random() * 180 - 90}px`);
+        piece.style.animationDelay = `${Math.random() * 220}ms`;
+        document.body.appendChild(piece);
+        setTimeout(() => piece.remove(), 1500);
+      }
+    }
+
+    function renderAlphabet() {
+      alphabetGrid.innerHTML = letters.map((item, index) => `
+        <button class="alphabet-letter${index === current ? " current" : ""}" type="button" data-index="${index}" aria-label="Go to ${item.l}">${item.l}</button>
+      `).join("");
+      alphabetGrid.querySelectorAll("button").forEach(button => button.addEventListener("click", () => {
+        alphabetOverlay.hidden = true;
+        goTo(Number(button.dataset.index));
+      }));
+    }
+
+    backButton.addEventListener("click", () => goTo(current - 1));
+    nextButton.addEventListener("click", () => goTo(current === letters.length - 1 ? 0 : current + 1));
+
+    soundButton.addEventListener("click", () => {
+      soundOn = !soundOn;
+      if (!soundOn) stopSpeech();
+      soundButton.textContent = soundOn ? "🔊" : "🔇";
+      soundButton.setAttribute("aria-label", soundOn ? "Turn sound off" : "Turn sound on");
+      soundButton.setAttribute("aria-pressed", String(soundOn));
+      if (soundOn) playClip("/audio/ui/sound-on.mp3");
+    });
+
+    alphabetButton.addEventListener("click", () => {
+      alphabetOverlay.hidden = false;
+      renderAlphabet();
+      alphabetGrid.querySelector(".current")?.focus();
+    });
+
+    quizClose.addEventListener("click", () => {
+      quizOverlay.hidden = true;
+      document.getElementById("gameButton")?.focus();
+    });
+
+    alphabetClose.addEventListener("click", () => {
+      alphabetOverlay.hidden = true;
+      alphabetButton.focus();
+    });
+
+    [quizOverlay, alphabetOverlay].forEach(overlay => overlay.addEventListener("click", event => {
+      if (event.target === overlay) overlay.hidden = true;
+    }));
+
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape") {
+        quizOverlay.hidden = true;
+        alphabetOverlay.hidden = true;
+      }
+      if (!quizOverlay.hidden || !alphabetOverlay.hidden) return;
+      if (event.key === "ArrowLeft" && current > 0) goTo(current - 1);
+      if (event.key === "ArrowRight") goTo(current === letters.length - 1 ? 0 : current + 1);
+    });
+
+    page.addEventListener("touchstart", event => { touchStartX = event.changedTouches[0].clientX; }, { passive: true });
+    page.addEventListener("touchend", event => {
+      const distance = event.changedTouches[0].clientX - touchStartX;
+      if (Math.abs(distance) < 70) return;
+      if (distance > 0 && current > 0) goTo(current - 1);
+      if (distance < 0) goTo(current === letters.length - 1 ? 0 : current + 1);
+    }, { passive: true });
+
+    render();
+  </script>
+</body>
+</html>

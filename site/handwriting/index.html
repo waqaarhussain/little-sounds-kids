@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f05d78">
+  <title>Fun Tracing</title>
+  <link rel="stylesheet" href="/assets/site-shell.css">
+  <style>
+    :root { color-scheme:light; --ink:#29395b; --pink:#f05d78; --pink-dark:#c83856; --blue:#4c78ea; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-width:320px; min-height:100svh; color:var(--ink); font-family:ui-rounded,"Arial Rounded MT Bold",system-ui,sans-serif; background:radial-gradient(circle at 10% 10%,#fff 0 4rem,transparent 4.1rem),linear-gradient(150deg,#60cdf7,#e8f9ff 52%,#ffe88e); -webkit-tap-highlight-color:transparent; }
+    button { font:inherit; }
+    .shell { width:min(1180px,100%); margin:auto; padding:max(82px,calc(env(safe-area-inset-top) + 72px)) clamp(12px,3vw,38px) max(28px,env(safe-area-inset-bottom)); }
+    .top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+    .back { padding:12px 18px; border-radius:999px; color:#28405f; background:#fff; box-shadow:0 5px 0 #bed3ed; text-decoration:none; font-weight:950; }
+    h1 { flex:1; margin:0; color:#fff; font-size:clamp(2rem,6vw,4rem); text-shadow:0 5px 0 #287db1; text-align:center; }
+    .tabs { display:flex; justify-content:center; flex-wrap:wrap; gap:10px; margin:0 auto 18px; }
+    .tab { border:4px solid #fff; border-radius:999px; padding:11px 19px; color:#30415f; background:#e9f2ff; box-shadow:0 5px 0 #b9cdeb; font-weight:1000; }
+    .tab.current { color:#fff; background:var(--pink); box-shadow:0 5px 0 var(--pink-dark); }
+    .progress { width:min(670px,100%); margin:0 auto 17px; padding:11px 15px; border:4px solid #fff; border-radius:18px; background:rgba(255,255,255,.84); text-align:center; font-weight:950; }
+    .progress-bar { height:11px; margin-top:7px; overflow:hidden; border-radius:99px; background:#dce8f6; }
+    .progress-fill { width:0; height:100%; border-radius:inherit; background:linear-gradient(90deg,#12ad83,#70d94f); transition:width .25s; }
+    .workspace { display:grid; grid-template-columns:minmax(245px,.46fr) minmax(300px,1fr); gap:20px; align-items:start; }
+    .choices { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; max-height:660px; overflow:auto; padding:14px; border:6px solid #fff; border-radius:26px; background:rgba(255,255,255,.76); box-shadow:0 11px 0 rgba(40,102,149,.2); }
+    .choice { position:relative; min-height:51px; border:0; border-radius:15px; color:#fff; background:#6e59df; box-shadow:0 4px 0 #4a36ad; font-weight:1000; font-size:clamp(1rem,3vw,1.42rem); }
+    .choice.current { background:var(--pink); box-shadow:0 4px 0 var(--pink-dark); transform:translateY(-2px); }
+    .choice.done::after { content:"✓"; position:absolute; top:-5px; right:-4px; display:grid; place-items:center; width:20px; height:20px; border:2px solid #fff; border-radius:50%; color:#fff; background:#10a87e; font-size:.72rem; }
+    .choice.shape { min-height:58px; font-size:.78rem; line-height:1.05; }
+    .board-card { padding:clamp(11px,3vw,22px); border:7px solid #fff; border-radius:31px; background:rgba(255,255,255,.92); box-shadow:0 13px 0 rgba(40,102,149,.22); }
+    .prompt { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:11px; font-size:clamp(1.03rem,3vw,1.35rem); font-weight:950; }
+    .sound-item { flex:0 0 50px; width:50px; aspect-ratio:1; border:0; border-radius:50%; color:#fff; background:var(--pink); box-shadow:0 5px 0 var(--pink-dark); font-size:1.4rem; }
+    .board { position:relative; width:100%; aspect-ratio:1.16; overflow:hidden; border:5px solid #dce9f7; border-radius:24px; background:repeating-linear-gradient(0deg,#fff 0 54px,#edf5ff 55px,#fff 56px); touch-action:none; }
+    .board canvas { position:absolute; inset:0; width:100%; height:100%; }
+    #drawCanvas { cursor:crosshair; }
+    .actions { display:flex; justify-content:center; flex-wrap:wrap; gap:11px; margin-top:14px; }
+    .action { border:0; border-radius:999px; padding:13px 21px; color:#fff; background:var(--pink); box-shadow:0 6px 0 var(--pink-dark); font-weight:950; }
+    .action.secondary { color:#30415f; background:#e3efff; box-shadow:0 6px 0 #bed1ef; }
+    .message { min-height:1.5em; margin:13px 0 0; text-align:center; font-size:1.1rem; font-weight:950; }
+    .hint { margin:4px 0 0; color:#60708b; text-align:center; font-size:.88rem; font-weight:800; }
+    @media(max-width:790px){
+      .workspace{grid-template-columns:1fr}.choices{grid-template-columns:repeat(9,1fr);order:2;max-height:none}.board-card{order:1}.choice{border-radius:10px;min-height:43px}.choice.shape{font-size:.68rem}.top{align-items:flex-start}.top h1{font-size:clamp(1.8rem,7vw,3rem)}
+    }
+    @media(max-width:520px){.choices{grid-template-columns:repeat(6,1fr)}.board-card{padding:9px;border-width:5px}.board{border-width:4px;aspect-ratio:1}.tab{padding:9px 13px}.back{padding:10px 13px}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="top"><a class="back" href="/">◀ Home</a><h1>✏️ Fun Tracing</h1><span></span></div>
+    <nav class="tabs" aria-label="Tracing exercise">
+      <button class="tab current" type="button" data-mode="letters">ABC Letters</button>
+      <button class="tab" type="button" data-mode="numbers">123 Numbers</button>
+      <button class="tab" type="button" data-mode="shapes">♡ Shapes</button>
+    </nav>
+    <div class="progress"><span id="progressText">Loading progress…</span><div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div></div>
+    <section class="workspace">
+      <div class="choices" id="choiceGrid" aria-label="Choose something to trace"></div>
+      <div class="board-card">
+        <div class="prompt"><span>Trace over the dotted <strong id="itemName">A</strong></span><button class="sound-item" id="soundItem" type="button" aria-label="Hear this item">🔊</button></div>
+        <div class="board" id="board"><canvas id="guideCanvas"></canvas><canvas id="drawCanvas"></canvas></div>
+        <div class="actions"><button class="action secondary" id="clearButton" type="button">↻ Try again</button><button class="action" id="finishButton" type="button">✓ I finished this one!</button></div>
+        <p class="message" id="message" aria-live="polite"></p>
+        <p class="hint">Follow the dots with your finger, Apple Pencil or mouse.</p>
+      </div>
+    </section>
+  </main>
+  <script src="/assets/audio-player.js"></script>
+  <script src="/assets/site-shell.js"></script>
+  <script>
+    const sets = {
+      letters: "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map(value => ({id:value, label:value})),
+      numbers: "123456789".split("").map(value => ({id:value, label:value})),
+      shapes: ["circle","square","triangle","diamond","pentagon","heart","star","hexagon","oval"].map(value => ({id:value, label:value[0].toUpperCase()+value.slice(1)}))
+    };
+    const colours = ["#f05d78","#4c78ea","#13a884","#f08a24","#8b5cf6"];
+    const guide = document.getElementById("guideCanvas");
+    const drawing = document.getElementById("drawCanvas");
+    const board = document.getElementById("board");
+    const guideContext = guide.getContext("2d");
+    const drawingContext = drawing.getContext("2d");
+    let mode = "letters";
+    let selected = sets.letters[0];
+    let completed = new Set();
+    let active = false;
+    let lastPoint = null;
+    let inkDistance = 0;
+
+    const safeSlug = value => value.toLowerCase().replace(/[^a-z0-9]+/g,"-");
+    const activityForMode = value => value;
+
+    function renderChoices() {
+      const shapeClass = mode === "shapes" ? " shape" : "";
+      document.getElementById("choiceGrid").innerHTML = sets[mode].map(item => `<button class="choice${shapeClass}${item.id===selected.id?" current":""}${completed.has(item.id)?" done":""}" type="button" data-id="${item.id}">${item.label}</button>`).join("");
+      document.querySelectorAll(".choice").forEach(button => button.addEventListener("click", () => selectItem(button.dataset.id, true)));
+    }
+
+    function updateProgress() {
+      const total = sets[mode].length;
+      document.getElementById("progressText").textContent = `${completed.size} of ${total} completed in ${mode}. Finish the full set to earn one sticker!`;
+      document.getElementById("progressFill").style.width = `${Math.min(100, completed.size / total * 100)}%`;
+    }
+
+    async function loadProgress() {
+      completed = new Set();
+      try {
+        await window.ProfileShell.ready;
+        const response = await fetch(`/api/progress?activity=${encodeURIComponent(activityForMode(mode))}`, {credentials:"same-origin"});
+        if (response.ok) {
+          const data = await response.json();
+          completed = new Set(data.completed_items || []);
+        }
+      } catch (error) {}
+      renderChoices();
+      updateProgress();
+    }
+
+    function selectItem(id, playSound) {
+      selected = sets[mode].find(item => item.id === id) || sets[mode][0];
+      document.getElementById("itemName").textContent = selected.label;
+      document.getElementById("message").textContent = "";
+      clearDrawing();
+      renderChoices();
+      drawGuide(board.clientWidth, board.clientHeight);
+      if (playSound) playItemSound();
+    }
+
+    function resizeCanvas() {
+      const rect = board.getBoundingClientRect();
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      [guide,drawing].forEach(canvas => { canvas.width=Math.round(rect.width*ratio); canvas.height=Math.round(rect.height*ratio); });
+      guideContext.setTransform(ratio,0,0,ratio,0,0);
+      drawingContext.setTransform(ratio,0,0,ratio,0,0);
+      drawGuide(rect.width,rect.height);
+      setupPen();
+    }
+
+    function dottedStroke(draw, width) {
+      guideContext.save();
+      guideContext.lineWidth=Math.max(5,width*.012);
+      guideContext.strokeStyle="#69778e";
+      guideContext.lineCap="round";
+      guideContext.lineJoin="round";
+      guideContext.setLineDash([2,11]);
+      draw();
+      guideContext.stroke();
+      guideContext.restore();
+    }
+
+    function shapePath(name,width,height) {
+      const cx=width/2, cy=height/2, rx=width*.31, ry=height*.34;
+      guideContext.beginPath();
+      if (name === "circle") guideContext.arc(cx,cy,Math.min(rx,ry),0,Math.PI*2);
+      else if (name === "oval") guideContext.ellipse(cx,cy,rx*.76,ry,0,0,Math.PI*2);
+      else if (name === "square") guideContext.rect(cx-rx*.78,cy-rx*.78,rx*1.56,rx*1.56);
+      else {
+        let points=[];
+        if(name==="triangle") points=[[cx,cy-ry],[cx+rx,cy+ry*.78],[cx-rx,cy+ry*.78]];
+        if(name==="diamond") points=[[cx,cy-ry],[cx+rx*.86,cy],[cx,cy+ry],[cx-rx*.86,cy]];
+        if(name==="pentagon"||name==="hexagon"||name==="star") {
+          const count=name==="pentagon"?5:name==="hexagon"?6:10;
+          for(let i=0;i<count;i++){const radius=name==="star"&&(i%2)?rx*.46:Math.min(rx,ry);const angle=-Math.PI/2+i*Math.PI*2/count;points.push([cx+Math.cos(angle)*radius,cy+Math.sin(angle)*radius]);}
+        }
+        if(name==="heart") {
+          guideContext.moveTo(cx,cy+ry*.82);
+          guideContext.bezierCurveTo(cx-rx*1.18,cy+ry*.12,cx-rx*.9,cy-ry*.85,cx,cy-ry*.3);
+          guideContext.bezierCurveTo(cx+rx*.9,cy-ry*.85,cx+rx*1.18,cy+ry*.12,cx,cy+ry*.82);
+          guideContext.closePath(); return;
+        }
+        if(points.length){guideContext.moveTo(points[0][0],points[0][1]);points.slice(1).forEach(p=>guideContext.lineTo(p[0],p[1]));guideContext.closePath();}
+      }
+    }
+
+    function numberPath(number,width,height) {
+      const p=new Path2D(), x=value=>value*width, y=value=>value*height;
+      if(number==="1"){p.moveTo(x(.37),y(.3));p.lineTo(x(.5),y(.17));p.lineTo(x(.5),y(.76));p.moveTo(x(.35),y(.76));p.lineTo(x(.66),y(.76));}
+      if(number==="2"){p.moveTo(x(.3),y(.3));p.bezierCurveTo(x(.34),y(.12),x(.69),y(.12),x(.7),y(.31));p.bezierCurveTo(x(.7),y(.43),x(.48),y(.56),x(.3),y(.76));p.lineTo(x(.72),y(.76));}
+      if(number==="3"){p.moveTo(x(.31),y(.23));p.bezierCurveTo(x(.48),y(.12),x(.7),y(.17),x(.67),y(.35));p.bezierCurveTo(x(.65),y(.45),x(.54),y(.47),x(.45),y(.47));p.bezierCurveTo(x(.58),y(.46),x(.72),y(.52),x(.69),y(.67));p.bezierCurveTo(x(.66),y(.85),x(.4),y(.84),x(.29),y(.73));}
+      if(number==="4"){p.moveTo(x(.61),y(.78));p.lineTo(x(.61),y(.17));p.lineTo(x(.29),y(.58));p.lineTo(x(.72),y(.58));}
+      if(number==="5"){p.moveTo(x(.69),y(.19));p.lineTo(x(.36),y(.19));p.lineTo(x(.33),y(.47));p.bezierCurveTo(x(.51),y(.4),x(.71),y(.45),x(.7),y(.64));p.bezierCurveTo(x(.69),y(.82),x(.41),y(.85),x(.28),y(.71));}
+      if(number==="6"){p.moveTo(x(.65),y(.22));p.bezierCurveTo(x(.39),y(.13),x(.27),y(.42),x(.31),y(.64));p.bezierCurveTo(x(.35),y(.86),x(.68),y(.83),x(.69),y(.62));p.bezierCurveTo(x(.7),y(.43),x(.4),y(.4),x(.31),y(.61));}
+      if(number==="7"){p.moveTo(x(.28),y(.2));p.lineTo(x(.72),y(.2));p.lineTo(x(.42),y(.79));}
+      if(number==="8"){p.moveTo(x(.5),y(.47));p.bezierCurveTo(x(.23),y(.38),x(.31),y(.14),x(.5),y(.15));p.bezierCurveTo(x(.71),y(.15),x(.77),y(.38),x(.5),y(.47));p.bezierCurveTo(x(.2),y(.56),x(.29),y(.83),x(.5),y(.83));p.bezierCurveTo(x(.72),y(.83),x(.79),y(.56),x(.5),y(.47));}
+      if(number==="9"){p.moveTo(x(.69),y(.39));p.bezierCurveTo(x(.6),y(.61),x(.3),y(.57),x(.31),y(.36));p.bezierCurveTo(x(.32),y(.14),x(.65),y(.13),x(.69),y(.35));p.bezierCurveTo(x(.73),y(.58),x(.61),y(.84),x(.35),y(.78));}
+      return p;
+    }
+
+    function drawGuide(width,height) {
+      guideContext.clearRect(0,0,width,height);
+      if(mode === "shapes") {
+        dottedStroke(()=>shapePath(selected.id,width,height),width);
+        guideContext.fillStyle="#4d5f7b"; guideContext.font=`900 ${Math.max(18,width*.046)}px Arial`; guideContext.textAlign="center"; guideContext.fillText(selected.label,width/2,height*.92);
+        return;
+      }
+      if(mode === "numbers") {
+        const path=numberPath(selected.id,width,height);
+        guideContext.save();
+        guideContext.lineCap="round";guideContext.lineJoin="round";
+        guideContext.lineWidth=Math.max(44,width*.13);guideContext.strokeStyle="#46536a";guideContext.stroke(path);
+        guideContext.lineWidth=Math.max(36,width*.105);guideContext.strokeStyle="#fff";guideContext.stroke(path);
+        guideContext.lineWidth=Math.max(4,width*.012);guideContext.strokeStyle="#68758a";guideContext.setLineDash([3,11]);guideContext.stroke(path);
+        guideContext.restore();
+        guideContext.fillStyle="#354762";guideContext.font=`1000 ${Math.max(19,width*.048)}px Arial`;guideContext.textAlign="left";guideContext.textBaseline="top";guideContext.fillText("1  ➜",width*.1,height*.08);
+        return;
+      }
+      const size=Math.min(width*(mode==="numbers"?.58:.7),height*.78);
+      guideContext.font=`1000 ${size}px Arial Rounded MT Bold, Arial, sans-serif`;
+      guideContext.textAlign="center"; guideContext.textBaseline="middle";
+      dottedStroke(()=>guideContext.strokeText(selected.label,width/2,height/2+size*.035),width);
+      guideContext.save(); guideContext.setLineDash([]); guideContext.fillStyle="#354762"; guideContext.font=`1000 ${Math.max(19,width*.048)}px Arial`; guideContext.textAlign="left"; guideContext.textBaseline="top"; guideContext.fillText("1  ➜",width*.1,height*.1); guideContext.restore();
+    }
+
+    function setupPen() {
+      drawingContext.lineWidth=Math.max(13,board.clientWidth*.037);
+      drawingContext.lineCap="round"; drawingContext.lineJoin="round";
+      drawingContext.strokeStyle=colours[sets[mode].findIndex(item=>item.id===selected.id)%colours.length];
+    }
+
+    function point(event) { const rect=drawing.getBoundingClientRect(); return {x:event.clientX-rect.left,y:event.clientY-rect.top}; }
+    drawing.addEventListener("pointerdown",event=>{active=true;lastPoint=point(event);drawing.setPointerCapture(event.pointerId);});
+    drawing.addEventListener("pointermove",event=>{if(!active)return;const next=point(event);inkDistance+=Math.hypot(next.x-lastPoint.x,next.y-lastPoint.y);drawingContext.beginPath();drawingContext.moveTo(lastPoint.x,lastPoint.y);drawingContext.lineTo(next.x,next.y);drawingContext.stroke();lastPoint=next;});
+    drawing.addEventListener("pointerup",()=>{active=false;lastPoint=null;});
+    drawing.addEventListener("pointercancel",()=>{active=false;lastPoint=null;});
+
+    function clearDrawing() { drawingContext.clearRect(0,0,drawing.width,drawing.height); inkDistance=0; document.getElementById("message").textContent=""; setupPen(); }
+    function playItemSound() {
+      const path=mode==="letters"?`/audio/phonics/${selected.id.toLowerCase()}.mp3`:`/audio/tracing/${safeSlug(selected.id)}.mp3`;
+      window.SiteAudio.play(path);
+    }
+
+    async function finishItem() {
+      const message=document.getElementById("message");
+      if(inkDistance < board.clientWidth*.65){message.textContent="Trace a little more first 😊";return;}
+      try {
+        await window.ProfileShell.ready;
+        const response=await fetch("/api/progress/complete",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({activity:activityForMode(mode),item:selected.id})});
+        const data=await response.json();
+        if(!response.ok) throw new Error(data.error||"Could not save progress");
+        completed=new Set(data.completed_items||[]);
+        if(data.exercise_completed){
+          message.textContent=`Amazing! You completed all ${mode}! Choose your sticker ⭐`;
+          window.SiteAudio.play("/audio/ui/well-done.mp3");
+          setTimeout(()=>window.ProfileShell.claimReward(data.reward_token),900);
+          completed=new Set();
+        } else if(data.already_completed){
+          message.textContent=`You already completed ${selected.label}. Pick another one! ✓`;
+        } else {
+          message.textContent=`Well done tracing ${selected.label}! ⭐`;
+          window.SiteAudio.play("/audio/ui/well-done.mp3");
+        }
+        renderChoices(); updateProgress();
+      } catch(error){message.textContent=error.message||"Could not save that yet. Try again.";}
+    }
+
+    document.querySelectorAll(".tab").forEach(tab=>tab.addEventListener("click",async()=>{
+      mode=tab.dataset.mode;selected=sets[mode][0];document.querySelectorAll(".tab").forEach(item=>item.classList.toggle("current",item===tab));document.getElementById("itemName").textContent=selected.label;clearDrawing();drawGuide(board.clientWidth,board.clientHeight);await loadProgress();
+    }));
+    document.getElementById("soundItem").addEventListener("click",playItemSound);
+    document.getElementById("clearButton").addEventListener("click",clearDrawing);
+    document.getElementById("finishButton").addEventListener("click",finishItem);
+    new ResizeObserver(resizeCanvas).observe(board);
+    window.ProfileShell.ready.then(loadProgress).catch(loadProgress);
+  </script>
+</body>
+</html>
