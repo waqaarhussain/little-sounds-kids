@@ -26,8 +26,15 @@
   }
 
   function createInterface() {
+    const phonicsTools = location.pathname.startsWith("/phonicsbook")
+      ? '<button class="site-tool-button site-tool-icon" id="siteAlphabetButton" type="button" aria-label="Choose a letter">🔤</button>'
+      : "";
     document.body.insertAdjacentHTML("beforeend", `
-      <nav class="site-tools" aria-label="Profile and rewards">
+      <a class="site-brand" href="/" aria-label="Little Learners home"><span class="site-brand-mark">📚</span><span>Little Learners</span></a>
+      <nav class="site-tools" aria-label="Site controls">
+        <a class="site-tool-button site-tool-icon" href="/" aria-label="Little Learners home">🏠</a>
+        ${phonicsTools}
+        <button class="site-tool-button site-tool-icon" id="siteSoundButton" type="button" aria-label="Turn sound off" aria-pressed="true">🔊</button>
         <button class="site-tool-button site-tool-gift" id="siteGiveSticker" type="button" aria-label="Give a good behaviour sticker">🎁 <span>Give sticker</span></button>
         <a class="site-tool-button site-tool-sticker" href="/stickers/" aria-label="Open earned sticker album">🌟</a>
         <button class="site-tool-button" id="siteProfileButton" type="button" aria-label="Switch profile">👤 <span id="siteProfileName">Profile</span></button>
@@ -315,7 +322,21 @@
   }
 
   async function boot() {
-    createInterface();
+    const soundButton = document.getElementById("siteSoundButton");
+    const updateSoundButton = () => {
+      const muted = window.SiteAudio?.isMuted?.() || false;
+      soundButton.textContent = muted ? "🔇" : "🔊";
+      soundButton.setAttribute("aria-label", muted ? "Turn sound on" : "Turn sound off");
+      soundButton.setAttribute("aria-pressed", String(!muted));
+    };
+    updateSoundButton();
+    soundButton.addEventListener("click", () => {
+      window.SiteAudio?.unlock?.();
+      const muted = window.SiteAudio?.toggleMuted?.();
+      updateSoundButton();
+      if (!muted) window.SiteAudio?.play?.("/audio/ui/sound-on.mp3");
+    });
+    window.addEventListener("siteaudiochange", updateSoundButton);
     document.getElementById("siteProfileButton").addEventListener("click", () => openProfileModal(false));
     document.getElementById("siteGiveSticker").addEventListener("click", openBonusReward);
     document.getElementById("profileConfirm").addEventListener("click", confirmSwitch);
@@ -350,6 +371,8 @@
     get childProfiles() { return [...childProfiles]; },
     get profile() { return profile; }
   });
+
+  createInterface();
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);

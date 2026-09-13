@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const AUDIO_VERSION = "20260913-uk2";
+  const AUDIO_VERSION = "20260913-uk3";
   const player = new Audio();
   player.preload = "auto";
   player.playsInline = true;
@@ -9,6 +9,7 @@
   unlockPlayer.playsInline = true;
   let currentSource = "";
   let unlocked = false;
+  let muted = localStorage.getItem("little-sounds-muted") === "true";
 
   function versioned(source) {
     if (!source || !source.startsWith("/audio/")) return source;
@@ -23,7 +24,7 @@
   }
 
   async function play(source) {
-    if (!source) return false;
+    if (!source || muted) return false;
     stop();
     currentSource = source;
     player.src = versioned(source);
@@ -35,6 +36,14 @@
       console.warn("Audio playback was blocked or failed:", source, error);
       return false;
     }
+  }
+
+  function setMuted(value) {
+    muted = Boolean(value);
+    localStorage.setItem("little-sounds-muted", String(muted));
+    if (muted) stop();
+    window.dispatchEvent(new CustomEvent("siteaudiochange", { detail: { muted } }));
+    return muted;
   }
 
   function unlock() {
@@ -63,6 +72,9 @@
     unlock,
     stop,
     preload,
+    setMuted,
+    toggleMuted() { return setMuted(!muted); },
+    isMuted() { return muted; },
     get currentSource() {
       return currentSource;
     }

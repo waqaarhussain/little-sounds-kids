@@ -43,16 +43,14 @@ echo "[1/7] Installing the web server and media tools..."
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y nginx curl ca-certificates ffmpeg python3-venv fonts-dejavu-core
 
-echo "[2/7] Downloading the human-recorded phonics sounds..."
-curl -fsSL --retry 4 --retry-delay 2 \
-  "https://github.com/bblodget/Letter_Sounds/archive/26c887a1341034239b532ab05a641ac3d6a65153.tar.gz" \
-  -o "$work_dir/sounds.tar.gz"
-tar -xzf "$work_dir/sounds.tar.gz" -C "$work_dir"
-downloaded_source="$(find "$work_dir" -mindepth 1 -maxdepth 1 -type d -name 'Letter_Sounds-*' -print -quit)"
-if [ -z "$downloaded_source" ] || [ ! -f "$downloaded_source/sounds/a.ogg" ] || [ ! -f "$downloaded_source/sounds/z.ogg" ]; then
-  echo "The recorded sound download failed. Nothing was published."
-  exit 1
-fi
+echo "[2/7] Checking the UK A-Z pure-sounds recording..."
+phonics_dir="$installer_dir/assets/uk-phonics"
+for letter in {a..z}; do
+  if [ ! -s "$phonics_dir/$letter.mp3" ]; then
+    echo "The bundled phonics sound $letter is missing. Nothing was published."
+    exit 1
+  fi
+done
 
 echo "[3/7] Preparing the natural British voice..."
 python3 -m venv "$work_dir/voice-env"
@@ -68,12 +66,10 @@ echo "9e7fb5b5671612c22f3c81cbe46c1ae87b031a4632bcb509e499dad6f1e2adec  $work_di
 
 echo "[4/7] Generating the complete iPhone and iPad audio pack..."
 site_stage="$work_dir/site"
-install -d -m 0755 "$site_stage/licenses"
 cp -a "$installer_dir/site/." "$site_stage/"
-cp "$downloaded_source/LICENSE" "$site_stage/licenses/Letter_Sounds_GPL-3.0.txt"
 "$work_dir/voice-env/bin/python" "$installer_dir/generate_audio.py" \
   --model "$work_dir/en_GB-cori-high.onnx" \
-  --phonics-dir "$downloaded_source/sounds" \
+  --phonics-dir "$phonics_dir" \
   --output "$site_stage/audio"
 
 echo "[5/7] Installing the refillable AI sticker helper..."

@@ -52,6 +52,11 @@ TRACING_PHRASES = {
     "oval": "oval",
 }
 
+# Piper occasionally over-emphasises the initial vowel when "axe" is spoken alone.
+# This phonetic spelling keeps the saved filename/visible word correct while producing
+# a clean British-English pronunciation.
+WORD_PRONUNCIATIONS = {"axe": "acks"}
+
 
 def slug(value: str) -> str:
     return value.lower().replace(" ", "-")
@@ -140,8 +145,9 @@ def main() -> None:
 
         for word in unique_words:
             word_slug = slug(word)
+            spoken_word = WORD_PRONUNCIATIONS.get(word, word)
             word_wav = temporary / "words" / f"{word_slug}.wav"
-            synthesise(voice, word, word_wav, 1.12)
+            synthesise(voice, spoken_word, word_wav, 1.12)
             encode_mp3(word_wav, output / "words" / f"{word_slug}.mp3")
             word_wavs[word] = word_wav
 
@@ -151,7 +157,7 @@ def main() -> None:
 
         for letter, words in LETTERS:
             letter_key = letter.lower()
-            phonics_source = args.phonics_dir / f"{letter_key}.ogg"
+            phonics_source = args.phonics_dir / f"{letter_key}.mp3"
             if not phonics_source.is_file():
                 raise FileNotFoundError(phonics_source)
 

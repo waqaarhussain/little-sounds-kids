@@ -545,15 +545,6 @@
 </head>
 <body>
   <main class="app">
-    <header class="topbar">
-      <div class="brand"><span class="brand-mark">Aa</span><span>My Fun Phonics Book</span></div>
-      <div class="top-actions">
-        <a class="round-button" href="/" aria-label="Back to Little Learners home" style="text-decoration:none">🏠</a>
-        <button class="round-button" id="alphabetButton" type="button" aria-label="Choose a letter">🔤</button>
-        <button class="round-button" id="soundButton" type="button" aria-label="Turn sound off" aria-pressed="true">🔊</button>
-      </div>
-    </header>
-
     <section class="book" aria-live="polite">
       <div class="page" id="page"></div>
     </section>
@@ -622,8 +613,7 @@
     const backButton = document.getElementById("backButton");
     const nextButton = document.getElementById("nextButton");
     const progressBar = document.getElementById("progressBar");
-    const soundButton = document.getElementById("soundButton");
-    const alphabetButton = document.getElementById("alphabetButton");
+    const alphabetButton = document.getElementById("siteAlphabetButton");
     const quizOverlay = document.getElementById("quizOverlay");
     const quizTitle = document.getElementById("quizTitle");
     const quizChoices = document.getElementById("quizChoices");
@@ -635,7 +625,6 @@
     const announcement = document.getElementById("announcement");
 
     let current = 0;
-    let soundOn = true;
     let touchStartX = 0;
     let quizAnswer = "";
 
@@ -652,7 +641,6 @@
     }
 
     function playClip(source) {
-      if (!soundOn) return;
       window.SiteAudio.play(source);
     }
 
@@ -677,7 +665,7 @@
     }
 
     function playDing() {
-      if (!soundOn) return;
+      if (window.SiteAudio.isMuted()) return;
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) return;
       const context = new AudioContextClass();
@@ -871,15 +859,6 @@
 
     backButton.addEventListener("click", () => goTo(current - 1));
     nextButton.addEventListener("click", () => goTo(current === letters.length - 1 ? 0 : current + 1));
-
-    soundButton.addEventListener("click", () => {
-      soundOn = !soundOn;
-      if (!soundOn) stopSpeech();
-      soundButton.textContent = soundOn ? "🔊" : "🔇";
-      soundButton.setAttribute("aria-label", soundOn ? "Turn sound off" : "Turn sound on");
-      soundButton.setAttribute("aria-pressed", String(soundOn));
-      if (soundOn) playClip("/audio/ui/sound-on.mp3");
-    });
 
     alphabetButton.addEventListener("click", () => {
       alphabetOverlay.hidden = false;

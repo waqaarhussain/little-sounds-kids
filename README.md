@@ -4,7 +4,7 @@ A mobile-friendly phonics, tracing and achievement site designed for a private f
 
 ## Included
 
-- A–Z talking phonics book with human-recorded letter sounds
+- A–Z talking phonics book with the site owner's UK pure-sound recording
 - Fixed natural British narration packaged as mobile-safe MP3 files
 - Find the Picture progress for every A–Z letter
 - Finger, Apple Pencil and mouse tracing for A–Z, 1–9 and nine shapes

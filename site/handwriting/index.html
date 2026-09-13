@@ -46,7 +46,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><a class="back" href="/">◀ Home</a><h1>✏️ Fun Tracing</h1><span></span></div>
+    <div class="top"><span></span><h1>✏️ Fun Tracing</h1><span></span></div>
     <nav class="tabs" aria-label="Tracing exercise">
       <button class="tab current" type="button" data-mode="letters">ABC Letters</button>
       <button class="tab" type="button" data-mode="numbers">123 Numbers</button>
@@ -136,15 +136,16 @@
       setupPen();
     }
 
-    function dottedStroke(draw, width) {
+    function dottedStroke(draw, width, strokePath = true) {
       guideContext.save();
+      guideContext.beginPath();
       guideContext.lineWidth=Math.max(5,width*.012);
       guideContext.strokeStyle="#69778e";
       guideContext.lineCap="round";
       guideContext.lineJoin="round";
       guideContext.setLineDash([2,11]);
       draw();
-      guideContext.stroke();
+      if (strokePath) guideContext.stroke();
       guideContext.restore();
     }
 
@@ -188,6 +189,7 @@
 
     function drawGuide(width,height) {
       guideContext.clearRect(0,0,width,height);
+      guideContext.beginPath();
       if(mode === "shapes") {
         dottedStroke(()=>shapePath(selected.id,width,height),width);
         guideContext.fillStyle="#4d5f7b"; guideContext.font=`900 ${Math.max(18,width*.046)}px Arial`; guideContext.textAlign="center"; guideContext.fillText(selected.label,width/2,height*.92);
@@ -207,7 +209,7 @@
       const size=Math.min(width*(mode==="numbers"?.58:.7),height*.78);
       guideContext.font=`1000 ${size}px Arial Rounded MT Bold, Arial, sans-serif`;
       guideContext.textAlign="center"; guideContext.textBaseline="middle";
-      dottedStroke(()=>guideContext.strokeText(selected.label,width/2,height/2+size*.035),width);
+      dottedStroke(()=>guideContext.strokeText(selected.label,width/2,height/2+size*.035),width,false);
       guideContext.save(); guideContext.setLineDash([]); guideContext.fillStyle="#354762"; guideContext.font=`1000 ${Math.max(19,width*.048)}px Arial`; guideContext.textAlign="left"; guideContext.textBaseline="top"; guideContext.fillText("1  ➜",width*.1,height*.1); guideContext.restore();
     }
 
@@ -223,7 +225,7 @@
     drawing.addEventListener("pointerup",()=>{active=false;lastPoint=null;});
     drawing.addEventListener("pointercancel",()=>{active=false;lastPoint=null;});
 
-    function clearDrawing() { drawingContext.clearRect(0,0,drawing.width,drawing.height); inkDistance=0; document.getElementById("message").textContent=""; setupPen(); }
+    function clearDrawing() { drawingContext.clearRect(0,0,drawing.width,drawing.height); drawingContext.beginPath(); inkDistance=0; document.getElementById("message").textContent=""; setupPen(); }
     async function playItemSound() {
       const path=mode==="letters"?`/audio/phonics/${selected.id.toLowerCase()}.mp3`:`/audio/tracing/${safeSlug(selected.id)}.mp3`;
       announcedSelection=await window.SiteAudio.play(path);

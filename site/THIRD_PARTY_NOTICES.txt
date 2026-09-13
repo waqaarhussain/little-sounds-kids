@@ -1,6 +1,4 @@
-Letter-sound recordings from Letter_Sounds by Bob Blodget and Brandon Blodget.
-Source: https://github.com/bblodget/Letter_Sounds
-Licensed under GNU GPL v3.0. The full licence is included in licenses/Letter_Sounds_GPL-3.0.txt.
+The A-Z pure-sound recording was supplied by the site owner for use in this private family learning site.
 
 Natural speech audio generated with Piper using the en_GB-cori-high voice model.
 Piper source: https://github.com/OHF-Voice/piper1-gpl
