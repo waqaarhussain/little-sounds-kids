@@ -75,16 +75,47 @@ cp "$downloaded_source/LICENSE" "$site_stage/licenses/Letter_Sounds_GPL-3.0.txt"
   --phonics-dir "$downloaded_source/sounds" \
   --output "$site_stage/audio"
 
-echo "[5/7] Building 100 different stickers in each school reward collection..."
-python3 -m venv "$work_dir/sticker-env"
-"$work_dir/sticker-env/bin/pip" install --disable-pip-version-check \
-  "Pillow==11.3.0" "requests==2.32.5"
-"$work_dir/sticker-env/bin/python" "$installer_dir/download_stickers.py" \
-  --output "$work_dir/stickers" --count 100 --school-only
-install -d -m 0700 /root/stickers
-cp -a "$work_dir/stickers/." /root/stickers/
-install -d -m 0755 "$site_stage/sticker-images"
-cp -a "$work_dir/stickers/." "$site_stage/sticker-images/"
+echo "[5/7] Installing the refillable AI sticker helper..."
+python3 -m venv /opt/little-sounds-ai-venv
+/opt/little-sounds-ai-venv/bin/pip install --disable-pip-version-check --upgrade \
+  "openai>=2.0,<3.0" "Pillow>=11.0,<13.0" "ImageHash>=4.3,<5.0"
+install -d -m 0755 /opt/little-sounds
+install -m 0755 "$installer_dir/generate_stickers.py" /opt/little-sounds/generate_stickers.py
+install -m 0755 "$installer_dir/generate" /usr/local/bin/generate
+install -d -m 0700 /root/stickers/catalog
+install -d -m 0755 /var/www/little-sounds/sticker-images
+install -d -m 0755 /var/www/little-sounds/sticker-generator
+
+cat > /var/www/little-sounds/sticker-generator/index.html <<'STATUS'
+<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sticker Generator</title><style>body{min-height:100vh;margin:0;display:grid;place-items:center;padding:20px;box-sizing:border-box;color:#263657;background:linear-gradient(145deg,#68d2f7,#efe6ff,#fff0a6);font-family:ui-rounded,"Arial Rounded MT Bold",system-ui,sans-serif;text-align:center}main{max-width:650px;padding:35px;border:6px solid #fff;border-radius:32px;background:#ffffffc9;box-shadow:0 12px 30px #34486a30}h1{font-size:clamp(2rem,8vw,4rem);margin:0 0 15px}p{font-size:1.15rem;font-weight:800}code{padding:4px 9px;border-radius:8px;background:#e9e4ff}</style></head><body><main><h1>✨ Sticker Generator</h1><p>Your sticker helper is ready.</p><p>Open Termius as root and run <code>generate</code>.</p><p><a href="/">◀ Back home</a></p></main></body></html>
+STATUS
+
+cat > /etc/systemd/system/little-sounds-sticker-generator.service <<'SYSTEMD'
+[Unit]
+Description=Fill and replenish Little Sounds sticker books
+After=network-online.target little-sounds.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/run/little-sounds-openai.env
+WorkingDirectory=/opt/little-sounds
+ExecStart=/opt/little-sounds-ai-venv/bin/python /opt/little-sounds/generate_stickers.py
+User=root
+Group=root
+UMask=0022
+Nice=10
+Restart=no
+TimeoutStartSec=infinity
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/root/stickers/catalog /var/www/little-sounds/sticker-images /var/www/little-sounds/sticker-generator /var/lib/little-sounds
+
+[Install]
+WantedBy=multi-user.target
+SYSTEMD
 
 echo "[6/7] Installing the profile and achievement service..."
 python3 -m venv /opt/little-sounds-venv
@@ -142,6 +173,7 @@ server {
     location = /phonicsbook { return 301 /phonicsbook/; }
     location = /handwriting { return 301 /handwriting/; }
     location = /stickers { return 301 /stickers/; }
+    location = /sticker-generator { return 301 /sticker-generator/; }
 
     location /api/ {
         proxy_pass http://127.0.0.1:8787;
@@ -192,3 +224,5 @@ echo "Landing page: http://${server_ip}"
 echo "Phonics book: http://${server_ip}/phonicsbook/"
 echo "Fun tracing: http://${server_ip}/handwriting/"
 echo "Sticker book: http://${server_ip}/stickers/"
+echo
+echo "When you are ready to create or refill stickers, run: generate"

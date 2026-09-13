@@ -10,7 +10,6 @@ from flask import Flask, jsonify, request
 
 DATA_DIRECTORY = Path(os.environ.get("LITTLE_SOUNDS_DATA", "/var/lib/little-sounds"))
 DATABASE = DATA_DIRECTORY / "little-sounds.sqlite3"
-STICKER_DIRECTORY = Path(os.environ.get("LITTLE_SOUNDS_STICKERS", "/var/www/little-sounds/sticker-images"))
 SWITCH_PIN = os.environ.get("LITTLE_SOUNDS_PIN", "0000")
 COOKIE_NAME = "little_sounds_device"
 PARENT_PROFILE = os.environ.get("LITTLE_SOUNDS_PARENT", "Parent").strip() or "Parent"
@@ -19,10 +18,14 @@ CHILD_PROFILES = (
     os.environ.get("LITTLE_SOUNDS_CHILD_2", "Child 2").strip() or "Child 2",
 )
 PROFILES = (PARENT_PROFILE, *CHILD_PROFILES)
+TARGET_STICKERS = 100
 CATEGORIES = {
-    "smiley-faces": "Smiley Faces",
-    "well-done": "Well Done",
-    "youre-a-star": "You're a Star",
+    "bluey": "Bluey",
+    "pj-masks": "PJ Masks",
+    "super-kitties": "SuperKitties",
+    "paw-patrol": "Paw Patrol",
+    "numberblocks": "Numberblocks",
+    "alphablocks": "Alphablocks",
 }
 ACTIVITY_ITEMS = {
     "phonics": tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
@@ -40,9 +43,10 @@ def now() -> str:
 
 @contextmanager
 def database():
-    connection = sqlite3.connect(DATABASE, timeout=15)
+    connection = sqlite3.connect(DATABASE, timeout=30)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA busy_timeout = 30000")
     try:
         yield connection
         connection.commit()
@@ -63,20 +67,6 @@ def initialise_database() -> None:
                 profile TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS shared_stickers (
-                position INTEGER PRIMARY KEY,
-                category TEXT NOT NULL,
-                sticker_number INTEGER NOT NULL CHECK(sticker_number BETWEEN 1 AND 100),
-                chosen_at TEXT NOT NULL,
-                chosen_by TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS rewards (
-                profile TEXT NOT NULL,
-                position INTEGER NOT NULL,
-                earned_at TEXT NOT NULL,
-                PRIMARY KEY(profile, position),
-                FOREIGN KEY(position) REFERENCES shared_stickers(position)
             );
             CREATE TABLE IF NOT EXISTS activity_progress (
                 profile TEXT NOT NULL,
@@ -100,6 +90,35 @@ def initialise_database() -> None:
                 created_at TEXT NOT NULL,
                 UNIQUE(profile, activity, cycle)
             );
+            CREATE TABLE IF NOT EXISTS catalog_stickers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category TEXT NOT NULL,
+                serial INTEGER NOT NULL,
+                image_path TEXT NOT NULL UNIQUE,
+                active INTEGER NOT NULL DEFAULT 0 CHECK(active IN (0, 1)),
+                staged INTEGER NOT NULL DEFAULT 1 CHECK(staged IN (0, 1)),
+                created_at TEXT NOT NULL,
+                retired_at TEXT,
+                sha256 TEXT NOT NULL UNIQUE,
+                phash TEXT,
+                dhash TEXT,
+                colorhash TEXT,
+                prompt TEXT,
+                UNIQUE(category, serial)
+            );
+            CREATE INDEX IF NOT EXISTS catalog_stickers_category_active
+                ON catalog_stickers(category, active, serial);
+            CREATE TABLE IF NOT EXISTS catalog_rewards (
+                profile TEXT NOT NULL,
+                position INTEGER NOT NULL,
+                sticker_id INTEGER NOT NULL,
+                activity TEXT NOT NULL,
+                cycle INTEGER NOT NULL,
+                earned_at TEXT NOT NULL,
+                PRIMARY KEY(profile, position),
+                UNIQUE(profile, sticker_id),
+                FOREIGN KEY(sticker_id) REFERENCES catalog_stickers(id)
+            );
             """
         )
 
@@ -118,23 +137,59 @@ def json_body():
 
 
 def sticker_payload(row):
-    category = row["category"]
-    number = int(row["sticker_number"])
     return {
-        "position": int(row["position"]),
-        "category": category,
-        "category_label": CATEGORIES[category],
-        "sticker_number": number,
-        "image": f"/sticker-images/{category}/{number:03d}.webp",
+        "id": int(row["id"]),
+        "serial": int(row["serial"]),
+        "category": row["category"],
+        "category_label": CATEGORIES[row["category"]],
+        "image": row["image_path"],
     }
 
 
-def available_categories():
-    return {
-        category: label
-        for category, label in CATEGORIES.items()
-        if (STICKER_DIRECTORY / category / "001.webp").is_file()
-    }
+def pending_reward(connection, token):
+    if not token:
+        return None
+    return connection.execute(
+        "SELECT token, profile, activity, cycle FROM pending_rewards WHERE token = ?",
+        (token,),
+    ).fetchone()
+
+
+def available_category_rows(connection, profile):
+    rows = []
+    for category, label in CATEGORIES.items():
+        count = int(
+            connection.execute(
+                """
+                SELECT COUNT(*)
+                FROM catalog_stickers s
+                LEFT JOIN catalog_rewards r ON r.sticker_id = s.id AND r.profile = ?
+                WHERE s.category = ? AND s.active = 1 AND r.sticker_id IS NULL
+                """,
+                (profile, category),
+            ).fetchone()[0]
+        )
+        cover = connection.execute(
+            """
+            SELECT s.image_path
+            FROM catalog_stickers s
+            LEFT JOIN catalog_rewards r ON r.sticker_id = s.id AND r.profile = ?
+            WHERE s.category = ? AND s.active = 1 AND r.sticker_id IS NULL
+            ORDER BY s.serial LIMIT 1
+            """,
+            (profile, category),
+        ).fetchone()
+        if cover:
+            rows.append(
+                {
+                    "id": category,
+                    "label": label,
+                    "image": cover["image_path"],
+                    "available": count,
+                    "target": TARGET_STICKERS,
+                }
+            )
+    return rows
 
 
 def set_device_cookie(response, token):
@@ -201,87 +256,164 @@ def switch_profile():
     return jsonify({"profile": profile})
 
 
+@app.post("/api/rewards/bonus")
+def create_bonus_reward():
+    body = json_body()
+    target_profile = str(body.get("profile", ""))
+    pin = str(body.get("pin", ""))
+    if target_profile not in CHILD_PROFILES:
+        return jsonify({"error": "Choose a child profile."}), 400
+    if not secrets.compare_digest(pin, SWITCH_PIN):
+        return jsonify({"error": "That PIN is not correct."}), 403
+    with database() as connection:
+        if not current_device(connection):
+            return jsonify({"error": "Choose a profile first."}), 401
+        connection.execute("BEGIN IMMEDIATE")
+        cycle = int(
+            connection.execute(
+                "SELECT COALESCE(MAX(cycle), 0) + 1 FROM catalog_rewards WHERE profile = ? AND activity = 'good-behaviour'",
+                (target_profile,),
+            ).fetchone()[0]
+        )
+        connection.execute(
+            "DELETE FROM pending_rewards WHERE profile = ? AND activity = 'good-behaviour'",
+            (target_profile,),
+        )
+        token = secrets.token_urlsafe(24)
+        connection.execute(
+            "INSERT INTO pending_rewards(token, profile, activity, cycle, created_at) VALUES (?, ?, 'good-behaviour', ?, ?)",
+            (token, target_profile, cycle, now()),
+        )
+        return jsonify({"reward_token": token, "profile": target_profile})
+
+
 @app.get("/api/sticker-categories")
 def sticker_categories():
-    available = available_categories()
-    return jsonify(
-        {
-            "categories": [
+    reward_token = request.args.get("reward_token", "")
+    with database() as connection:
+        device = current_device(connection)
+        if not device:
+            return jsonify({"error": "Choose a profile first."}), 401
+        pending = pending_reward(connection, reward_token) if reward_token else None
+        profile = pending["profile"] if pending else device["profile"]
+        if profile == PARENT_PROFILE:
+            profile = CHILD_PROFILES[0]
+        return jsonify({"profile": profile, "categories": available_category_rows(connection, profile)})
+
+
+@app.get("/api/sticker-book")
+def sticker_book():
+    category = request.args.get("category", "")
+    reward_token = request.args.get("reward_token", "")
+    if category not in CATEGORIES:
+        return jsonify({"error": "Choose a valid sticker theme."}), 400
+    with database() as connection:
+        if not current_device(connection):
+            return jsonify({"error": "Choose a profile first."}), 401
+        pending = pending_reward(connection, reward_token)
+        if not pending:
+            return jsonify({"error": "This sticker reward has expired."}), 403
+        profile = pending["profile"]
+        rows = connection.execute(
+            """
+            SELECT s.id, s.category, s.serial, s.image_path, s.active,
+                   CASE WHEN r.sticker_id IS NULL THEN 0 ELSE 1 END AS peeled
+            FROM catalog_stickers s
+            LEFT JOIN catalog_rewards r ON r.sticker_id = s.id AND r.profile = ?
+            WHERE s.category = ? AND s.staged = 0
+            ORDER BY s.serial
+            """,
+            (profile, category),
+        ).fetchall()
+        slots = []
+        for row in rows:
+            item = sticker_payload(row)
+            item.update(
                 {
-                    "id": category,
-                    "label": label,
-                    "image": f"/sticker-images/{category}/001.webp",
+                    "available": bool(row["active"] and not row["peeled"]),
+                    "peeled": bool(row["peeled"]),
+                    "retired": not bool(row["active"]),
                 }
-                for category, label in available.items()
-            ]
-        }
-    )
+            )
+            slots.append(item)
+        return jsonify(
+            {
+                "profile": profile,
+                "category": category,
+                "category_label": CATEGORIES[category],
+                "slots": slots,
+                "available": sum(1 for item in slots if item["available"]),
+                "target": TARGET_STICKERS,
+            }
+        )
 
 
 @app.post("/api/rewards/claim")
 def claim_reward():
     body = json_body()
-    requested_category = str(body.get("category", ""))
     reward_token = str(body.get("reward_token", ""))
+    requested_sticker = body.get("sticker_id")
     with database() as connection:
-        device = current_device(connection)
-        if not device:
+        if not current_device(connection):
             return jsonify({"error": "Choose a profile first."}), 401
-        profile = device["profile"]
-        if profile == PARENT_PROFILE:
-            return jsonify({"parent_preview": True, "message": "Parent testing does not change the children's sticker sequence."})
-
-        pending = connection.execute(
-            "SELECT token FROM pending_rewards WHERE token = ? AND profile = ?",
-            (reward_token, profile),
-        ).fetchone()
-        if pending is None:
-            return jsonify({"error": "Finish a complete exercise before choosing a sticker."}), 403
+        pending = pending_reward(connection, reward_token)
+        if not pending:
+            return jsonify({"error": "Finish an exercise or use Give Sticker first."}), 403
+        if requested_sticker is None:
+            categories = available_category_rows(connection, pending["profile"])
+            if not categories:
+                return jsonify({"error": "No stickers are available. Ask a grown-up to run generate."}), 409
+            return jsonify(
+                {
+                    "needs_choice": True,
+                    "profile": pending["profile"],
+                    "categories": categories,
+                }
+            )
+        try:
+            sticker_id = int(requested_sticker)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Choose a valid sticker."}), 400
 
         connection.execute("BEGIN IMMEDIATE")
+        pending = pending_reward(connection, reward_token)
+        if not pending:
+            return jsonify({"error": "That reward was already collected."}), 409
+        profile = pending["profile"]
+        sticker = connection.execute(
+            """
+            SELECT s.id, s.category, s.serial, s.image_path
+            FROM catalog_stickers s
+            LEFT JOIN catalog_rewards r ON r.sticker_id = s.id AND r.profile = ?
+            WHERE s.id = ? AND s.active = 1 AND s.staged = 0 AND r.sticker_id IS NULL
+            """,
+            (profile, sticker_id),
+        ).fetchone()
+        if not sticker:
+            return jsonify({"error": "That sticker has already been peeled. Choose another one."}), 409
         position = int(
             connection.execute(
-                "SELECT COUNT(*) FROM rewards WHERE profile = ?", (profile,)
+                "SELECT COALESCE(MAX(position), 0) + 1 FROM catalog_rewards WHERE profile = ?",
+                (profile,),
             ).fetchone()[0]
-        ) + 1
-        shared = connection.execute(
-            "SELECT position, category, sticker_number FROM shared_stickers WHERE position = ?",
-            (position,),
-        ).fetchone()
-
-        if shared is None:
-            available = available_categories()
-            if requested_category not in available:
-                return jsonify({"needs_choice": True, "position": position})
-            used_numbers = {
-                int(row[0])
-                for row in connection.execute(
-                    "SELECT sticker_number FROM shared_stickers WHERE category = ?", (requested_category,)
-                )
+        )
+        connection.execute(
+            """
+            INSERT INTO catalog_rewards(profile, position, sticker_id, activity, cycle, earned_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (profile, position, sticker_id, pending["activity"], int(pending["cycle"]), now()),
+        )
+        connection.execute("DELETE FROM pending_rewards WHERE token = ?", (reward_token,))
+        payload = sticker_payload(sticker)
+        payload.update(
+            {
+                "needs_choice": False,
+                "profile": profile,
+                "position": position,
+                "activity": pending["activity"],
             }
-            available = [number for number in range(1, 101) if number not in used_numbers]
-            if not available:
-                available = list(range(1, 101))
-            sticker_number = secrets.choice(available)
-            connection.execute(
-                "INSERT INTO shared_stickers(position, category, sticker_number, chosen_at, chosen_by) VALUES (?, ?, ?, ?, ?)",
-                (position, requested_category, sticker_number, now(), profile),
-            )
-            shared = connection.execute(
-                "SELECT position, category, sticker_number FROM shared_stickers WHERE position = ?",
-                (position,),
-            ).fetchone()
-
-        connection.execute(
-            "INSERT OR IGNORE INTO rewards(profile, position, earned_at) VALUES (?, ?, ?)",
-            (profile, position, now()),
         )
-        connection.execute(
-            "DELETE FROM pending_rewards WHERE token = ? AND profile = ?",
-            (reward_token, profile),
-        )
-        payload = sticker_payload(shared)
-        payload.update({"needs_choice": False, "profile": profile})
         return jsonify(payload)
 
 
@@ -295,22 +427,31 @@ def rewards():
         profile = device["profile"]
         if requested_profile in CHILD_PROFILES and profile == PARENT_PROFILE:
             profile = requested_profile
+        if profile == PARENT_PROFILE:
+            profile = CHILD_PROFILES[0]
         rows = connection.execute(
             """
-            SELECT s.position, s.category, s.sticker_number, r.earned_at
-            FROM rewards r
-            JOIN shared_stickers s ON s.position = r.position
+            SELECT s.id, s.category, s.serial, s.image_path,
+                   r.position, r.activity, r.earned_at
+            FROM catalog_rewards r
+            JOIN catalog_stickers s ON s.id = r.sticker_id
             WHERE r.profile = ?
-            ORDER BY s.position
+            ORDER BY r.position
             """,
             (profile,),
         ).fetchall()
-        return jsonify(
-            {
-                "profile": profile,
-                "stickers": [dict(sticker_payload(row), earned_at=row["earned_at"]) for row in rows],
-            }
-        )
+        stickers = []
+        for row in rows:
+            item = sticker_payload(row)
+            item.update(
+                {
+                    "position": int(row["position"]),
+                    "activity": row["activity"],
+                    "earned_at": row["earned_at"],
+                }
+            )
+            stickers.append(item)
+        return jsonify({"profile": profile, "stickers": stickers})
 
 
 @app.get("/api/progress")
@@ -324,7 +465,15 @@ def activity_progress():
             return jsonify({"error": "Choose a profile first."}), 401
         profile = device["profile"]
         if profile == PARENT_PROFILE:
-            return jsonify({"activity": activity, "completed_items": [], "count": 0, "total": len(ACTIVITY_ITEMS[activity]), "parent_preview": True})
+            return jsonify(
+                {
+                    "activity": activity,
+                    "completed_items": [],
+                    "count": 0,
+                    "total": len(ACTIVITY_ITEMS[activity]),
+                    "parent_preview": True,
+                }
+            )
         completed = [
             row[0]
             for row in connection.execute(
@@ -332,7 +481,14 @@ def activity_progress():
                 (profile, activity),
             )
         ]
-        return jsonify({"activity": activity, "completed_items": completed, "count": len(completed), "total": len(ACTIVITY_ITEMS[activity])})
+        return jsonify(
+            {
+                "activity": activity,
+                "completed_items": completed,
+                "count": len(completed),
+                "total": len(ACTIVITY_ITEMS[activity]),
+            }
+        )
 
 
 @app.post("/api/progress/complete")
@@ -349,7 +505,16 @@ def complete_activity_item():
         profile = device["profile"]
         total = len(ACTIVITY_ITEMS[activity])
         if profile == PARENT_PROFILE:
-            return jsonify({"parent_preview": True, "activity": activity, "item": item, "count": 0, "total": total, "exercise_completed": False})
+            return jsonify(
+                {
+                    "parent_preview": True,
+                    "activity": activity,
+                    "item": item,
+                    "count": 0,
+                    "total": total,
+                    "exercise_completed": False,
+                }
+            )
 
         connection.execute("BEGIN IMMEDIATE")
         cursor = connection.execute(
@@ -380,11 +545,24 @@ def complete_activity_item():
                 "DELETE FROM activity_progress WHERE profile = ? AND activity = ?",
                 (profile, activity),
             )
+            connection.execute(
+                "DELETE FROM pending_rewards WHERE profile = ? AND activity = ?",
+                (profile, activity),
+            )
             reward_token = secrets.token_urlsafe(24)
             connection.execute(
                 "INSERT INTO pending_rewards(token, profile, activity, cycle, created_at) VALUES (?, ?, ?, ?, ?)",
                 (reward_token, profile, activity, cycle, now()),
             )
+        completed_items = []
+        if not exercise_completed:
+            completed_items = [
+                row[0]
+                for row in connection.execute(
+                    "SELECT item FROM activity_progress WHERE profile = ? AND activity = ? ORDER BY completed_at",
+                    (profile, activity),
+                )
+            ]
         return jsonify(
             {
                 "activity": activity,
@@ -396,20 +574,24 @@ def complete_activity_item():
                 "exercise_completed": exercise_completed,
                 "cycle": cycle,
                 "reward_token": reward_token,
-                "completed_items": [] if exercise_completed else [
-                    row[0]
-                    for row in connection.execute(
-                        "SELECT item FROM activity_progress WHERE profile = ? AND activity = ? ORDER BY completed_at",
-                        (profile, activity),
-                    )
-                ],
+                "completed_items": completed_items,
             }
         )
 
 
 @app.get("/api/health")
 def health():
-    return jsonify({"ok": True})
+    with database() as connection:
+        counts = {
+            category: int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM catalog_stickers WHERE category = ? AND active = 1",
+                    (category,),
+                ).fetchone()[0]
+            )
+            for category in CATEGORIES
+        }
+    return jsonify({"ok": True, "active_stickers": counts, "target": TARGET_STICKERS})
 
 
 initialise_database()

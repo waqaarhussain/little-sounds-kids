@@ -4,7 +4,10 @@
   const player = new Audio();
   player.preload = "auto";
   player.playsInline = true;
+  const unlockPlayer = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAACAgICA");
+  unlockPlayer.playsInline = true;
   let currentSource = "";
+  let unlocked = false;
 
   function stop() {
     player.pause();
@@ -28,6 +31,19 @@
     }
   }
 
+  function unlock() {
+    if (unlocked) return;
+    unlockPlayer.volume = 0.01;
+    const promise = unlockPlayer.play();
+    if (promise && typeof promise.then === "function") {
+      promise.then(() => {
+        unlockPlayer.pause();
+        unlockPlayer.currentTime = 0;
+        unlocked = true;
+      }).catch(() => {});
+    }
+  }
+
   function preload(sources) {
     sources.filter(Boolean).forEach(source => {
       const audio = new Audio();
@@ -38,6 +54,7 @@
 
   window.SiteAudio = Object.freeze({
     play,
+    unlock,
     stop,
     preload,
     get currentSource() {
