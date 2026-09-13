@@ -51,7 +51,7 @@ key_length="${#openai_key}"
 key_start="${openai_key:0:7}"
 key_end="${openai_key:key_length-4:4}"
 echo "Key received: ${key_start}...${key_end} (${key_length} characters)"
-read -r -p "Start generating 60 stickers with this key? [Y/n]: " confirmation
+read -r -p "Keep the existing stickers and build the 80-sticker trial with this key? [Y/n]: " confirmation
 if [[ "$confirmation" =~ ^[Nn]$ ]]; then
   unset openai_key
   echo "Cancelled. Nothing was generated."
@@ -105,7 +105,7 @@ if systemctl is-failed --quiet little-sounds-ai-stickers.service; then
 fi
 
 echo
-echo "The 60-sticker trial is running safely in the background."
+echo "The 80-sticker trial is running safely in the background."
 echo "You may close Termius; the VPS will continue working."
 echo "Live preview: http://152.53.117.106/ai-stickers/"
 echo "Progress command: journalctl -u little-sounds-ai-stickers -f"
