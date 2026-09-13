@@ -15,6 +15,7 @@ A mobile-friendly phonics, tracing and achievement site designed for a private f
 - One shared rotating catalogue of 100 active designs per theme, with independent rewards for each child
 - Six final themes: Bluey, PJ Masks, SuperKitties, Paw Patrol, Numberblocks and Alphablocks
 - A reusable `generate` helper that fills shortages without deleting earned stickers
+- An unlinked `/allstickers/` live catalogue, grouped by theme and refreshed every 30 seconds
 - A `backup-stickers` helper plus automatic fresh-install restore from a GitHub Release
 - Nginx, Gunicorn, SQLite and systemd setup for Ubuntu
 

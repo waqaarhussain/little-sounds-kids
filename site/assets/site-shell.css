@@ -188,9 +188,12 @@
 .sheet-page:disabled, .site-primary:disabled { opacity: .45; cursor: default; box-shadow: none; }
 
 @media (max-width: 720px) {
-  .site-brand { font-size: .9rem; padding-right: 11px; }
+  .site-brand { min-height: 40px; left: max(6px, env(safe-area-inset-left)); padding: 4px 9px 4px 5px; font-size: .74rem; gap: 5px; }
+  .site-brand-mark { width: 28px; border-radius: 9px; font-size: .9rem; }
+  .site-tools { right: max(6px, env(safe-area-inset-right)); gap: 3px; }
   .site-tool-button span { display: none; }
-  .site-tool-button { width: 49px; padding: 7px; font-size: 1.45rem; }
+  .site-tool-button { width: 35px; min-height: 35px; border-width: 2px; padding: 4px; font-size: 1rem; box-shadow: 0 4px 0 rgba(26,79,128,.28); }
+  .site-tool-sticker, .site-tool-gift { width: 35px; font-size: 1.08rem; }
   .profile-grid { grid-template-columns: 1fr; }
   .sticker-choice-grid { grid-template-columns: repeat(2, 1fr); }
   .site-modal-card { border-width: 5px; border-radius: 26px; }
@@ -202,10 +205,12 @@
 }
 
 @media (max-width: 430px) {
-  .site-brand { max-width: 145px; }
-  .site-tools { top: max(70px, calc(env(safe-area-inset-top) + 58px)); gap: 6px; }
-  body .shell, body .app { padding-top: max(132px, calc(env(safe-area-inset-top) + 122px)) !important; }
-  .site-tool-button { width: 44px; min-height: 44px; font-size: 1.25rem; }
-  .site-tool-sticker, .site-tool-gift { width: 44px; font-size: 1.35rem; }
+  .site-brand { max-width: 126px; }
+  .site-tools { top: max(12px, env(safe-area-inset-top)); }
   .bonus-profile-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 370px) {
+  .site-brand > span:last-child { display: none; }
+  .site-brand { padding-right: 5px; }
 }

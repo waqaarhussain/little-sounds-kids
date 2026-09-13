@@ -360,6 +360,42 @@ def sticker_book():
         )
 
 
+@app.get("/api/all-stickers")
+def all_stickers():
+    with database() as connection:
+        categories = []
+        for category, label in CATEGORIES.items():
+            rows = connection.execute(
+                """
+                SELECT id, category, serial, image_path, active, staged
+                FROM catalog_stickers
+                WHERE category = ?
+                ORDER BY serial
+                """,
+                (category,),
+            ).fetchall()
+            stickers = []
+            for row in rows:
+                item = sticker_payload(row)
+                item["status"] = "staged" if row["staged"] else "active" if row["active"] else "retired"
+                stickers.append(item)
+            categories.append(
+                {
+                    "id": category,
+                    "label": label,
+                    "count": len(stickers),
+                    "stickers": stickers,
+                }
+            )
+        return jsonify(
+            {
+                "categories": categories,
+                "total": sum(category["count"] for category in categories),
+                "refreshed_at": now(),
+            }
+        )
+
+
 @app.post("/api/rewards/claim")
 def claim_reward():
     body = json_body()

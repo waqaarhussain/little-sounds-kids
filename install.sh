@@ -172,6 +172,7 @@ server {
     location = /phonicsbook { return 301 /phonicsbook/; }
     location = /handwriting { return 301 /handwriting/; }
     location = /stickers { return 301 /stickers/; }
+    location = /allstickers { return 301 /allstickers/; }
     location = /sticker-generator { return 301 /sticker-generator/; }
 
     location /api/ {
@@ -233,6 +234,7 @@ echo "Landing page: http://${server_ip}"
 echo "Phonics book: http://${server_ip}/phonicsbook/"
 echo "Fun tracing: http://${server_ip}/handwriting/"
 echo "Sticker book: http://${server_ip}/stickers/"
+echo "All stickers monitor: http://${server_ip}/allstickers/"
 echo
 echo "When you are ready to create or refill stickers, run: generate"
 echo "After the first complete generation, save the reusable pack with: backup-stickers"
