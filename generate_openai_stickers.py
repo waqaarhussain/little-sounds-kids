@@ -233,7 +233,7 @@ def generate_image(client, prompt):
         model=MODEL,
         prompt=prompt,
         size="1024x1024",
-        quality="medium",
+        quality="low",
         background="transparent",
         output_format="png",
     )
@@ -259,7 +259,7 @@ def main():
     manifest_path = args.private_root / "manifest.json"
     manifest = load_manifest(manifest_path)
     manifest["model"] = MODEL
-    manifest["quality"] = "medium"
+    manifest["quality"] = "low"
     manifest["requested_per_category"] = args.count
     client = OpenAI(api_key=api_key, timeout=180.0, max_retries=0)
     try:
@@ -278,7 +278,7 @@ def main():
     write_gallery(args.public_root, manifest, args.count)
     total = args.count * len(CATEGORIES)
     completed = sum(1 for category, number in existing_keys if category in CATEGORIES and number <= args.count)
-    print(f"Starting the {total}-sticker trial with {MODEL} at medium quality.", flush=True)
+    print(f"Starting the {total}-sticker trial with {MODEL} at low quality.", flush=True)
     print(f"Existing completed files: {completed}/{total}", flush=True)
 
     for category, details in CATEGORIES.items():
@@ -347,7 +347,7 @@ def main():
                             "idea": idea,
                             "prompt": prompt,
                             "model": MODEL,
-                            "quality": "medium",
+                            "quality": "low",
                             "sha256": sha256,
                             "phash": str(fingerprint),
                             "generated_at": utc_now(),
