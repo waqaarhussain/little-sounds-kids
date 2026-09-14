@@ -1,6 +1,0 @@
-The A-Z pure-sound recording was supplied by the site owner for use in this private family learning site.
-
-Natural speech audio generated with Piper using the en_GB-cori-high voice model.
-Piper source: https://github.com/OHF-Voice/piper1-gpl
-Voice model source: https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/cori/high
-The Cori training recordings are public domain LibriVox recordings.

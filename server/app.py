@@ -1,4 +1,6 @@
+import hashlib
 import os
+import random
 import secrets
 import sqlite3
 from contextlib import contextmanager
@@ -28,11 +30,18 @@ CATEGORIES = {
     "alphablocks": "Alphablocks",
     "colourblocks": "Colourblocks",
 }
+NUMBER_LEVELS = {
+    f"numbers-{start}-{start + 9}": tuple(str(number) for number in range(start, start + 10))
+    for start in range(1, 100, 10)
+}
 ACTIVITY_ITEMS = {
     "phonics": tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
     "letters": tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
-    "numbers": tuple(str(number) for number in range(1, 10)),
     "shapes": ("circle", "square", "triangle", "diamond", "pentagon", "heart", "star", "hexagon", "oval"),
+    "count-and-choose": tuple(f"round-{number}" for number in range(1, 11)),
+    "match-the-pairs": ("cat", "dog", "frog", "fish", "lion", "rabbit"),
+    "sort-colours-shapes": tuple(f"round-{number}" for number in range(1, 11)),
+    **NUMBER_LEVELS,
 }
 
 app = Flask(__name__)
@@ -329,25 +338,43 @@ def sticker_book():
         profile = pending["profile"]
         rows = connection.execute(
             """
-            SELECT s.id, s.category, s.serial, s.image_path, s.active,
-                   CASE WHEN r.sticker_id IS NULL THEN 0 ELSE 1 END AS peeled
+            SELECT s.id, s.category, s.serial, s.image_path
             FROM catalog_stickers s
             LEFT JOIN catalog_rewards r ON r.sticker_id = s.id AND r.profile = ?
-            WHERE s.category = ? AND s.staged = 0
+            WHERE s.category = ? AND s.active = 1 AND s.staged = 0 AND r.sticker_id IS NULL
             ORDER BY s.serial
             """,
             (profile, category),
         ).fetchall()
+        seed_text = f"{reward_token}|{profile}|{category}"
+        rng = random.Random(hashlib.sha256(seed_text.encode("utf-8")).hexdigest())
+        chosen = []
+        if category == "alphablocks":
+            by_letter = {letter: [] for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"}
+            extras = []
+            for row in rows:
+                serial = int(row["serial"])
+                if serial <= 78:
+                    by_letter["ABCDEFGHIJKLMNOPQRSTUVWXYZ"[(serial - 1) % 26]].append(row)
+                else:
+                    extras.append(row)
+            for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+                options = by_letter[letter]
+                if options:
+                    chosen.append((letter, rng.choice(options)))
+            rng.shuffle(extras)
+            missing = 26 - len(chosen)
+            chosen.extend((None, row) for row in extras[:missing])
+        else:
+            shuffled = list(rows)
+            rng.shuffle(shuffled)
+            chosen = [(None, row) for row in shuffled[:20]]
         slots = []
-        for row in rows:
+        for letter, row in chosen:
             item = sticker_payload(row)
-            item.update(
-                {
-                    "available": bool(row["active"] and not row["peeled"]),
-                    "peeled": bool(row["peeled"]),
-                    "retired": not bool(row["active"]),
-                }
-            )
+            item.update({"available": True, "peeled": False, "retired": False})
+            if letter:
+                item["letter"] = letter
             slots.append(item)
         return jsonify(
             {
@@ -355,11 +382,11 @@ def sticker_book():
                 "category": category,
                 "category_label": CATEGORIES[category],
                 "slots": slots,
-                "available": sum(1 for item in slots if item["available"]),
+                "available": len(rows),
+                "shown": len(slots),
                 "target": TARGET_STICKERS,
             }
         )
-
 
 @app.get("/api/all-stickers")
 def all_stickers():

@@ -576,37 +576,35 @@
   </div>
 
   <div class="sr-only" id="announcement" aria-live="assertive"></div>
-
-  <script src="/assets/audio-player.js"></script>
   <script src="/assets/site-shell.js"></script>
   <script>
     const letters = [
-      { l: "A", sound: "ah", display: "a a a", colour: "#f05d78", dark: "#c83856", soft: "#ffe4ea", items: [["🍎","apple"],["🐜","ant"],["🐊","alligator"],["🪓","axe"]] },
-      { l: "B", sound: "buh", display: "b b b", colour: "#4c78ea", dark: "#3154b9", soft: "#e3ebff", items: [["⚽","ball"],["🐻","bear"],["🍌","banana"],["🦋","butterfly"]] },
-      { l: "C", sound: "kuh", display: "c c c", colour: "#13a884", dark: "#08795e", soft: "#dcfff5", items: [["🐈","cat"],["🚗","car"],["🥤","cup"],["🦀","crab"]] },
-      { l: "D", sound: "duh", display: "d d d", colour: "#f08a24", dark: "#bd5d09", soft: "#fff0dc", items: [["🐕","dog"],["🦆","duck"],["🥁","drum"],["🦕","dinosaur"]] },
-      { l: "E", sound: "eh", display: "e e e", colour: "#8b5cf6", dark: "#6534c9", soft: "#eee6ff", items: [["🥚","egg"],["🐘","elephant"],["💪","elbow"],["✉️","envelope"]] },
-      { l: "F", sound: "ffff", display: "ffff", colour: "#e65193", dark: "#ad2967", soft: "#ffe5f1", items: [["🐟","fish"],["🐸","frog"],["🦊","fox"],["🌸","flower"]] },
-      { l: "G", sound: "guh", display: "g g g", colour: "#37a64a", dark: "#227532", soft: "#e2f9e6", items: [["🐐","goat"],["🍇","grapes"],["🎁","gift"],["🪿","goose"]] },
-      { l: "H", sound: "huh", display: "h h h", colour: "#ec6b39", dark: "#b5441e", soft: "#ffeadf", items: [["🎩","hat"],["🐔","hen"],["🦛","hippo"],["🏠","house"]] },
-      { l: "I", sound: "ih", display: "i i i", colour: "#00a6c8", dark: "#00758f", soft: "#daf8ff", items: [["🧊","ice"],["🦟","insect"],["🖋️","ink"],["🦎","iguana"]] },
-      { l: "J", sound: "juh", display: "j j j", colour: "#e04b48", dark: "#ad2b29", soft: "#ffe5e4", items: [["🍓","jam"],["✈️","jet"],["🫙","jar"],["🪼","jellyfish"]] },
-      { l: "K", sound: "kuh", display: "k k k", colour: "#6956d9", dark: "#4634a9", soft: "#ebe8ff", items: [["🪁","kite"],["👑","king"],["🐈","kitten"],["🐨","koala"]] },
-      { l: "L", sound: "llll", display: "llll", colour: "#e8a31b", dark: "#ae7300", soft: "#fff3d6", items: [["🦁","lion"],["🍃","leaf"],["💡","lamp"],["🍋","lemon"]] },
-      { l: "M", sound: "mmmm", display: "mmmm", colour: "#c34caf", dark: "#90307f", soft: "#fbe1f7", items: [["🌙","moon"],["🐭","mouse"],["🥛","milk"],["🐒","monkey"]] },
-      { l: "N", sound: "nnnn", display: "nnnn", colour: "#1b9c79", dark: "#0f7056", soft: "#dff9f1", items: [["🪺","nest"],["🥅","net"],["👃","nose"],["🥜","nut"]] },
-      { l: "O", sound: "aw", display: "o o o", colour: "#ff7a45", dark: "#c64b1c", soft: "#ffe9df", items: [["🐙","octopus"],["🍊","orange"],["🐂","ox"],["🦩","ostrich"]] },
-      { l: "P", sound: "puh", display: "p p p", colour: "#ee527f", dark: "#b82c56", soft: "#ffe2eb", items: [["🐖","pig"],["🖊️","pen"],["🍕","pizza"],["🐼","panda"]] },
-      { l: "Q", sound: "kwuh", display: "qu qu qu", colour: "#7952c9", dark: "#51318f", soft: "#eee5ff", items: [["👸","queen"],["🪶","quill"],["🧵","quilt"],["❓","question"]] },
-      { l: "R", sound: "rrrr", display: "rrrr", colour: "#df4a3f", dark: "#a92b24", soft: "#ffe4e1", items: [["🐇","rabbit"],["🌧️","rain"],["🤖","robot"],["🚀","rocket"]] },
-      { l: "S", sound: "ssss", display: "ssss", colour: "#f2b51d", dark: "#b47c00", soft: "#fff4d5", items: [["☀️","sun"],["🧦","sock"],["🐍","snake"],["⭐","star"]] },
-      { l: "T", sound: "tuh", display: "t t t", colour: "#2c9ed9", dark: "#1571a4", soft: "#dff5ff", items: [["🐯","tiger"],["🌳","tree"],["🚂","train"],["🐢","turtle"]] },
-      { l: "U", sound: "uh", display: "u u u", colour: "#9b58d3", dark: "#6d359c", soft: "#f2e4ff", items: [["☂️","umbrella"],["⬆️","up"],["👨","uncle"],["⬇️","under"]] },
-      { l: "V", sound: "vvvv", display: "vvvv", colour: "#d84e82", dark: "#9f2857", soft: "#ffe5ef", items: [["🚐","van"],["🏺","vase"],["🎻","violin"],["🌋","volcano"]] },
-      { l: "W", sound: "wuh", display: "w w w", colour: "#237ebf", dark: "#155689", soft: "#e1f2ff", items: [["🐋","whale"],["🕸️","web"],["⌚","watch"],["🍉","watermelon"]] },
-      { l: "X", sound: "ks", display: "ks ks ks", colour: "#5365d8", dark: "#3545a4", soft: "#e6e9ff", items: [["📦","box"],["🦊","fox"],["6️⃣","six"],["🪓","axe"]] },
-      { l: "Y", sound: "yuh", display: "y y y", colour: "#df941a", dark: "#a66500", soft: "#fff0d3", items: [["🐂","yak"],["🧶","yarn"],["💛","yellow"],["🪀","yo-yo"]] },
-      { l: "Z", sound: "zzzz", display: "zzzz", colour: "#41a95a", dark: "#25783a", soft: "#e1f8e6", items: [["🦓","zebra"],["🤐","zip"],["0️⃣","zero"],["🦁","zoo"]] }
+      { l: "A", colour: "#f05d78", dark: "#c83856", soft: "#ffe4ea", items: [["🍎","apple"],["🐜","ant"],["🐊","alligator"],["🪓","axe"]] },
+      { l: "B", colour: "#4c78ea", dark: "#3154b9", soft: "#e3ebff", items: [["⚽","ball"],["🐻","bear"],["🍌","banana"],["🦋","butterfly"]] },
+      { l: "C", colour: "#13a884", dark: "#08795e", soft: "#dcfff5", items: [["🐈","cat"],["🚗","car"],["🥤","cup"],["🦀","crab"]] },
+      { l: "D", colour: "#f08a24", dark: "#bd5d09", soft: "#fff0dc", items: [["🐕","dog"],["🦆","duck"],["🥁","drum"],["🦕","dinosaur"]] },
+      { l: "E", colour: "#8b5cf6", dark: "#6534c9", soft: "#eee6ff", items: [["🥚","egg"],["🐘","elephant"],["💪","elbow"],["✉️","envelope"]] },
+      { l: "F", colour: "#e65193", dark: "#ad2967", soft: "#ffe5f1", items: [["🐟","fish"],["🐸","frog"],["🦊","fox"],["🌸","flower"]] },
+      { l: "G", colour: "#37a64a", dark: "#227532", soft: "#e2f9e6", items: [["🐐","goat"],["🍇","grapes"],["🎁","gift"],["🪿","goose"]] },
+      { l: "H", colour: "#ec6b39", dark: "#b5441e", soft: "#ffeadf", items: [["🎩","hat"],["🐔","hen"],["🦛","hippo"],["🏠","house"]] },
+      { l: "I", colour: "#00a6c8", dark: "#00758f", soft: "#daf8ff", items: [["🧊","ice"],["🦟","insect"],["🖋️","ink"],["🦎","iguana"]] },
+      { l: "J", colour: "#e04b48", dark: "#ad2b29", soft: "#ffe5e4", items: [["🍓","jam"],["✈️","jet"],["🫙","jar"],["🪼","jellyfish"]] },
+      { l: "K", colour: "#6956d9", dark: "#4634a9", soft: "#ebe8ff", items: [["🪁","kite"],["👑","king"],["🐈","kitten"],["🐨","koala"]] },
+      { l: "L", colour: "#e8a31b", dark: "#ae7300", soft: "#fff3d6", items: [["🦁","lion"],["🍃","leaf"],["💡","lamp"],["🍋","lemon"]] },
+      { l: "M", colour: "#c34caf", dark: "#90307f", soft: "#fbe1f7", items: [["🌙","moon"],["🐭","mouse"],["🥛","milk"],["🐒","monkey"]] },
+      { l: "N", colour: "#1b9c79", dark: "#0f7056", soft: "#dff9f1", items: [["🪺","nest"],["🥅","net"],["👃","nose"],["🥜","nut"]] },
+      { l: "O", colour: "#ff7a45", dark: "#c64b1c", soft: "#ffe9df", items: [["🐙","octopus"],["🍊","orange"],["🐂","ox"],["🦩","ostrich"]] },
+      { l: "P", colour: "#ee527f", dark: "#b82c56", soft: "#ffe2eb", items: [["🐖","pig"],["🖊️","pen"],["🍕","pizza"],["🐼","panda"]] },
+      { l: "Q", colour: "#7952c9", dark: "#51318f", soft: "#eee5ff", items: [["👸","queen"],["🪶","quill"],["🧵","quilt"],["❓","question"]] },
+      { l: "R", colour: "#df4a3f", dark: "#a92b24", soft: "#ffe4e1", items: [["🐇","rabbit"],["🌧️","rain"],["🤖","robot"],["🚀","rocket"]] },
+      { l: "S", colour: "#f2b51d", dark: "#b47c00", soft: "#fff4d5", items: [["☀️","sun"],["🧦","sock"],["🐍","snake"],["⭐","star"]] },
+      { l: "T", colour: "#2c9ed9", dark: "#1571a4", soft: "#dff5ff", items: [["🐯","tiger"],["🌳","tree"],["🚂","train"],["🐢","turtle"]] },
+      { l: "U", colour: "#9b58d3", dark: "#6d359c", soft: "#f2e4ff", items: [["☂️","umbrella"],["⬆️","up"],["👨","uncle"],["⬇️","under"]] },
+      { l: "V", colour: "#d84e82", dark: "#9f2857", soft: "#ffe5ef", items: [["🚐","van"],["🏺","vase"],["🎻","violin"],["🌋","volcano"]] },
+      { l: "W", colour: "#237ebf", dark: "#155689", soft: "#e1f2ff", items: [["🐋","whale"],["🕸️","web"],["⌚","watch"],["🍉","watermelon"]] },
+      { l: "X", colour: "#5365d8", dark: "#3545a4", soft: "#e6e9ff", items: [["📦","box"],["🦊","fox"],["6️⃣","six"],["🪓","axe"]] },
+      { l: "Y", colour: "#df941a", dark: "#a66500", soft: "#fff0d3", items: [["🐂","yak"],["🧶","yarn"],["💛","yellow"],["🪀","yo-yo"]] },
+      { l: "Z", colour: "#41a95a", dark: "#25783a", soft: "#e1f8e6", items: [["🦓","zebra"],["🤐","zip"],["0️⃣","zero"],["🦁","zoo"]] }
     ];
 
     const page = document.getElementById("page");
@@ -630,58 +628,6 @@
 
     function escapeText(value) {
       return String(value).replace(/[&<>"]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[character]);
-    }
-
-    function stopSpeech() {
-      window.SiteAudio.stop();
-    }
-
-    function audioSlug(value) {
-      return String(value).toLowerCase().replace(/\s+/g, "-");
-    }
-
-    function playClip(source) {
-      window.SiteAudio.play(source);
-    }
-
-    function playLetterSound(letter) {
-      playClip(`/audio/phonics/${letter.toLowerCase()}.mp3`);
-    }
-
-    function playWord(word) {
-      playClip(`/audio/words/${audioSlug(word)}.mp3`);
-    }
-
-    function playPage(letter) {
-      playClip(`/audio/pages/${letter.toLowerCase()}.mp3`);
-    }
-
-    function playFindPrompt(word) {
-      playClip(`/audio/find/${audioSlug(word)}.mp3`);
-    }
-
-    function playSuccess(letter, word) {
-      playClip(`/audio/success/${letter.toLowerCase()}-${audioSlug(word)}.mp3`);
-    }
-
-    function playDing() {
-      if (window.SiteAudio.isMuted()) return;
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) return;
-      const context = new AudioContextClass();
-      const gain = context.createGain();
-      gain.gain.setValueAtTime(0.0001, context.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.22, context.currentTime + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.6);
-      gain.connect(context.destination);
-      [659.25, 987.77].forEach((frequency, position) => {
-        const oscillator = context.createOscillator();
-        oscillator.type = "sine";
-        oscillator.frequency.value = frequency;
-        oscillator.connect(gain);
-        oscillator.start(context.currentTime + position * 0.1);
-        oscillator.stop(context.currentTime + 0.62);
-      });
     }
 
     function highlightedWord(word, letter) {
@@ -710,52 +656,40 @@
       page.innerHTML = `
         <section class="letter-side">
           <div class="count"><span class="count-dot"></span>${current + 1} of ${letters.length}</div>
-          <button class="letter-button" id="letterButton" type="button" aria-label="Hear the sound for ${item.l}">
+          <div class="letter-button" aria-label="Letter ${item.l}">
             <span class="big-letter">${item.l}</span>
-          </button>
-          <div class="sound-pill" aria-hidden="true">${item.display}</div>
+          </div>
         </section>
         <section class="picture-side">
-          <h1 class="prompt">Tap a picture and listen!</h1>
+          <h1 class="prompt">Tap a picture and learn the word!</h1>
           <div class="pictures">
             ${item.items.map(([emoji, word], index) => `
-              <button class="picture-card" type="button" data-index="${index}" aria-label="Hear ${word}">
+              <button class="picture-card" type="button" data-index="${index}" aria-label="${word}">
                 <span class="picture-emoji" aria-hidden="true">${emoji}</span>
                 <span class="word">${highlightedWord(word, item.l)}</span>
               </button>
             `).join("")}
           </div>
           <div class="page-actions">
-            <button class="action-button" id="readButton" type="button">🔊 Read this page</button>
             <button class="action-button secondary" id="gameButton" type="button">🎯 Find the picture</button>
           </div>
         </section>
       `;
-      document.getElementById("letterButton").addEventListener("click", () => playLetterSound(item.l));
-      document.getElementById("readButton").addEventListener("click", () => playPage(item.l));
       document.getElementById("gameButton").addEventListener("click", openQuiz);
       page.querySelectorAll(".picture-card").forEach(card => {
         card.addEventListener("click", () => {
-          const chosen = item.items[Number(card.dataset.index)][1];
           page.querySelectorAll(".picture-card").forEach(other => other.classList.remove("heard"));
           card.classList.add("heard");
-          playWord(chosen);
         });
       });
       backButton.disabled = current === 0;
       nextButton.textContent = current === letters.length - 1 ? "Start again ↻" : "Next ▶";
       progressBar.style.width = `${((current + 1) / letters.length) * 100}%`;
       announcement.textContent = `Letter ${item.l}. Page ${current + 1} of ${letters.length}.`;
-      window.SiteAudio.preload([
-        `/audio/phonics/${item.l.toLowerCase()}.mp3`,
-        `/audio/pages/${item.l.toLowerCase()}.mp3`,
-        ...item.items.map(entry => `/audio/words/${audioSlug(entry[1])}.mp3`)
-      ]);
       renderAlphabet();
     }
 
     function goTo(index) {
-      stopSpeech();
       current = (index + letters.length) % letters.length;
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -780,7 +714,6 @@
       quizStatus.textContent = "";
       quizOverlay.hidden = false;
       quizChoices.querySelector("button")?.focus();
-      playFindPrompt(answer[1]);
       quizChoices.querySelectorAll("button").forEach(button => button.addEventListener("click", checkQuiz));
     }
 
@@ -790,16 +723,13 @@
         quizChoices.querySelectorAll("button").forEach(choice => choice.disabled = true);
         button.classList.add("right");
         quizStatus.textContent = `Yes! ${quizAnswer}! ⭐`;
-        playDing();
         makeConfetti();
-        playSuccess(letters[current].l, quizAnswer);
         completePhonicsLetter(letters[current].l);
       } else {
         button.classList.remove("wrong");
         button.offsetHeight;
         button.classList.add("wrong");
         quizStatus.textContent = "Try another one!";
-        playClip("/audio/ui/try-another-one.mp3");
       }
     }
 

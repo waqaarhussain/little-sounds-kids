@@ -8,7 +8,6 @@
   let childProfiles = ["Child 1", "Child 2"];
   let resolveReady;
   const ready = new Promise(resolve => { resolveReady = resolve; });
-
   const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, character => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
   })[character]);
@@ -25,6 +24,13 @@
     return result;
   }
 
+  function initials(name) {
+    const words = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return "??";
+    if (words.length > 1) return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+    return (words[0][0] + "H").toUpperCase();
+  }
+
   function createInterface() {
     const phonicsTools = location.pathname.startsWith("/phonicsbook")
       ? '<button class="site-tool-button site-tool-icon" id="siteAlphabetButton" type="button" aria-label="Choose a letter">🔤</button>'
@@ -34,15 +40,14 @@
       <nav class="site-tools" aria-label="Site controls">
         <a class="site-tool-button site-tool-icon" href="/" aria-label="Little Learners home">🏠</a>
         ${phonicsTools}
-        <button class="site-tool-button site-tool-icon" id="siteSoundButton" type="button" aria-label="Turn sound off" aria-pressed="true">🔊</button>
-        <button class="site-tool-button site-tool-gift" id="siteGiveSticker" type="button" aria-label="Give a good behaviour sticker">🎁 <span>Give sticker</span></button>
-        <a class="site-tool-button site-tool-sticker" href="/stickers/" aria-label="Open earned sticker album">🌟</a>
-        <button class="site-tool-button" id="siteProfileButton" type="button" aria-label="Switch profile">👤 <span id="siteProfileName">Profile</span></button>
+        <button class="site-tool-button site-tool-icon" id="siteGiveSticker" type="button" aria-label="Give a good behaviour sticker">🎁</button>
+        <a class="site-tool-button site-tool-icon" href="/stickers/" aria-label="Open earned sticker album">🌟</a>
+        <button class="site-tool-button site-profile-initials" id="siteProfileButton" type="button" aria-label="Switch profile"><span id="siteProfileName">?</span></button>
       </nav>
       <div class="site-modal" id="profileModal" hidden>
         <section class="site-modal-card" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
-          <h2 id="profileTitle">Who is playing?</h2>
-          <p id="profileHelp">Pick your profile. This device will remember you.</p>
+          <h2 id="profileTitle">Choose Profile</h2>
+          <p id="profileHelp" hidden></p>
           <div class="profile-grid" id="profileGrid"></div>
           <div class="profile-pin" id="profilePin" hidden>
             <label for="profilePinInput"><strong>Parent PIN</strong></label>
@@ -57,8 +62,7 @@
       </div>
       <div class="site-modal" id="rewardModal" hidden>
         <section class="site-modal-card reward-modal-card" id="rewardCard" role="dialog" aria-modal="true"></section>
-      </div>
-    `);
+      </div>`);
   }
 
   function profileButtons(choices = profiles) {
@@ -66,13 +70,13 @@
     return choices.map((name, index) => `
       <button class="profile-choice" type="button" data-profile="${escapeHtml(name)}">
         <span>${icons[index] || "👤"}</span>${escapeHtml(name)}
-      </button>
-    `).join("");
+      </button>`).join("");
   }
 
   function setProfile(name) {
     profile = name;
-    document.getElementById("siteProfileName").textContent = name;
+    document.getElementById("siteProfileName").textContent = initials(name);
+    document.getElementById("siteProfileButton").setAttribute("aria-label", "Switch profile. Current profile " + name);
     document.documentElement.dataset.profile = name.toLowerCase();
     window.dispatchEvent(new CustomEvent("profilechange", { detail: { profile: name } }));
   }
@@ -83,10 +87,10 @@
     const pin = document.getElementById("profilePin");
     const actions = document.getElementById("profileActions");
     const cancel = document.getElementById("profileCancel");
-    document.getElementById("profileTitle").textContent = firstLaunch ? "Who is playing?" : "Switch profile";
-    document.getElementById("profileHelp").textContent = firstLaunch
-      ? "Pick your profile. This device will remember you."
-      : "Choose a profile and enter the parent PIN.";
+    const help = document.getElementById("profileHelp");
+    document.getElementById("profileTitle").textContent = firstLaunch ? "Choose Profile" : "Switch Profile";
+    help.textContent = firstLaunch ? "" : "Choose a profile and enter the parent PIN.";
+    help.hidden = firstLaunch;
     document.getElementById("profileError").textContent = "";
     document.getElementById("profilePinInput").value = "";
     selectedProfile = null;
@@ -95,9 +99,7 @@
     actions.hidden = firstLaunch;
     cancel.hidden = firstLaunch;
     modal.hidden = false;
-
     grid.querySelectorAll("button").forEach(button => button.addEventListener("click", async () => {
-      window.SiteAudio?.unlock?.();
       selectedProfile = button.dataset.profile;
       grid.querySelectorAll("button").forEach(other => other.classList.toggle("selected", other === button));
       if (firstLaunch) {
@@ -109,14 +111,11 @@
         } catch (error) {
           document.getElementById("profileError").textContent = error.message;
         }
-      } else {
-        document.getElementById("profilePinInput").focus();
-      }
+      } else document.getElementById("profilePinInput").focus();
     }));
   }
 
   async function confirmSwitch() {
-    window.SiteAudio?.unlock?.();
     const errorBox = document.getElementById("profileError");
     if (!selectedProfile) {
       errorBox.textContent = "Choose a profile first.";
@@ -140,9 +139,7 @@
     const modal = document.getElementById("rewardModal");
     const card = document.getElementById("rewardCard");
     card.innerHTML = `
-      <div class="reward-symbol">💭</div>
-      <h2>Oops!</h2>
-      <p>${escapeHtml(error.message || error)}</p>
+      <div class="reward-symbol">💭</div><h2>Oops!</h2><p>${escapeHtml(error.message || error)}</p>
       <div class="site-actions">
         ${retry ? '<button class="site-primary" type="button" id="rewardRetry">Try again</button>' : ""}
         <button class="site-secondary" type="button" id="rewardClose">Close</button>
@@ -153,39 +150,30 @@
   }
 
   function openBonusReward() {
-    window.SiteAudio?.unlock?.();
     const modal = document.getElementById("rewardModal");
     const card = document.getElementById("rewardCard");
     const defaultChild = childProfiles.includes(profile) ? profile : childProfiles[0];
     card.innerHTML = `
-      <div class="reward-symbol">🎁</div>
-      <h2>Give a sticker</h2>
-      <p>A special sticker for being brilliant!</p>
+      <div class="reward-symbol">🎁</div><h2>Give a sticker</h2><p>A special sticker for being brilliant!</p>
       <div class="bonus-profile-grid">
         ${childProfiles.map((name, index) => `
           <button class="profile-choice ${name === defaultChild ? "selected" : ""}" type="button" data-profile="${escapeHtml(name)}">
             <span>${index ? "⭐" : "🌈"}</span>${escapeHtml(name)}
           </button>`).join("")}
       </div>
-      <div class="profile-pin bonus-pin">
-        <label for="bonusPin"><strong>Parent PIN</strong></label>
-        <input id="bonusPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••">
-      </div>
+      <div class="profile-pin bonus-pin"><label for="bonusPin"><strong>Parent PIN</strong></label>
+        <input id="bonusPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••"></div>
       <p class="profile-error" id="bonusError" role="alert"></p>
-      <div class="site-actions">
-        <button class="site-primary" id="bonusContinue" type="button">Choose a sticker</button>
-        <button class="site-secondary" id="bonusCancel" type="button">Cancel</button>
-      </div>`;
+      <div class="site-actions"><button class="site-primary" id="bonusContinue" type="button">Choose a sticker</button>
+        <button class="site-secondary" id="bonusCancel" type="button">Cancel</button></div>`;
     modal.hidden = false;
     let targetProfile = defaultChild;
     card.querySelectorAll(".bonus-profile-grid button").forEach(button => button.addEventListener("click", () => {
-      window.SiteAudio?.unlock?.();
       targetProfile = button.dataset.profile;
       card.querySelectorAll(".bonus-profile-grid button").forEach(other => other.classList.toggle("selected", other === button));
     }));
     document.getElementById("bonusCancel").onclick = () => { modal.hidden = true; };
     document.getElementById("bonusContinue").onclick = async () => {
-      window.SiteAudio?.unlock?.();
       const button = document.getElementById("bonusContinue");
       const errorBox = document.getElementById("bonusError");
       button.disabled = true;
@@ -212,100 +200,62 @@
     const modal = document.getElementById("rewardModal");
     const card = document.getElementById("rewardCard");
     card.innerHTML = `
-      <div class="reward-symbol">✨</div>
-      <h2>${escapeHtml(rewardProfile)}, choose a theme!</h2>
+      <div class="reward-symbol">✨</div><h2>${escapeHtml(rewardProfile)}, choose a theme!</h2>
       <p>Which sticker sheet would you like?</p>
       <div class="sticker-choice-grid">
         ${categories.map(category => `
           <button class="sticker-choice" type="button" data-category="${escapeHtml(category.id)}">
-            <img src="${escapeHtml(category.image)}" alt="">
-            <span>${escapeHtml(category.label)}</span>
+            <img src="${escapeHtml(category.image)}" alt=""><span>${escapeHtml(category.label)}</span>
             <small>${category.available} ready</small>
-          </button>
-        `).join("")}
+          </button>`).join("")}
       </div>
       <div class="site-actions"><button class="site-secondary" type="button" id="rewardClose">Not now</button></div>`;
     modal.hidden = false;
     document.getElementById("rewardClose").onclick = () => { modal.hidden = true; };
     card.querySelectorAll(".sticker-choice").forEach(button => button.addEventListener("click", () => {
-      window.SiteAudio?.unlock?.();
       openStickerSheet(button.dataset.category, rewardToken);
     }));
   }
 
-  async function openStickerSheet(category, rewardToken, requestedPage = 0) {
+  async function openStickerSheet(category, rewardToken) {
     const modal = document.getElementById("rewardModal");
     const card = document.getElementById("rewardCard");
     card.innerHTML = '<div class="sticker-sheet-loading">Opening your sticker sheet… ✨</div>';
     try {
-      const book = await api(`/api/sticker-book?category=${encodeURIComponent(category)}&reward_token=${encodeURIComponent(rewardToken)}`);
-      const pageSize = 20;
-      const pageCount = Math.max(1, Math.ceil(book.slots.length / pageSize));
-      const page = Math.max(0, Math.min(requestedPage, pageCount - 1));
-      const slots = book.slots.slice(page * pageSize, (page + 1) * pageSize);
+      const book = await api("/api/sticker-book?category=" + encodeURIComponent(category) + "&reward_token=" + encodeURIComponent(rewardToken));
       card.innerHTML = `
         <div class="sticker-sheet-header">
           <div><span class="sheet-kicker">${escapeHtml(book.profile)}'s sticker sheet</span><h2>${escapeHtml(book.category_label)}</h2></div>
           <button class="sheet-close" type="button" id="rewardClose" aria-label="Close">×</button>
         </div>
-        <p>Tap one sticker and peel it off!</p>
-        <div class="sticker-sheet" aria-label="${escapeHtml(book.category_label)} sticker sheet">
-          ${slots.map(sticker => `
-            <button class="sticker-slot ${sticker.available ? "available" : "empty-slot"}" type="button"
-                    data-sticker-id="${sticker.id}" ${sticker.available ? "" : "disabled"}
-                    aria-label="Sticker ${sticker.serial}${sticker.available ? ", available" : ", peeled"}">
-              <span class="peel-mark"><strong>#${sticker.serial}</strong><em>${sticker.peeled ? "Peeled!" : sticker.retired ? "Used" : ""}</em></span>
-              ${sticker.available ? `<img src="${escapeHtml(sticker.image)}" alt="${escapeHtml(book.category_label)} sticker ${sticker.serial}" loading="lazy">` : ""}
+        <p>Tap one sticker and watch the magic!</p>
+        <div class="sticker-sheet ${book.category === "alphablocks" ? "alphabet-sheet" : ""}" aria-label="${escapeHtml(book.category_label)} sticker sheet">
+          ${book.slots.map(sticker => `
+            <button class="sticker-slot available" type="button" data-sticker-id="${sticker.id}"
+                    aria-label="${sticker.letter ? "Letter " + sticker.letter + ", " : ""}sticker ${sticker.serial}">
+              <span class="peel-mark"><strong>${sticker.letter ? sticker.letter : "#" + sticker.serial}</strong></span>
+              <img src="${escapeHtml(sticker.image)}" alt="${escapeHtml(book.category_label)} sticker ${sticker.serial}" loading="lazy">
+              <span class="magic-sparkles" aria-hidden="true">✦ ✨ ★ ✦</span>
             </button>`).join("")}
-        </div>
-        <div class="sheet-footer">
-          <button class="site-secondary sheet-page" id="sheetPrevious" type="button" ${page === 0 ? "disabled" : ""}>◀ Back</button>
-          <strong>Page ${page + 1} of ${pageCount}</strong>
-          <button class="site-secondary sheet-page" id="sheetNext" type="button" ${page + 1 >= pageCount ? "disabled" : ""}>Next ▶</button>
-        </div>`;
+        </div><p class="sheet-count">Showing ${book.shown} unused sticker${book.shown === 1 ? "" : "s"}</p>`;
       document.getElementById("rewardClose").onclick = () => { modal.hidden = true; };
-      document.getElementById("sheetPrevious").onclick = () => openStickerSheet(category, rewardToken, page - 1);
-      document.getElementById("sheetNext").onclick = () => openStickerSheet(category, rewardToken, page + 1);
       card.querySelectorAll(".sticker-slot.available").forEach(button => button.addEventListener("click", async () => {
-        window.SiteAudio?.unlock?.();
-        card.querySelectorAll(".sticker-slot.available").forEach(item => { item.disabled = true; });
+        if (card.classList.contains("claiming")) return;
+        card.classList.add("claiming");
+        button.classList.add("magic-peel");
+        card.querySelectorAll(".sticker-slot.available").forEach(item => { if (item !== button) item.classList.add("fade-away"); });
         try {
           const reward = await api("/api/rewards/claim", {
-            method: "POST",
-            body: JSON.stringify({ reward_token: rewardToken, sticker_id: Number(button.dataset.stickerId) })
+            method: "POST", body: JSON.stringify({ reward_token: rewardToken, sticker_id: Number(button.dataset.stickerId) })
           });
-          button.classList.add("peeling");
-          await wait(850);
-          showReward(reward);
+          await wait(1500);
+          location.assign("/stickers/?profile=" + encodeURIComponent(reward.profile) + "&new=" + encodeURIComponent(reward.position));
         } catch (error) {
-          showRewardError(error, () => openStickerSheet(category, rewardToken, page));
+          card.classList.remove("claiming");
+          showRewardError(error, () => openStickerSheet(category, rewardToken));
         }
       }));
-    } catch (error) {
-      showRewardError(error);
-    }
-  }
-
-  function showReward(reward) {
-    const modal = document.getElementById("rewardModal");
-    const card = document.getElementById("rewardCard");
-    const activityLabel = reward.activity === "good-behaviour" ? "Good Behaviour" : "Activity Complete";
-    card.innerHTML = `
-      <div class="reward-confetti" aria-hidden="true">⭐ 🎉 ⭐</div>
-      <h2>Well done, ${escapeHtml(reward.profile)}!</h2>
-      <p class="reward-number">Sticker ${reward.position} · ${activityLabel}</p>
-      <div><img class="reward-image" src="${escapeHtml(reward.image)}" alt="${escapeHtml(reward.category_label)} reward sticker"></div>
-      <p>Your new ${escapeHtml(reward.category_label)} sticker is saved in your sticker album.</p>
-      <div class="site-actions">
-        <button class="site-primary" id="rewardContinue" type="button">Keep playing</button>
-        <a class="site-secondary" href="/stickers/">Open sticker album</a>
-      </div>`;
-    modal.hidden = false;
-    window.SiteAudio?.play?.("/audio/ui/well-done.mp3");
-    document.getElementById("rewardContinue").onclick = () => {
-      modal.hidden = true;
-      document.getElementById("gameButton")?.focus();
-    };
+    } catch (error) { showRewardError(error); }
   }
 
   async function claimReward(rewardToken) {
@@ -322,41 +272,18 @@
   }
 
   async function boot() {
-    const soundButton = document.getElementById("siteSoundButton");
-    const updateSoundButton = () => {
-      const muted = window.SiteAudio?.isMuted?.() || false;
-      soundButton.textContent = muted ? "🔇" : "🔊";
-      soundButton.setAttribute("aria-label", muted ? "Turn sound on" : "Turn sound off");
-      soundButton.setAttribute("aria-pressed", String(!muted));
-    };
-    updateSoundButton();
-    soundButton.addEventListener("click", () => {
-      window.SiteAudio?.unlock?.();
-      const muted = window.SiteAudio?.toggleMuted?.();
-      updateSoundButton();
-      if (!muted) window.SiteAudio?.play?.("/audio/ui/sound-on.mp3");
-    });
-    window.addEventListener("siteaudiochange", updateSoundButton);
     document.getElementById("siteProfileButton").addEventListener("click", () => openProfileModal(false));
     document.getElementById("siteGiveSticker").addEventListener("click", openBonusReward);
     document.getElementById("profileConfirm").addEventListener("click", confirmSwitch);
-    document.getElementById("profilePinInput").addEventListener("keydown", event => {
-      if (event.key === "Enter") confirmSwitch();
-    });
-    document.getElementById("profileCancel").addEventListener("click", () => {
-      document.getElementById("profileModal").hidden = true;
-    });
+    document.getElementById("profilePinInput").addEventListener("keydown", event => { if (event.key === "Enter") confirmSwitch(); });
+    document.getElementById("profileCancel").addEventListener("click", () => { document.getElementById("profileModal").hidden = true; });
     try {
       const status = await api("/api/profile");
       profiles = status.profiles || profiles;
       parentProfile = status.parent_profile || profiles[0];
       childProfiles = status.child_profiles || profiles.slice(1);
-      if (status.profile) {
-        setProfile(status.profile);
-        resolveReady(status.profile);
-      } else {
-        openProfileModal(true);
-      }
+      if (status.profile) { setProfile(status.profile); resolveReady(status.profile); }
+      else openProfileModal(true);
     } catch (error) {
       document.getElementById("profileError").textContent = "The profile service is not ready. Refresh the page in a moment.";
       openProfileModal(true);
@@ -364,19 +291,13 @@
   }
 
   window.ProfileShell = Object.freeze({
-    ready,
-    claimReward,
-    giveSticker: openBonusReward,
+    ready, claimReward, giveSticker: openBonusReward,
     get parentProfile() { return parentProfile; },
     get childProfiles() { return [...childProfiles]; },
     get profile() { return profile; }
   });
 
   createInterface();
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot);
-  } else {
-    boot();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
 })();

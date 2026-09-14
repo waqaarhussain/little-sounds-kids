@@ -39,40 +39,14 @@ installer_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 work_dir="$(mktemp -d /tmp/little-sounds-install.XXXXXX)"
 trap 'rm -rf "$work_dir"' EXIT
 
-echo "[1/7] Installing the web server and media tools..."
+echo "[1/4] Installing the web server..."
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y nginx curl ca-certificates ffmpeg python3-venv fonts-dejavu-core
+DEBIAN_FRONTEND=noninteractive apt-get install -y nginx curl ca-certificates python3-venv fonts-dejavu-core
 
-echo "[2/7] Checking the UK A-Z pure-sounds recording..."
-phonics_dir="$installer_dir/assets/uk-phonics"
-for letter in {a..z}; do
-  if [ ! -s "$phonics_dir/$letter.mp3" ]; then
-    echo "The bundled phonics sound $letter is missing. Nothing was published."
-    exit 1
-  fi
-done
-
-echo "[3/7] Preparing the natural British voice..."
-python3 -m venv "$work_dir/voice-env"
-"$work_dir/voice-env/bin/pip" install --disable-pip-version-check "piper-tts==1.8.0"
-curl -fsSL --retry 4 --retry-delay 2 \
-  "https://huggingface.co/rhasspy/piper-voices/resolve/1162a9173d0ce503555aed757976b7a9912eae4c/en/en_GB/cori/high/en_GB-cori-high.onnx?download=true" \
-  -o "$work_dir/en_GB-cori-high.onnx"
-curl -fsSL --retry 4 --retry-delay 2 \
-  "https://huggingface.co/rhasspy/piper-voices/resolve/1162a9173d0ce503555aed757976b7a9912eae4c/en/en_GB/cori/high/en_GB-cori-high.onnx.json?download=true" \
-  -o "$work_dir/en_GB-cori-high.onnx.json"
-echo "470b4dd634c98f8a4850d7626ffc3dfc90774628eeef6605a6dd8f88f30a5903  $work_dir/en_GB-cori-high.onnx" | sha256sum -c -
-echo "9e7fb5b5671612c22f3c81cbe46c1ae87b031a4632bcb509e499dad6f1e2adec  $work_dir/en_GB-cori-high.onnx.json" | sha256sum -c -
-
-echo "[4/7] Generating the complete iPhone and iPad audio pack..."
 site_stage="$work_dir/site"
 cp -a "$installer_dir/site/." "$site_stage/"
-"$work_dir/voice-env/bin/python" "$installer_dir/generate_audio.py" \
-  --model "$work_dir/en_GB-cori-high.onnx" \
-  --phonics-dir "$phonics_dir" \
-  --output "$site_stage/audio"
 
-echo "[5/7] Installing the refillable AI sticker helper..."
+echo "[2/4] Installing the refillable AI sticker helper..."
 python3 -m venv /opt/little-sounds-ai-venv
 /opt/little-sounds-ai-venv/bin/pip install --disable-pip-version-check --upgrade \
   "openai>=2.0,<3.0" "Pillow>=11.0,<13.0" "ImageHash>=4.3,<5.0"
@@ -116,7 +90,7 @@ ReadWritePaths=/root/stickers/catalog /var/www/little-sounds/sticker-images /var
 WantedBy=multi-user.target
 SYSTEMD
 
-echo "[6/7] Installing the profile and achievement service..."
+echo "[3/4] Installing the profile and achievement service..."
 python3 -m venv /opt/little-sounds-venv
 /opt/little-sounds-venv/bin/pip install --disable-pip-version-check -r "$installer_dir/server/requirements.txt"
 install -d -m 0755 /opt/little-sounds
@@ -156,7 +130,7 @@ ReadWritePaths=/var/lib/little-sounds
 WantedBy=multi-user.target
 SYSTEMD
 
-echo "[7/7] Publishing the mobile-friendly website..."
+echo "[4/4] Publishing the mobile-friendly website..."
 install -d -m 0755 /var/www/little-sounds
 cp -a "$site_stage/." /var/www/little-sounds/
 chmod -R a+rX /var/www/little-sounds
@@ -171,6 +145,9 @@ server {
 
     location = /phonicsbook { return 301 /phonicsbook/; }
     location = /handwriting { return 301 /handwriting/; }
+    location = /counting { return 301 /counting/; }
+    location = /matching { return 301 /matching/; }
+    location = /sorting { return 301 /sorting/; }
     location = /stickers { return 301 /stickers/; }
     location = /allstickers { return 301 /allstickers/; }
     location = /sticker-generator { return 301 /sticker-generator/; }
@@ -186,7 +163,7 @@ server {
         try_files $uri $uri/ =404;
     }
 
-    location ~* \.(mp3|webp|png|jpg|jpeg)$ {
+    location ~* \.(webp|png|jpg|jpeg)$ {
         expires 30d;
         add_header Cache-Control "public";
     }
@@ -236,6 +213,9 @@ echo "Installation complete."
 echo "Landing page: http://${server_ip}"
 echo "Phonics book: http://${server_ip}/phonicsbook/"
 echo "Fun tracing: http://${server_ip}/handwriting/"
+echo "Count and Choose: http://${server_ip}/counting/"
+echo "Match the Pairs: http://${server_ip}/matching/"
+echo "Sort and Learn: http://${server_ip}/sorting/"
 echo "Sticker book: http://${server_ip}/stickers/"
 echo "All stickers monitor: http://${server_ip}/allstickers/"
 echo

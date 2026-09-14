@@ -421,9 +421,14 @@ def inventory(connection, category):
     ).fetchone()[0])
     used_active = int(connection.execute(
         """
-        SELECT COUNT(DISTINCT s.id) FROM catalog_stickers s
-        JOIN catalog_rewards r ON r.sticker_id = s.id
-        WHERE s.category = ? AND s.active = 1
+        SELECT COUNT(*) FROM (
+            SELECT s.id
+            FROM catalog_stickers s
+            JOIN catalog_rewards r ON r.sticker_id = s.id
+            WHERE s.category = ? AND s.active = 1
+            GROUP BY s.id
+            HAVING COUNT(DISTINCT r.profile) >= 2
+        )
         """, (category,)
     ).fetchone()[0])
     staged = int(connection.execute(
@@ -436,9 +441,12 @@ def publish_category(connection, category, needed):
     connection.execute("BEGIN IMMEDIATE")
     used_ids = [row[0] for row in connection.execute(
         """
-        SELECT DISTINCT s.id FROM catalog_stickers s
+        SELECT s.id
+        FROM catalog_stickers s
         JOIN catalog_rewards r ON r.sticker_id = s.id
         WHERE s.category = ? AND s.active = 1
+        GROUP BY s.id
+        HAVING COUNT(DISTINCT r.profile) >= 2
         """, (category,)
     )]
     if used_ids:
