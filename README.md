@@ -5,10 +5,10 @@ A private, mobile-friendly family learning site.
 ## Included activities
 
 - Fun Phonics: A to Z picture book and Find the Picture challenge
-- Fun Tracing: letters, nine shapes and numbers 1 to 100
-- Count & Choose: ten counting challenges
-- Match the Pairs: six picture pairs
-- Sort & Learn: ten colour and shape challenges
+- Fun Tracing: letters, 15 shapes and numbers 1 to 100
+- Count & Choose: 20 shuffled counting challenges
+- Match the Pairs: six picture pairs, previewed for three seconds first
+- Sort & Learn: 20 mixed colour and shape challenges
 - Separate child sticker albums and parent-PIN profile switching
 - Ad-hoc good-behaviour sticker rewards
 - Sticker generation monitor at `/allstickers/`
@@ -23,7 +23,7 @@ Normal themes show a stable random selection of up to 20 unused stickers for the
 
 Sticker use is stored separately for each child. A sticker remains available to the other child until both children have used it. The refill helper retires a sticker only after both children have used it.
 
-Incomplete activity progress resets after ten minutes without interaction. Completed rewards and sticker albums never expire.
+Incomplete activity progress resets after ten minutes without interaction. Each new game cycle gets a freshly shuffled plan, and exact completed plans are remembered so they are not served again. Completed rewards and sticker albums never expire.
 
 ## Installation
 
@@ -32,7 +32,7 @@ Run `install.sh` as root on a fresh Ubuntu VPS and provide the parent profile, t
 ## Sticker commands
 
 - `generate` securely asks for an OpenAI API key, shows progress at `/allstickers/`, and fills each theme to 100 active stickers.
-- `backup-stickers` packages the current catalogue, anonymised child albums and used-sticker state, then publishes the release asset using a GitHub token.
+- `backup-stickers` packages the current catalogue, anonymised child albums, used-sticker state and randomized-game memory, then publishes the release asset using a GitHub token.
 
 Generated sticker images are stored under `/root/stickers/catalog` and served copies under `/var/www/little-sounds/sticker-images`.
 

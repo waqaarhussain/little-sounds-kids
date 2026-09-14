@@ -81,6 +81,17 @@ def ensure_schema(connection):
             UNIQUE(profile, sticker_id),
             FOREIGN KEY(sticker_id) REFERENCES catalog_stickers(id)
         );
+        CREATE TABLE IF NOT EXISTS activity_variants (
+            profile TEXT NOT NULL,
+            activity TEXT NOT NULL,
+            attempt INTEGER NOT NULL,
+            signature TEXT NOT NULL,
+            plan_json TEXT NOT NULL,
+            completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0, 1)),
+            created_at TEXT NOT NULL,
+            PRIMARY KEY(profile, activity, attempt),
+            UNIQUE(profile, activity, signature)
+        );
         """
     )
     connection.commit()
@@ -199,15 +210,38 @@ def create_pack(destination):
     history = [dict(row) for row in connection.execute(
         "SELECT category, sha256, phash, dhash, colorhash, prompt, created_at FROM sticker_history ORDER BY category, created_at, sha256"
     )]
+    activity_variants = []
+    for row in connection.execute(
+        """
+        SELECT profile, activity, attempt, signature, plan_json, completed, created_at
+        FROM activity_variants
+        ORDER BY profile, activity, attempt
+        """
+    ):
+        profile_slot = profile_slots.get(row["profile"])
+        if not profile_slot:
+            continue
+        activity_variants.append(
+            {
+                "profile_slot": profile_slot,
+                "activity": row["activity"],
+                "attempt": int(row["attempt"]),
+                "signature": row["signature"],
+                "plan_json": row["plan_json"],
+                "completed": int(row["completed"]),
+                "created_at": row["created_at"],
+            }
+        )
     connection.close()
     manifest = {
-        "format": 3,
+        "format": 4,
         "created_at": utc_now(),
         "target_per_theme": TARGET,
         "themes": list(THEMES),
         "stickers": items,
         "history": history,
         "rewards": rewards,
+        "activity_variants": activity_variants,
     }
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(destination.suffix + ".tmp")
@@ -218,8 +252,8 @@ def create_pack(destination):
             archive.add(public_source, arcname=public_name, recursive=False)
     temporary.replace(destination)
     print(
-        f"Created {destination} with {len(items)} sticker files, {len(rewards)} anonymised album entries "
-        f"and {len(history)} remembered design fingerprints."
+        f"Created {destination} with {len(items)} sticker files, {len(rewards)} anonymised album entries, "
+        f"{len(activity_variants)} remembered game plans and {len(history)} design fingerprints."
     )
     return destination
 
@@ -244,7 +278,7 @@ def restore_pack(source):
     with tarfile.open(source, "r:gz") as archive:
         manifest = json.loads(member_bytes(archive, "manifest.json"))
         format_version = int(manifest.get("format", 0))
-        if format_version not in (2, 3) or tuple(manifest.get("themes", [])) != THEMES:
+        if format_version not in (2, 3, 4) or tuple(manifest.get("themes", [])) != THEMES:
             raise RuntimeError("This is not a compatible Little Sounds sticker pack.")
         items = manifest.get("stickers", [])
         if format_version == 2:
@@ -329,9 +363,39 @@ def restore_pack(source):
                     ),
                 )
                 restored_rewards += 1
+
+        restored_variants = 0
+        if format_version >= 4:
+            for variant in manifest.get("activity_variants", []):
+                profile = profile_slots.get(variant.get("profile_slot"))
+                activity = str(variant.get("activity", ""))
+                attempt = int(variant.get("attempt", 0))
+                signature = str(variant.get("signature", ""))
+                plan_json = str(variant.get("plan_json", ""))
+                completed = int(variant.get("completed", 0))
+                if not profile or not activity or attempt < 1 or len(signature) != 64 or completed not in (0, 1):
+                    raise RuntimeError("Sticker pack contains an invalid remembered game plan.")
+                try:
+                    json.loads(plan_json)
+                except (TypeError, ValueError):
+                    raise RuntimeError("Sticker pack contains a damaged remembered game plan.")
+                connection.execute(
+                    """
+                    INSERT INTO activity_variants(profile, activity, attempt, signature, plan_json, completed, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        profile, activity, attempt, signature, plan_json, completed,
+                        variant.get("created_at") or manifest.get("created_at") or utc_now(),
+                    ),
+                )
+                restored_variants += 1
         connection.commit()
     connection.close()
-    print(f"Restored {len(items)} sticker files and {restored_rewards} album entries from {source}.")
+    print(
+        f"Restored {len(items)} sticker files, {restored_rewards} album entries "
+        f"and {restored_variants} remembered game plans from {source}."
+    )
     return True
 
 def github_json(method, path, token, body=None):

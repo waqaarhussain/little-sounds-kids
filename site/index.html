@@ -6,49 +6,27 @@
   <title>Little Learners</title>
   <link rel="stylesheet" href="/assets/site-shell.css">
   <style>
-    :root{font-family:"Trebuchet MS",system-ui,sans-serif;color:#18315f}
-    *{box-sizing:border-box}
+    :root{font-family:"Trebuchet MS",system-ui,sans-serif;color:#18315f}*{box-sizing:border-box}
     body{margin:0;min-height:100vh;background:radial-gradient(circle at 8% 13%,#fff 0 5%,transparent 5.2%),radial-gradient(circle at 92% 23%,#f2fdff 0 8%,transparent 8.2%),linear-gradient(135deg,#7358eb 0,#43c8e7 52%,#fff0a5 100%);padding:130px 20px 50px;text-align:center}
-    .hero{max-width:980px;margin:auto}
-    h1{margin:0;color:white;font-size:clamp(3rem,7vw,6.4rem);line-height:.82;text-shadow:0 8px 0 #293f85;letter-spacing:-.05em}
-    .intro{font-size:clamp(1rem,2vw,1.35rem);font-weight:900;margin:28px 0}
-    .activity-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:22px;max-width:960px;margin:30px auto}
-    .activity-card{background:#fff;color:#18315f;text-decoration:none;border:7px solid #fff;border-radius:28px;overflow:hidden;box-shadow:0 10px 0 var(--edge),0 18px 32px #18315f35;transition:transform .18s ease;min-height:230px}
+    .hero{max-width:1120px;margin:auto}h1{margin:0;color:#fff;font-size:clamp(3rem,7vw,6.4rem);line-height:.82;text-shadow:0 8px 0 #293f85;letter-spacing:-.05em}.intro{font-size:clamp(1rem,2vw,1.35rem);font-weight:900;margin:28px 0}
+    .activity-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:20px;max-width:1080px;margin:30px auto}
+    .activity-card{display:grid;grid-template-rows:138px minmax(104px,auto);min-width:0;background:#fff;color:#18315f;text-decoration:none;border:7px solid #fff;border-radius:28px;overflow:hidden;box-shadow:0 10px 0 var(--edge),0 18px 32px #18315f35;transition:transform .18s ease}
     .activity-card:hover,.activity-card:focus-visible{transform:translateY(-7px) rotate(-1deg)}
-    .activity-art{height:142px;display:grid;place-items:center;background:var(--art);font-size:4.8rem}
-    .activity-copy{padding:15px 10px 18px}
-    .activity-copy strong{display:block;font-size:1.25rem}
-    .activity-copy small{font-weight:800}
-    .phonics{--edge:#2760c1;--art:linear-gradient(#65d2ef 0 35%,#fff08a 35%)}
-    .tracing{--edge:#d42b69;--art:linear-gradient(135deg,#fffdf1,#f5e5ff)}
-    .counting{--edge:#e68313;--art:linear-gradient(135deg,#fff3a3,#ffbd59)}
-    .matching{--edge:#6d4edc;--art:linear-gradient(135deg,#d5c8ff,#8be4ff)}
-    .sorting{--edge:#159a6f;--art:linear-gradient(135deg,#baf7d0,#66d9b3)}
+    .activity-art{position:relative;z-index:1;overflow:hidden;display:flex;align-items:center;justify-content:center;gap:4px;background:var(--art);font-size:clamp(2.8rem,4.2vw,4.4rem);line-height:1;white-space:nowrap}
+    .activity-art .art-letters{font-size:.58em;font-weight:1000;letter-spacing:-.08em}
+    .activity-copy{position:relative;z-index:2;min-width:0;padding:13px 8px 16px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px}
+    .activity-copy strong{display:block;font-size:clamp(.98rem,1.5vw,1.22rem);line-height:1.05}.activity-copy small{display:block;max-width:100%;font-weight:800;font-size:.78rem;line-height:1.2}
+    .phonics{--edge:#2760c1;--art:linear-gradient(#65d2ef 0 35%,#fff08a 35%)}.tracing{--edge:#d42b69;--art:linear-gradient(135deg,#fffdf1,#f5e5ff)}.counting{--edge:#e68313;--art:linear-gradient(135deg,#fff3a3,#ffbd59)}.matching{--edge:#6d4edc;--art:linear-gradient(135deg,#d5c8ff,#8be4ff)}.sorting{--edge:#159a6f;--art:linear-gradient(135deg,#baf7d0,#66d9b3)}
     footer{font-weight:900;color:#65470d;margin-top:42px}
-    @media(max-width:600px){
-      body{padding:110px 14px 40px}
-      h1{font-size:clamp(2.7rem,13vw,4.5rem)}
-      .activity-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-      .activity-card{min-height:185px;border-width:5px;border-radius:22px}
-      .activity-art{height:105px;font-size:3.4rem}
-      .activity-copy{padding:11px 5px 14px}
-      .activity-copy strong{font-size:1rem}.activity-copy small{font-size:.73rem}
-    }
+    @media(max-width:900px){.activity-grid{grid-template-columns:repeat(3,minmax(0,1fr));max-width:700px}}
+    @media(max-width:600px){body{padding:110px 14px 40px}h1{font-size:clamp(2.7rem,13vw,4.5rem)}.activity-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.activity-card{grid-template-rows:105px minmax(92px,auto);border-width:5px;border-radius:22px}.activity-art{font-size:3.15rem}.activity-copy{padding:10px 5px 13px}.activity-copy strong{font-size:1rem}.activity-copy small{font-size:.7rem}}
   </style>
 </head>
-<body>
-  <main class="hero">
-    <h1>Pick something<br>fun to learn!</h1>
-    <p class="intro">Tap an activity to start playing and learning.</p>
-    <section class="activity-grid" aria-label="Learning activities">
-      <a class="activity-card phonics" href="/phonicsbook/"><div class="activity-art">🌈<b>ABC</b></div><div class="activity-copy"><strong>Fun Phonics</strong><small>Letters and pictures</small></div></a>
-      <a class="activity-card tracing" href="/handwriting/"><div class="activity-art">✏️</div><div class="activity-copy"><strong>Fun Tracing</strong><small>Letters, numbers and shapes</small></div></a>
-      <a class="activity-card counting" href="/counting/"><div class="activity-art">🍎🍎</div><div class="activity-copy"><strong>Count &amp; Choose</strong><small>Count from 1 to 10</small></div></a>
-      <a class="activity-card matching" href="/matching/"><div class="activity-art">🐱❓</div><div class="activity-copy"><strong>Match the Pairs</strong><small>Find matching pictures</small></div></a>
-      <a class="activity-card sorting" href="/sorting/"><div class="activity-art">🔵🔺</div><div class="activity-copy"><strong>Sort &amp; Learn</strong><small>Colours and shapes</small></div></a>
-    </section>
-  </main>
-  <footer>Made for little learners ❤️</footer>
-  <script src="/assets/site-shell.js"></script>
-</body>
-</html>
+<body><main class="hero"><h1>Pick something<br>fun to learn!</h1><p class="intro">Tap an activity to start playing and learning.</p>
+<section class="activity-grid" aria-label="Learning activities">
+<a class="activity-card phonics" href="/phonicsbook/"><div class="activity-art"><span>🌈</span><b class="art-letters">ABC</b></div><div class="activity-copy"><strong>Fun Phonics</strong><small>Letters and pictures</small></div></a>
+<a class="activity-card tracing" href="/handwriting/"><div class="activity-art"><span>✏️</span></div><div class="activity-copy"><strong>Fun Tracing</strong><small>Letters, numbers and shapes</small></div></a>
+<a class="activity-card counting" href="/counting/"><div class="activity-art"><span>🍎</span><span>⭐</span></div><div class="activity-copy"><strong>Count &amp; Choose</strong><small>20 surprise counting questions</small></div></a>
+<a class="activity-card matching" href="/matching/"><div class="activity-art"><span>🐱</span><span>❓</span></div><div class="activity-copy"><strong>Match the Pairs</strong><small>Remember and match pictures</small></div></a>
+<a class="activity-card sorting" href="/sorting/"><div class="activity-art"><span>🔵</span><span>🔺</span></div><div class="activity-copy"><strong>Sort &amp; Learn</strong><small>20 colour and shape questions</small></div></a>
+</section></main><footer>Made for little learners ❤️</footer><script src="/assets/site-shell.js"></script></body></html>

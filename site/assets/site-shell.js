@@ -242,13 +242,13 @@
       card.querySelectorAll(".sticker-slot.available").forEach(button => button.addEventListener("click", async () => {
         if (card.classList.contains("claiming")) return;
         card.classList.add("claiming");
-        button.classList.add("magic-peel");
+        button.classList.add("peel-ready");
         card.querySelectorAll(".sticker-slot.available").forEach(item => { if (item !== button) item.classList.add("fade-away"); });
         try {
           const reward = await api("/api/rewards/claim", {
             method: "POST", body: JSON.stringify({ reward_token: rewardToken, sticker_id: Number(button.dataset.stickerId) })
           });
-          await wait(1500);
+          await animateStickerPeel(button);
           showClaimedSticker(reward);
         } catch (error) {
           card.classList.remove("claiming");
@@ -258,13 +258,56 @@
     } catch (error) { showRewardError(error); }
   }
 
+  async function animateStickerPeel(button) {
+    const image = button.querySelector("img");
+    if (!image) { await wait(700); return; }
+    const rect = image.getBoundingClientRect();
+    const ghost = document.createElement("div");
+    ghost.className = "peel-ghost";
+    ghost.style.left = rect.left + "px";
+    ghost.style.top = rect.top + "px";
+    ghost.style.width = rect.width + "px";
+    ghost.style.height = rect.height + "px";
+    ghost.appendChild(image.cloneNode(true));
+    document.body.appendChild(ghost);
+    button.classList.remove("peel-ready");
+    button.classList.add("peeled-hole");
+    const centreX = innerWidth / 2 - (rect.left + rect.width / 2);
+    const centreY = innerHeight / 2 - (rect.top + rect.height / 2);
+    const scale = Math.min(3.2, Math.max(1.7, 330 / Math.max(rect.width, 1)));
+    for (let index = 0; index < 22; index += 1) {
+      const sparkle = document.createElement("i");
+      sparkle.className = "screen-sparkle";
+      sparkle.textContent = ["✦", "★", "✨", "●"][index % 4];
+      const angle = index * Math.PI * 2 / 22;
+      const distance = 90 + Math.random() * 150;
+      sparkle.style.setProperty("--x", (Math.cos(angle) * distance) + "px");
+      sparkle.style.setProperty("--y", (Math.sin(angle) * distance) + "px");
+      sparkle.style.setProperty("--delay", (Math.random() * 220) + "ms");
+      document.body.appendChild(sparkle);
+      setTimeout(() => sparkle.remove(), 1800);
+    }
+    if (ghost.animate) {
+      const animation = ghost.animate([
+        { transform: "translate(0,0) perspective(700px) rotateY(0deg) rotateZ(0deg) scale(1)", offset: 0 },
+        { transform: "translate(12px,-14px) perspective(700px) rotateY(-48deg) rotateZ(7deg) scale(1.08)", offset: .28 },
+        { transform: "translate(" + (centreX * .58) + "px," + (centreY * .58 - 45) + "px) perspective(700px) rotateY(22deg) rotateZ(-8deg) scale(" + (scale * .78) + ")", offset: .68 },
+        { transform: "translate(" + centreX + "px," + centreY + "px) perspective(700px) rotateY(0deg) rotateZ(0deg) scale(" + scale + ")", offset: 1 }
+      ], { duration: 1450, easing: "cubic-bezier(.2,.8,.18,1)", fill: "forwards" });
+      try { await animation.finished; } catch (_) {}
+    } else await wait(1450);
+    ghost.classList.add("peel-finish");
+    await wait(350);
+    ghost.remove();
+  }
+
   function showClaimedSticker(reward) {
     const modal = document.getElementById("rewardModal");
     const card = document.getElementById("rewardCard");
     card.classList.remove("claiming");
     card.innerHTML = `
       <div class="reward-confetti" aria-hidden="true">✨ ⭐ 🎉 ⭐ ✨</div>
-      <h2>Your sticker is revealed!</h2>
+      <h2>Well done! Here is your sticker</h2>
       <p class="reward-number">Sticker ${reward.position} for ${escapeHtml(reward.profile)}</p>
       <img class="reward-image" src="${escapeHtml(reward.image)}" alt="${escapeHtml(reward.category_label)} reward sticker">
       <p>Your new ${escapeHtml(reward.category_label)} sticker is safely saved.</p>

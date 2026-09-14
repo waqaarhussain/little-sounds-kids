@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 import random
 import secrets
@@ -34,15 +35,43 @@ NUMBER_LEVELS = {
     f"numbers-{start}-{start + 9}": tuple(str(number) for number in range(start, start + 10))
     for start in range(1, 100, 10)
 }
+TRACING_SHAPES = (
+    "circle", "square", "triangle", "rectangle", "diamond", "pentagon", "hexagon",
+    "octagon", "oval", "semicircle", "crescent", "heart", "star", "cross", "arrow",
+)
 ACTIVITY_ITEMS = {
     "phonics": tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
     "letters": tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
-    "shapes": ("circle", "square", "triangle", "diamond", "pentagon", "heart", "star", "hexagon", "oval"),
-    "count-and-choose": tuple(f"round-{number}" for number in range(1, 11)),
-    "match-the-pairs": ("cat", "dog", "frog", "fish", "lion", "rabbit"),
-    "sort-colours-shapes": tuple(f"round-{number}" for number in range(1, 11)),
+    "shapes": TRACING_SHAPES,
+    "count-and-choose": tuple(f"round-{number}" for number in range(1, 21)),
+    "match-the-pairs": tuple(f"round-{number}" for number in range(1, 7)),
+    "sort-colours-shapes": tuple(f"round-{number}" for number in range(1, 21)),
     **NUMBER_LEVELS,
 }
+RANDOM_ACTIVITIES = {"count-and-choose", "match-the-pairs", "sort-colours-shapes"}
+COUNTING_ICONS = (
+    ("apples", "🍎"), ("stars", "⭐"), ("ladybirds", "🐞"), ("fish", "🐠"),
+    ("butterflies", "🦋"), ("strawberries", "🍓"), ("flowers", "🌼"), ("cars", "🚗"),
+    ("frogs", "🐸"), ("biscuits", "🍪"), ("balloons", "🎈"), ("ducks", "🦆"),
+    ("bees", "🐝"), ("hearts", "💛"), ("oranges", "🍊"), ("rockets", "🚀"),
+)
+GAME_COLOURS = (
+    ("red", "#f24f67"), ("blue", "#3a7eea"), ("yellow", "#ffd52e"),
+    ("green", "#35bd73"), ("orange", "#ff922e"), ("purple", "#8659df"),
+    ("pink", "#f56ab1"), ("turquoise", "#22bdb7"),
+)
+GAME_SHAPES = (
+    "circle", "square", "triangle", "rectangle", "diamond", "pentagon",
+    "hexagon", "oval", "heart", "star",
+)
+MATCHING_ANIMALS = (
+    ("cat", "🐱"), ("dog", "🐶"), ("frog", "🐸"), ("fish", "🐠"),
+    ("lion", "🦁"), ("rabbit", "🐰"), ("fox", "🦊"), ("panda", "🐼"),
+    ("koala", "🐨"), ("tiger", "🐯"), ("monkey", "🐵"), ("cow", "🐮"),
+    ("pig", "🐷"), ("mouse", "🐭"), ("hamster", "🐹"), ("bear", "🐻"),
+    ("chicken", "🐔"), ("penguin", "🐧"), ("owl", "🦉"), ("duck", "🦆"),
+    ("octopus", "🐙"), ("whale", "🐳"), ("snail", "🐌"), ("butterfly", "🦋"),
+)
 
 app = Flask(__name__)
 
@@ -97,6 +126,17 @@ def initialise_database() -> None:
                 cycle INTEGER NOT NULL,
                 completed_at TEXT NOT NULL,
                 PRIMARY KEY(profile, activity, cycle)
+            );
+            CREATE TABLE IF NOT EXISTS activity_variants (
+                profile TEXT NOT NULL,
+                activity TEXT NOT NULL,
+                attempt INTEGER NOT NULL,
+                signature TEXT NOT NULL,
+                plan_json TEXT NOT NULL,
+                completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0, 1)),
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(profile, activity, attempt),
+                UNIQUE(profile, activity, signature)
             );
             CREATE TABLE IF NOT EXISTS pending_rewards (
                 token TEXT PRIMARY KEY,
@@ -204,6 +244,11 @@ def touch_activity_progress(connection, profile, activity):
             "DELETE FROM activity_progress WHERE profile = ? AND activity = ?",
             (profile, activity),
         )
+        if activity in RANDOM_ACTIVITIES:
+            connection.execute(
+                "DELETE FROM activity_variants WHERE profile = ? AND activity = ? AND completed = 0",
+                (profile, activity),
+            )
     connection.execute(
         """
         INSERT INTO activity_sessions(profile, activity, last_active_at)
@@ -213,6 +258,113 @@ def touch_activity_progress(connection, profile, activity):
         (profile, activity, timestamp.isoformat(timespec="seconds")),
     )
     return expired
+
+
+def shuffled_choices(answer, values, size=3):
+    choices = [answer]
+    others = [value for value in values if value != answer]
+    random.shuffle(others)
+    choices.extend(others[: max(0, size - 1)])
+    random.shuffle(choices)
+    return choices
+
+
+def build_activity_plan(activity):
+    if activity == "count-and-choose":
+        combinations = [(count, name, icon) for count in range(1, 11) for name, icon in COUNTING_ICONS]
+        selected = random.sample(combinations, 20)
+        rounds = []
+        for index, (count, name, icon) in enumerate(selected, 1):
+            rounds.append({
+                "item": f"round-{index}",
+                "count": count,
+                "name": name,
+                "icon": icon,
+                "choices": shuffled_choices(count, list(range(1, 11))),
+            })
+        plan = {"rounds": rounds}
+        signature_source = plan
+    elif activity == "sort-colours-shapes":
+        combinations = [(shape, colour_name, colour_hex) for shape in GAME_SHAPES for colour_name, colour_hex in GAME_COLOURS]
+        selected = random.sample(combinations, 20)
+        question_types = ["colour"] * 10 + ["shape"] * 10
+        random.shuffle(question_types)
+        rounds = []
+        colour_names = [name for name, _ in GAME_COLOURS]
+        for index, ((shape, colour_name, colour_hex), question_type) in enumerate(zip(selected, question_types), 1):
+            answer = colour_name if question_type == "colour" else shape
+            values = colour_names if question_type == "colour" else list(GAME_SHAPES)
+            rounds.append({
+                "item": f"round-{index}",
+                "shape": shape,
+                "colour": colour_name,
+                "colour_hex": colour_hex,
+                "question": question_type,
+                "answer": answer,
+                "choices": shuffled_choices(answer, values),
+            })
+        plan = {"rounds": rounds}
+        signature_source = plan
+    elif activity == "match-the-pairs":
+        animals = random.sample(MATCHING_ANIMALS, 6)
+        deck = [
+            {"round": f"round-{index}", "animal": animal, "icon": icon, "copy": copy}
+            for index, (animal, icon) in enumerate(animals, 1)
+            for copy in ("a", "b")
+        ]
+        random.shuffle(deck)
+        plan = {"pairs": [{"round": f"round-{index}", "animal": animal, "icon": icon} for index, (animal, icon) in enumerate(animals, 1)], "deck": deck}
+        signature_source = sorted(animal for animal, _ in animals)
+    else:
+        raise ValueError("That activity does not use a generated plan.")
+    canonical = json.dumps(signature_source, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return plan, hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def get_or_create_activity_variant(connection, profile, activity):
+    row = connection.execute(
+        """
+        SELECT attempt, signature, plan_json
+        FROM activity_variants
+        WHERE profile = ? AND activity = ? AND completed = 0
+        ORDER BY attempt DESC LIMIT 1
+        """,
+        (profile, activity),
+    ).fetchone()
+    if row:
+        return int(row["attempt"]), json.loads(row["plan_json"])
+    attempt = int(connection.execute(
+        "SELECT COALESCE(MAX(attempt), 0) + 1 FROM activity_variants WHERE profile = ? AND activity = ?",
+        (profile, activity),
+    ).fetchone()[0])
+    for _ in range(100):
+        plan, signature = build_activity_plan(activity)
+        try:
+            connection.execute(
+                """
+                INSERT INTO activity_variants(profile, activity, attempt, signature, plan_json, completed, created_at)
+                VALUES (?, ?, ?, ?, ?, 0, ?)
+                """,
+                (profile, activity, attempt, signature, json.dumps(plan, ensure_ascii=False, separators=(",", ":")), now()),
+            )
+            return attempt, plan
+        except sqlite3.IntegrityError:
+            continue
+    raise RuntimeError("Could not create a fresh activity. Please try again.")
+
+
+@app.get("/api/activity/variant")
+def activity_variant():
+    activity = request.args.get("activity", "")
+    if activity not in RANDOM_ACTIVITIES:
+        return jsonify({"error": "Choose a valid game activity."}), 400
+    with database() as connection:
+        device = current_device(connection)
+        if not device:
+            return jsonify({"error": "Choose a profile first."}), 401
+        connection.execute("BEGIN IMMEDIATE")
+        attempt, plan = get_or_create_activity_variant(connection, device["profile"], activity)
+        return jsonify({"activity": activity, "attempt": attempt, "plan": plan})
 
 
 def available_category_rows(connection, profile):
@@ -648,6 +800,14 @@ def complete_activity_item():
         cycle = None
         reward_token = None
         if exercise_completed:
+            if activity in RANDOM_ACTIVITIES:
+                connection.execute(
+                    """
+                    UPDATE activity_variants SET completed = 1
+                    WHERE profile = ? AND activity = ? AND completed = 0
+                    """,
+                    (profile, activity),
+                )
             cycle = int(
                 connection.execute(
                     "SELECT COALESCE(MAX(cycle), 0) + 1 FROM activity_completions WHERE profile = ? AND activity = ?",
