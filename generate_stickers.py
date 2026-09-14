@@ -49,9 +49,42 @@ THEMES = {
     },
     "alphablocks": {
         "label": "Alphablocks",
-        "subjects": ["Alphablock A", "Alphablock B", "Alphablock C", "Alphablock D", "Alphablock E", "Alphablock F", "Alphablock G", "Alphablock H", "Alphablock I", "Alphablock J"],
+        "subjects": [f"Alphablock {letter}" for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"],
+    },
+    "colourblocks": {
+        "label": "Colourblocks",
+        "subjects": [
+            "Colourblock Red", "Colourblock Orange", "Colourblock Yellow", "Colourblock Green",
+            "Colourblock Blue", "Colourblock Purple", "Colourblock Pink", "Colourblock Brown",
+            "Colourblock Black and Colourblock White", "a joyful rainbow group of Colourblocks",
+        ],
     },
 }
+
+ALPHABLOCK_EXTRAS = [
+    "Alphablocks A, B and C playing together",
+    "Alphablocks D, E and F dancing together",
+    "Alphablocks G, H and I sharing a high-five",
+    "Alphablocks J, K and L jumping together",
+    "Alphablocks M, N and O celebrating together",
+    "Alphablocks P, Q and R in a friendly group",
+    "Alphablocks S, T and U posing together",
+    "Alphablocks V, W and X racing together",
+    "Alphablocks Y and Z celebrating together",
+    "the vowel Alphablocks A, E, I, O and U in one compact group",
+    "Alphablocks A and Z as cheerful best friends",
+    "Alphablocks B and P bouncing a colourful ball",
+    "Alphablocks C and K wearing party hats",
+    "Alphablocks D and T playing a tiny drum",
+    "Alphablocks F and V flying like superheroes",
+    "Alphablocks G and J doing a joyful dance",
+    "Alphablocks H and R waving together",
+    "Alphablocks L and Y leaping through the air",
+    "Alphablocks M and N sharing a friendly hug",
+    "Alphablocks Q and X discovering a treasure star",
+    "Alphablocks S and Z making a superhero landing",
+    "a compact mixed Alphablocks celebration group from across A to Z",
+]
 
 ACTIONS = [
     "doing a joyful star jump",
@@ -172,7 +205,16 @@ def concept_for(serial, retry):
 def make_prompt(category, serial, retry):
     details = THEMES[category]
     subject_index, action_index, prop_index, composition_index = concept_for(serial, retry)
-    subject = details["subjects"][subject_index]
+    if category == "alphablocks":
+        slot = ((serial - 1) % TARGET) + 1
+        if slot <= 78:
+            letter = chr(ord("A") + ((slot - 1) % 26))
+            round_number = ((slot - 1) // 26) + 1
+            subject = f"Alphablock {letter} alone, design round {round_number} of 3 for the letter {letter}"
+        else:
+            subject = ALPHABLOCK_EXTRAS[slot - 79]
+    else:
+        subject = details["subjects"][subject_index]
     action = ACTIONS[action_index]
     prop = PROPS[prop_index]
     composition = COMPOSITIONS[composition_index]
@@ -521,7 +563,7 @@ def main():
         except Exception as error:
             errors.append(f"{THEMES[category]['label']}: {error}")
             print(f"FAILED {THEMES[category]['label']}: {error}", flush=True)
-    message = "All six shared sticker books are ready." if not errors else "Some themes need another generate run: " + " | ".join(errors)
+    message = "All seven shared sticker books are ready." if not errors else "Some themes need another generate run: " + " | ".join(errors)
     write_status(connection, False, message)
     connection.close()
     if errors:

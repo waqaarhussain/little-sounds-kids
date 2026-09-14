@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-THEMES = ("bluey", "pj-masks", "super-kitties", "paw-patrol", "numberblocks", "alphablocks")
+THEMES = ("bluey", "pj-masks", "super-kitties", "paw-patrol", "numberblocks", "alphablocks", "colourblocks")
 TARGET = 100
 DATABASE = Path("/var/lib/little-sounds/little-sounds.sqlite3")
 PRIVATE_ROOT = Path("/root/stickers/catalog")
@@ -129,7 +129,7 @@ def create_pack(destination):
     )]
     connection.close()
     manifest = {
-        "format": 1,
+        "format": 2,
         "created_at": utc_now(),
         "target_per_theme": TARGET,
         "themes": list(THEMES),
@@ -168,7 +168,7 @@ def restore_pack(source):
         return False
     with tarfile.open(source, "r:gz") as archive:
         manifest = json.loads(member_bytes(archive, "manifest.json"))
-        if manifest.get("format") != 1 or tuple(manifest.get("themes", [])) != THEMES:
+        if manifest.get("format") != 2 or tuple(manifest.get("themes", [])) != THEMES:
             raise RuntimeError("This is not a compatible Little Sounds sticker pack.")
         items = manifest.get("stickers", [])
         if len(items) != TARGET * len(THEMES):

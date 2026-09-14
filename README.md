@@ -13,7 +13,7 @@ A mobile-friendly phonics, tracing and achievement site designed for a private f
 - A physical-style sticker sheet: choose an exact sticker, peel it off and leave its numbered space behind
 - A PIN-protected gift button for awarding a Good Behaviour sticker without completing an activity
 - One shared rotating catalogue of 100 active designs per theme, with independent rewards for each child
-- Six final themes: Bluey, PJ Masks, SuperKitties, Paw Patrol, Numberblocks and Alphablocks
+- Seven final themes: Bluey, PJ Masks, SuperKitties, Paw Patrol, Numberblocks, Alphablocks and Colourblocks
 - A reusable `generate` helper that fills shortages without deleting earned stickers
 - An unlinked `/allstickers/` live catalogue, grouped by theme and refreshed every 30 seconds
 - A `backup-stickers` helper plus automatic fresh-install restore from a GitHub Release
@@ -46,13 +46,13 @@ generate
 
 Paste an OpenAI API key when asked. The helper masks the middle of the key in its confirmation, runs safely in the background and fills every shared theme to 100. Future runs retire designs used by either child, preserve the empty numbered spaces, keep every earned image, and generate only enough new distinct designs to restore the shared active collection to 100.
 
-Once the first generation has completed, save the reusable 600-sticker pack to a GitHub Release:
+Once the first generation has completed, save the reusable 700-sticker pack to a GitHub Release:
 
 ```bash
 backup-stickers
 ```
 
-The helper creates `/root/stickers/little-sounds-sticker-pack.tar.gz`, then optionally uploads it to the repository's `sticker-pack` Release. It asks for a GitHub token with Contents write access. Because this repository is public, the generated sticker images in that Release are public too. The archive contains only the 600 sticker assets and anonymous design fingerprints. It never includes profile names, PINs, API keys, progress or earned-sticker records.
+The helper creates `/root/stickers/little-sounds-sticker-pack.tar.gz`, then optionally uploads it to the repository's `sticker-pack` Release. It asks for a GitHub token with Contents write access. Because this repository is public, the generated sticker images in that Release are public too. The archive contains only the 700 sticker assets and anonymous design fingerprints. It never includes profile names, PINs, API keys, progress or earned-sticker records.
 
 Future fresh installations automatically download that Release asset. If no pack has been published yet, installation continues normally and tells you to run `generate`. A different download location can be supplied with `LITTLE_SOUNDS_STICKER_BACKUP_URL`.
 

@@ -215,10 +215,13 @@ done
 
 if curl -fsSL --retry 3 --retry-delay 2 "$sticker_backup_url" -o "$work_dir/sticker-pack.tar.gz"; then
   echo "Restoring the reusable sticker pack..."
-  python3 /opt/little-sounds/sticker_pack.py restore "$work_dir/sticker-pack.tar.gz"
-  chown -R www-data:www-data /var/lib/little-sounds
-  chmod -R a+rX /var/www/little-sounds/sticker-images
-  systemctl restart little-sounds
+  if python3 /opt/little-sounds/sticker_pack.py restore "$work_dir/sticker-pack.tar.gz"; then
+    chown -R www-data:www-data /var/lib/little-sounds
+    chmod -R a+rX /var/www/little-sounds/sticker-images
+    systemctl restart little-sounds
+  else
+    echo "The published sticker pack is from an older setup. Installation will continue; run generate to build the current seven themes."
+  fi
 else
   echo "No reusable sticker pack is published yet. Run generate after installation."
 fi

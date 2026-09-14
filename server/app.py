@@ -26,6 +26,7 @@ CATEGORIES = {
     "paw-patrol": "Paw Patrol",
     "numberblocks": "Numberblocks",
     "alphablocks": "Alphablocks",
+    "colourblocks": "Colourblocks",
 }
 ACTIVITY_ITEMS = {
     "phonics": tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
