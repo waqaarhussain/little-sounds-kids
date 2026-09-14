@@ -17,11 +17,13 @@ This version is intentionally voice-free. It has no bundled MP3 files and the in
 
 ## Reward rules
 
-A full phonics alphabet, full letter set, full shape set, each ten-number tracing level, or a complete learning game earns one sticker choice.
+A full phonics alphabet, full letter set, full shape set, each ten-number tracing level, or a complete learning game earns one sticker choice. The sticker is peeled, revealed and saved without leaving the activity.
 
 Normal themes show a stable random selection of up to 20 unused stickers for the pending reward. Alphablocks shows up to 26, with one unused sticker for each available letter from A to Z.
 
 Sticker use is stored separately for each child. A sticker remains available to the other child until both children have used it. The refill helper retires a sticker only after both children have used it.
+
+Incomplete activity progress resets after ten minutes without interaction. Completed rewards and sticker albums never expire.
 
 ## Installation
 
@@ -30,7 +32,7 @@ Run `install.sh` as root on a fresh Ubuntu VPS and provide the parent profile, t
 ## Sticker commands
 
 - `generate` securely asks for an OpenAI API key, shows progress at `/allstickers/`, and fills each theme to 100 active stickers.
-- `backup-stickers` packages the current catalogue and publishes the release asset using a GitHub token.
+- `backup-stickers` packages the current catalogue, anonymised child albums and used-sticker state, then publishes the release asset using a GitHub token.
 
 Generated sticker images are stored under `/root/stickers/catalog` and served copies under `/var/www/little-sounds/sticker-images`.
 

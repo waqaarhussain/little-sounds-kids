@@ -25,6 +25,7 @@ DEFAULT_ARCHIVE = Path("/root/stickers/little-sounds-sticker-pack.tar.gz")
 DEFAULT_REPOSITORY = "waqaarhussain/little-sounds-kids"
 RELEASE_TAG = "sticker-pack"
 ASSET_NAME = "little-sounds-sticker-pack.tar.gz"
+CONFIG_FILE = Path("/etc/little-sounds.env")
 
 
 def utc_now():
@@ -69,6 +70,17 @@ def ensure_schema(connection):
         );
         INSERT OR IGNORE INTO sticker_history(category, sha256, phash, dhash, colorhash, prompt, created_at)
         SELECT category, sha256, phash, dhash, colorhash, prompt, created_at FROM catalog_stickers;
+        CREATE TABLE IF NOT EXISTS catalog_rewards (
+            profile TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            sticker_id INTEGER NOT NULL,
+            activity TEXT NOT NULL,
+            cycle INTEGER NOT NULL,
+            earned_at TEXT NOT NULL,
+            PRIMARY KEY(profile, position),
+            UNIQUE(profile, sticker_id),
+            FOREIGN KEY(sticker_id) REFERENCES catalog_stickers(id)
+        );
         """
     )
     connection.commit()
@@ -82,59 +94,120 @@ def add_bytes(archive, name, content):
     archive.addfile(info, io.BytesIO(content))
 
 
+def configured_children():
+    values = {}
+    if CONFIG_FILE.is_file():
+        for line in CONFIG_FILE.read_text(encoding="utf-8").splitlines():
+            if "=" not in line or line.lstrip().startswith("#"):
+                continue
+            key, value = line.split("=", 1)
+            values[key.strip()] = value.strip().strip('"')
+    first = os.environ.get("LITTLE_SOUNDS_CHILD_1") or values.get("LITTLE_SOUNDS_CHILD_1")
+    second = os.environ.get("LITTLE_SOUNDS_CHILD_2") or values.get("LITTLE_SOUNDS_CHILD_2")
+    if not first or not second:
+        raise RuntimeError("Could not read the two configured child profiles from /etc/little-sounds.env.")
+    return first, second
+
+
 def create_pack(destination):
     connection = database()
     ensure_schema(connection)
+    children = configured_children()
+    profile_slots = {children[0]: "child_1", children[1]: "child_2"}
+    active_counts = {
+        category: int(connection.execute(
+            "SELECT COUNT(*) FROM catalog_stickers WHERE category = ? AND active = 1 AND staged = 0",
+            (category,),
+        ).fetchone()[0])
+        for category in THEMES
+    }
+    for category, count in active_counts.items():
+        if count != TARGET:
+            raise RuntimeError(f"{category} has {count} active stickers. Run generate before creating the backup.")
+
+    rows = connection.execute(
+        """
+        SELECT DISTINCT s.id, s.category, s.serial, s.image_path, s.active, s.staged,
+               s.created_at, s.retired_at, s.sha256, s.phash, s.dhash, s.colorhash, s.prompt
+        FROM catalog_stickers s
+        LEFT JOIN catalog_rewards r ON r.sticker_id = s.id
+        WHERE (s.active = 1 AND s.staged = 0) OR r.sticker_id IS NOT NULL
+        ORDER BY s.category, s.serial
+        """
+    ).fetchall()
     items = []
     source_files = []
-    for category in THEMES:
-        rows = connection.execute(
-            """
-            SELECT serial, image_path, created_at, sha256, phash, dhash, colorhash, prompt
-            FROM catalog_stickers
-            WHERE category = ? AND active = 1 AND staged = 0
-            ORDER BY serial
-            """,
-            (category,),
-        ).fetchall()
-        if len(rows) != TARGET:
-            raise RuntimeError(f"{category} has {len(rows)} active stickers. Run generate before creating the backup.")
-        for pack_serial, row in enumerate(rows, start=1):
-            private_source = PRIVATE_ROOT / category / f"{int(row['serial']):04d}.png"
-            public_source = SITE_ROOT / str(row["image_path"]).lstrip("/")
-            if not private_source.is_file() or not public_source.is_file():
-                raise FileNotFoundError(f"Sticker files are incomplete for {category} #{row['serial']}.")
-            private_bytes = private_source.read_bytes()
-            if hashlib.sha256(private_bytes).hexdigest() != row["sha256"]:
-                raise RuntimeError(f"Checksum mismatch for {private_source}.")
-            private_name = f"private/{category}/{pack_serial:04d}.png"
-            public_name = f"public/{category}/{pack_serial:04d}.webp"
-            source_files.append((private_name, private_source, public_name, public_source))
-            items.append(
-                {
-                    "category": category,
-                    "serial": pack_serial,
-                    "created_at": row["created_at"],
-                    "sha256": row["sha256"],
-                    "phash": row["phash"],
-                    "dhash": row["dhash"],
-                    "colorhash": row["colorhash"],
-                    "prompt": row["prompt"],
-                    "private": private_name,
-                    "public": public_name,
-                }
-            )
+    exported_hashes = set()
+    for row in rows:
+        category = row["category"]
+        serial = int(row["serial"])
+        if category not in THEMES or serial < 1:
+            raise RuntimeError("The sticker catalogue contains an invalid category or serial.")
+        private_source = PRIVATE_ROOT / category / f"{serial:04d}.png"
+        public_source = SITE_ROOT / str(row["image_path"]).lstrip("/")
+        if not private_source.is_file() or not public_source.is_file():
+            raise FileNotFoundError(f"Sticker files are incomplete for {category} #{serial}.")
+        private_bytes = private_source.read_bytes()
+        if hashlib.sha256(private_bytes).hexdigest() != row["sha256"]:
+            raise RuntimeError(f"Checksum mismatch for {private_source}.")
+        private_name = f"private/{category}/{row['sha256']}.png"
+        public_name = f"public/{category}/{row['sha256']}.webp"
+        source_files.append((private_name, private_source, public_name, public_source))
+        exported_hashes.add(row["sha256"])
+        items.append(
+            {
+                "category": category,
+                "serial": serial,
+                "active": int(row["active"]),
+                "staged": int(row["staged"]),
+                "created_at": row["created_at"],
+                "retired_at": row["retired_at"],
+                "sha256": row["sha256"],
+                "phash": row["phash"],
+                "dhash": row["dhash"],
+                "colorhash": row["colorhash"],
+                "prompt": row["prompt"],
+                "private": private_name,
+                "public": public_name,
+            }
+        )
+
+    rewards = []
+    for row in connection.execute(
+        """
+        SELECT r.profile, r.position, r.activity, r.cycle, s.sha256
+        FROM catalog_rewards r
+        JOIN catalog_stickers s ON s.id = r.sticker_id
+        ORDER BY r.profile, r.position
+        """
+    ):
+        profile_slot = profile_slots.get(row["profile"])
+        if not profile_slot:
+            continue
+        if row["sha256"] not in exported_hashes:
+            raise RuntimeError("An earned sticker is missing from the exported sticker set.")
+        rewards.append(
+            {
+                "profile_slot": profile_slot,
+                "position": int(row["position"]),
+                "sticker_sha256": row["sha256"],
+                "activity": row["activity"],
+                "cycle": int(row["cycle"]),
+            }
+        )
+
     history = [dict(row) for row in connection.execute(
         "SELECT category, sha256, phash, dhash, colorhash, prompt, created_at FROM sticker_history ORDER BY category, created_at, sha256"
     )]
     connection.close()
     manifest = {
-        "format": 2,
+        "format": 3,
         "created_at": utc_now(),
         "target_per_theme": TARGET,
         "themes": list(THEMES),
         "stickers": items,
         "history": history,
+        "rewards": rewards,
     }
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(destination.suffix + ".tmp")
@@ -144,9 +217,11 @@ def create_pack(destination):
             archive.add(private_source, arcname=private_name, recursive=False)
             archive.add(public_source, arcname=public_name, recursive=False)
     temporary.replace(destination)
-    print(f"Created {destination} with {len(items)} reusable stickers and {len(history)} remembered design fingerprints.")
+    print(
+        f"Created {destination} with {len(items)} sticker files, {len(rewards)} anonymised album entries "
+        f"and {len(history)} remembered design fingerprints."
+    )
     return destination
-
 
 def member_bytes(archive, name):
     member = archive.getmember(name)
@@ -168,20 +243,34 @@ def restore_pack(source):
         return False
     with tarfile.open(source, "r:gz") as archive:
         manifest = json.loads(member_bytes(archive, "manifest.json"))
-        if manifest.get("format") != 2 or tuple(manifest.get("themes", [])) != THEMES:
+        format_version = int(manifest.get("format", 0))
+        if format_version not in (2, 3) or tuple(manifest.get("themes", [])) != THEMES:
             raise RuntimeError("This is not a compatible Little Sounds sticker pack.")
         items = manifest.get("stickers", [])
-        if len(items) != TARGET * len(THEMES):
-            raise RuntimeError(f"Sticker pack contains {len(items)} stickers; expected {TARGET * len(THEMES)}.")
+        if format_version == 2:
+            if len(items) != TARGET * len(THEMES):
+                raise RuntimeError(f"Sticker pack contains {len(items)} stickers; expected {TARGET * len(THEMES)}.")
+            for item in items:
+                item.setdefault("active", 1)
+                item.setdefault("staged", 0)
+                item.setdefault("retired_at", None)
         for category in THEMES:
-            if sum(1 for item in items if item.get("category") == category) != TARGET:
-                raise RuntimeError(f"Sticker pack does not contain exactly {TARGET} {category} stickers.")
+            active_count = sum(
+                1 for item in items
+                if item.get("category") == category and int(item.get("active", 0)) == 1 and int(item.get("staged", 0)) == 0
+            )
+            if active_count != TARGET:
+                raise RuntimeError(f"Sticker pack does not contain exactly {TARGET} active {category} stickers.")
+
+        children = configured_children()
+        profile_slots = {"child_1": children[0], "child_2": children[1]}
+        sha_to_id = {}
         connection.execute("BEGIN IMMEDIATE")
         for item in items:
             category = item["category"]
             serial = int(item["serial"])
-            if category not in THEMES or not 1 <= serial <= TARGET:
-                raise RuntimeError("Sticker pack contains an invalid category or slot.")
+            if category not in THEMES or serial < 1:
+                raise RuntimeError("Sticker pack contains an invalid category or serial.")
             private_bytes = member_bytes(archive, item["private"])
             public_bytes = member_bytes(archive, item["public"])
             if hashlib.sha256(private_bytes).hexdigest() != item["sha256"]:
@@ -192,15 +281,21 @@ def restore_pack(source):
             public_target.parent.mkdir(parents=True, exist_ok=True)
             private_target.write_bytes(private_bytes)
             public_target.write_bytes(public_bytes)
-            connection.execute(
+            cursor = connection.execute(
                 """
-                INSERT INTO catalog_stickers(category, serial, image_path, active, staged, created_at,
+                INSERT INTO catalog_stickers(category, serial, image_path, active, staged, created_at, retired_at,
                                              sha256, phash, dhash, colorhash, prompt)
-                VALUES (?, ?, ?, 1, 0, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (category, serial, f"/sticker-images/{category}/{serial:04d}.webp", item["created_at"],
-                 item["sha256"], item.get("phash"), item.get("dhash"), item.get("colorhash"), item.get("prompt")),
+                (
+                    category, serial, f"/sticker-images/{category}/{serial:04d}.webp",
+                    int(item.get("active", 1)), int(item.get("staged", 0)), item["created_at"],
+                    item.get("retired_at"), item["sha256"], item.get("phash"), item.get("dhash"),
+                    item.get("colorhash"), item.get("prompt"),
+                ),
             )
+            sha_to_id[item["sha256"]] = int(cursor.lastrowid)
+
         for item in manifest.get("history", []):
             if item.get("category") not in THEMES:
                 continue
@@ -209,14 +304,35 @@ def restore_pack(source):
                 INSERT OR IGNORE INTO sticker_history(category, sha256, phash, dhash, colorhash, prompt, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (item["category"], item["sha256"], item.get("phash"), item.get("dhash"),
-                 item.get("colorhash"), item.get("prompt"), item.get("created_at") or utc_now()),
+                (
+                    item["category"], item["sha256"], item.get("phash"), item.get("dhash"),
+                    item.get("colorhash"), item.get("prompt"), item.get("created_at") or utc_now(),
+                ),
             )
+
+        restored_rewards = 0
+        if format_version >= 3:
+            for reward in manifest.get("rewards", []):
+                profile = profile_slots.get(reward.get("profile_slot"))
+                sticker_id = sha_to_id.get(reward.get("sticker_sha256"))
+                position = int(reward.get("position", 0))
+                if not profile or not sticker_id or position < 1:
+                    raise RuntimeError("Sticker pack contains an invalid album entry.")
+                connection.execute(
+                    """
+                    INSERT INTO catalog_rewards(profile, position, sticker_id, activity, cycle, earned_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        profile, position, sticker_id, reward.get("activity") or "restored",
+                        int(reward.get("cycle", 0)), manifest.get("created_at") or utc_now(),
+                    ),
+                )
+                restored_rewards += 1
         connection.commit()
     connection.close()
-    print(f"Restored {len(items)} stickers from {source}.")
+    print(f"Restored {len(items)} sticker files and {restored_rewards} album entries from {source}.")
     return True
-
 
 def github_json(method, path, token, body=None):
     data = json.dumps(body).encode() if body is not None else None
@@ -274,7 +390,7 @@ def upload_pack(source, repository):
                 "tag_name": RELEASE_TAG,
                 "target_commitish": "main",
                 "name": "Reusable Little Sounds sticker pack",
-                "body": "Generated sticker assets used to restore fresh family VPS installations without paying to generate the same collection again.",
+                "body": "Generated sticker assets plus anonymised child album positions and used-sticker state for fresh family VPS installations.",
                 "draft": False,
                 "prerelease": False,
             },

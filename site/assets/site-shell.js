@@ -249,13 +249,31 @@
             method: "POST", body: JSON.stringify({ reward_token: rewardToken, sticker_id: Number(button.dataset.stickerId) })
           });
           await wait(1500);
-          location.assign("/stickers/?profile=" + encodeURIComponent(reward.profile) + "&new=" + encodeURIComponent(reward.position));
+          showClaimedSticker(reward);
         } catch (error) {
           card.classList.remove("claiming");
           showRewardError(error, () => openStickerSheet(category, rewardToken));
         }
       }));
     } catch (error) { showRewardError(error); }
+  }
+
+  function showClaimedSticker(reward) {
+    const modal = document.getElementById("rewardModal");
+    const card = document.getElementById("rewardCard");
+    card.classList.remove("claiming");
+    card.innerHTML = `
+      <div class="reward-confetti" aria-hidden="true">✨ ⭐ 🎉 ⭐ ✨</div>
+      <h2>Your sticker is revealed!</h2>
+      <p class="reward-number">Sticker ${reward.position} for ${escapeHtml(reward.profile)}</p>
+      <img class="reward-image" src="${escapeHtml(reward.image)}" alt="${escapeHtml(reward.category_label)} reward sticker">
+      <p>Your new ${escapeHtml(reward.category_label)} sticker is safely saved.</p>
+      <div class="site-actions"><button class="site-primary" id="rewardContinue" type="button">Continue activity</button></div>`;
+    modal.hidden = false;
+    document.getElementById("rewardContinue").onclick = () => {
+      modal.hidden = true;
+      document.getElementById("gameButton")?.focus();
+    };
   }
 
   async function claimReward(rewardToken) {
@@ -269,6 +287,65 @@
       showRewardError(error);
       throw error;
     }
+  }
+
+  const inactivityLimit = 10 * 60 * 1000;
+  let lastInteraction = Date.now();
+  let lastSessionTouch = 0;
+  let touchingSession = false;
+
+  function currentActivity() {
+    if (location.pathname.startsWith("/handwriting")) return document.body.dataset.progressActivity || "letters";
+    if (location.pathname.startsWith("/phonicsbook")) return "phonics";
+    if (location.pathname.startsWith("/counting")) return "count-and-choose";
+    if (location.pathname.startsWith("/matching")) return "match-the-pairs";
+    if (location.pathname.startsWith("/sorting")) return "sort-colours-shapes";
+    return "";
+  }
+
+  async function touchActivitySession(force = false) {
+    const activity = currentActivity();
+    if (!activity || touchingSession || (!force && Date.now() - lastSessionTouch < 45000)) return;
+    touchingSession = true;
+    try {
+      await ready;
+      const result = await api("/api/progress/touch", {
+        method: "POST",
+        body: JSON.stringify({ activity })
+      });
+      lastSessionTouch = Date.now();
+      if (result.expired) location.reload();
+    } catch (_) {
+      // Normal page requests will display service errors if the server is unavailable.
+    } finally {
+      touchingSession = false;
+    }
+  }
+
+  function recordInteraction(event) {
+    const idleFor = Date.now() - lastInteraction;
+    lastInteraction = Date.now();
+    if (idleFor >= inactivityLimit && currentActivity()) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      location.reload();
+      return;
+    }
+    touchActivitySession();
+  }
+
+  function startActivityTracking() {
+    if (!currentActivity()) return;
+    document.addEventListener("pointerdown", recordInteraction, true);
+    document.addEventListener("keydown", recordInteraction, true);
+    document.addEventListener("pointermove", () => { lastInteraction = Date.now(); }, { passive: true });
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && Date.now() - lastInteraction >= inactivityLimit) location.reload();
+    });
+    ready.then(() => touchActivitySession(true));
+    setInterval(() => {
+      if (!document.hidden && Date.now() - lastInteraction < 60000) touchActivitySession();
+    }, 60000);
   }
 
   async function boot() {
@@ -298,6 +375,7 @@
   });
 
   createInterface();
+  startActivityTracking();
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })();

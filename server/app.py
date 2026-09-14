@@ -4,7 +4,7 @@ import random
 import secrets
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from flask import Flask, jsonify, request
@@ -84,6 +84,12 @@ def initialise_database() -> None:
                 item TEXT NOT NULL,
                 completed_at TEXT NOT NULL,
                 PRIMARY KEY(profile, activity, item)
+            );
+            CREATE TABLE IF NOT EXISTS activity_sessions (
+                profile TEXT NOT NULL,
+                activity TEXT NOT NULL,
+                last_active_at TEXT NOT NULL,
+                PRIMARY KEY(profile, activity)
             );
             CREATE TABLE IF NOT EXISTS activity_completions (
                 profile TEXT NOT NULL,
@@ -175,6 +181,38 @@ def pending_reward(connection, token):
         "SELECT token, profile, activity, cycle FROM pending_rewards WHERE token = ?",
         (token,),
     ).fetchone()
+
+
+INACTIVITY_LIMIT = timedelta(minutes=10)
+
+
+def touch_activity_progress(connection, profile, activity):
+    timestamp = datetime.now(timezone.utc)
+    session = connection.execute(
+        "SELECT last_active_at FROM activity_sessions WHERE profile = ? AND activity = ?",
+        (profile, activity),
+    ).fetchone()
+    expired = False
+    if session:
+        try:
+            last_active = datetime.fromisoformat(session["last_active_at"])
+            expired = timestamp - last_active >= INACTIVITY_LIMIT
+        except (TypeError, ValueError):
+            expired = True
+    if expired:
+        connection.execute(
+            "DELETE FROM activity_progress WHERE profile = ? AND activity = ?",
+            (profile, activity),
+        )
+    connection.execute(
+        """
+        INSERT INTO activity_sessions(profile, activity, last_active_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(profile, activity) DO UPDATE SET last_active_at = excluded.last_active_at
+        """,
+        (profile, activity, timestamp.isoformat(timespec="seconds")),
+    )
+    return expired
 
 
 def available_category_rows(connection, profile):
@@ -354,8 +392,9 @@ def sticker_book():
             extras = []
             for row in rows:
                 serial = int(row["serial"])
-                if serial <= 78:
-                    by_letter["ABCDEFGHIJKLMNOPQRSTUVWXYZ"[(serial - 1) % 26]].append(row)
+                slot = ((serial - 1) % TARGET_STICKERS) + 1
+                if slot <= 78:
+                    by_letter["ABCDEFGHIJKLMNOPQRSTUVWXYZ"[(slot - 1) % 26]].append(row)
                 else:
                     extras.append(row)
             for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
@@ -540,6 +579,7 @@ def activity_progress():
         if not device:
             return jsonify({"error": "Choose a profile first."}), 401
         profile = device["profile"]
+        expired = touch_activity_progress(connection, profile, activity)
         completed = [
             row[0]
             for row in connection.execute(
@@ -554,8 +594,29 @@ def activity_progress():
                 "count": len(completed),
                 "total": len(ACTIVITY_ITEMS[activity]),
                 "parent_preview": profile == PARENT_PROFILE,
+                "expired": expired,
             }
         )
+
+
+@app.post("/api/progress/touch")
+def touch_progress():
+    activity = str(json_body().get("activity", ""))
+    if activity not in ACTIVITY_ITEMS:
+        return jsonify({"error": "Choose a valid activity."}), 400
+    with database() as connection:
+        device = current_device(connection)
+        if not device:
+            return jsonify({"error": "Choose a profile first."}), 401
+        profile = device["profile"]
+        expired = touch_activity_progress(connection, profile, activity)
+        count = int(
+            connection.execute(
+                "SELECT COUNT(*) FROM activity_progress WHERE profile = ? AND activity = ?",
+                (profile, activity),
+            ).fetchone()[0]
+        )
+        return jsonify({"activity": activity, "expired": expired, "count": count})
 
 
 @app.post("/api/progress/complete")
@@ -572,6 +633,7 @@ def complete_activity_item():
         profile = device["profile"]
         total = len(ACTIVITY_ITEMS[activity])
         connection.execute("BEGIN IMMEDIATE")
+        expired = touch_activity_progress(connection, profile, activity)
         cursor = connection.execute(
             "INSERT OR IGNORE INTO activity_progress(profile, activity, item, completed_at) VALUES (?, ?, ?, ?)",
             (profile, activity, item, now()),
@@ -632,6 +694,7 @@ def complete_activity_item():
                 "reward_token": reward_token,
                 "completed_items": completed_items,
                 "parent_preview": profile == PARENT_PROFILE,
+                "expired": expired,
             }
         )
 

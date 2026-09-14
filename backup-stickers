@@ -13,8 +13,8 @@ archive_size="$(du -h "$archive" | awk '{print $1}')"
 echo "Local reusable pack: $archive ($archive_size)"
 echo
 echo "The GitHub repository is public. Uploading means anyone can download the generated sticker images."
-echo "No profile names, progress, earned stickers or API keys are included."
-read -r -p "Upload this sticker-only pack to the public GitHub Release? [y/N]: " confirmation
+echo "The pack includes anonymised child album positions and used-sticker state. No child names, PINs or API keys are included."
+read -r -p "Upload this sticker and anonymised album pack to the public GitHub Release? [y/N]: " confirmation
 if [[ ! "$confirmation" =~ ^[Yy]$ ]]; then
   echo "Upload skipped. Copy $archive somewhere outside this VPS before resetting it."
   exit 0
@@ -35,4 +35,4 @@ token_end="${github_token:token_length-4:4}"
 echo "Token received: ${token_start}...${token_end} (${token_length} characters)"
 GITHUB_TOKEN="$github_token" /usr/bin/python3 /opt/little-sounds/sticker_pack.py upload "$archive" --repository "$repository"
 unset github_token
-echo "Future full installations will automatically restore this pack."
+echo "Future full installations will automatically restore the stickers, both child albums and used-sticker state."
