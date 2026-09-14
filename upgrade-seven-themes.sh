@@ -95,7 +95,15 @@ chown -R www-data:www-data /var/lib/little-sounds
 chmod -R a+rX /var/www/little-sounds/sticker-images
 systemctl restart little-sounds
 
-if ! curl -fsS http://127.0.0.1:8787/api/health >/dev/null; then
+service_ready=0
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -fsS http://127.0.0.1:8787/api/health >/dev/null; then
+    service_ready=1
+    break
+  fi
+  sleep 1
+done
+if [ "$service_ready" -ne 1 ]; then
   echo "The updated service did not answer its health check. Run: journalctl -u little-sounds -n 60"
   exit 1
 fi
