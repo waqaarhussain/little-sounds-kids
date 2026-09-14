@@ -103,6 +103,6 @@ fi
 echo
 echo "Seven-theme update complete."
 echo "The old Alphablocks files and database are recoverable from: $snapshot"
-echo "Your other six completed themes were not changed."
+echo "Your five already-correct themes were not changed."
 echo "Now run: generate"
 echo "It will create 100 corrected Alphablocks and 100 new Colourblocks."
