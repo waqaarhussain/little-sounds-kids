@@ -121,7 +121,7 @@ def configured_children():
     return first, second
 
 
-def create_pack(destination):
+def create_pack(destination, include_books=True):
     connection = database()
     ensure_schema(connection)
     children = configured_children()
@@ -235,7 +235,7 @@ def create_pack(destination):
         )
     connection.close()
     book_files = []
-    if BOOKS_ROOT.is_dir():
+    if include_books and BOOKS_ROOT.is_dir():
         for source in sorted(path for path in BOOKS_ROOT.rglob("*") if path.is_file()):
             relative = source.relative_to(BOOKS_ROOT)
             if any(part in ("", ".", "..") for part in relative.parts):
@@ -499,6 +499,7 @@ def main():
     subparsers = parser.add_subparsers(dest="command", required=True)
     create_parser = subparsers.add_parser("create")
     create_parser.add_argument("--output", type=Path, default=DEFAULT_ARCHIVE)
+    create_parser.add_argument("--without-books", action="store_true")
     restore_parser = subparsers.add_parser("restore")
     restore_parser.add_argument("source", type=Path)
     upload_parser = subparsers.add_parser("upload")
@@ -506,7 +507,7 @@ def main():
     upload_parser.add_argument("--repository", default=DEFAULT_REPOSITORY)
     args = parser.parse_args()
     if args.command == "create":
-        create_pack(args.output)
+        create_pack(args.output, include_books=not args.without_books)
     elif args.command == "restore":
         restore_pack(args.source)
     else:
