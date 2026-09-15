@@ -99,7 +99,7 @@ SYSTEMD
 
 cat > /etc/systemd/system/little-sounds-book-generator.service <<'SYSTEMD'
 [Unit]
-Description=Create Little Sounds 15-page storybooks
+Description=Create Little Sounds 16-page storybooks
 After=network-online.target
 Wants=network-online.target
 
@@ -225,7 +225,6 @@ server {
     location = /books { return 301 /books/; }
     location = /letter-hunt { return 301 /letter-hunt/; }
     location = /number-hunt { return 301 /number-hunt/; }
-    location = /picture-partners { return 301 /picture-partners/; }
     location = /stickers { return 301 /stickers/; }
     location = /allstickers { return 301 /allstickers/; }
     location = /sticker-generator { return 301 /sticker-generator/; }
@@ -320,13 +319,12 @@ echo "Odd One Out: http://${server_ip}/odd-one-out/"
 echo "Which Has More: http://${server_ip}/more-or-less/"
 echo "Letter Hunt: http://${server_ip}/letter-hunt/"
 echo "Number Hunt: http://${server_ip}/number-hunt/"
-echo "Picture Partners: http://${server_ip}/picture-partners/"
 echo "Books: http://${server_ip}/books/"
 echo "Test site: http://${server_ip}/test/"
 echo "Sticker book: http://${server_ip}/stickers/"
 echo "All stickers monitor: http://${server_ip}/allstickers/"
 echo
 echo "Create or refill stickers: generate-stickers"
-echo "Create one or more 15-page books: generate-book"
+echo "Create one or more 16-page books: generate-book"
 echo "Save stickers, albums, game memory and generated books: backup"
 echo "Future test workflow: update-test, test at /test/, then run live to promote it."

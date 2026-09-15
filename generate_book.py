@@ -45,7 +45,7 @@ def request_with_retry(label, action):
 
 def story_plan(client, number):
     prompt = f"""
-Create one original 15-page picture-book plan for children aged 3 to 5 in UK English.
+Create one original 16-page picture-book plan for children aged 3 to 5 in UK English.
 It must be a playful crossover using friendly characters from all seven themes: {THEMES}.
 Use familiar character names, kindness, counting, letters and colours. Keep it safe, warm and funny.
 Reading level: like a very early school reader. Each scene must have one or two short sentences,
@@ -130,10 +130,11 @@ def create_book(client, number):
         save_webp(image_bytes(client, style + scene["picture"]), directory / f"scene-{index}.webp")
     pages = [{"type": "image", "src": f"/generated-books/{slug}/cover.webp", "alt": f"Cover of {plan['title']}"}]
     for index, scene in enumerate(plan["scenes"], 1):
-        page_type = "title" if index == 1 else "end" if index == 7 else "text"
+        page_type = "title" if index == 1 else "text"
         pages.append({"type": page_type, "title": plan["title"] if index == 1 else scene["heading"], "text": scene["text"]})
         pages.append({"type": "image", "src": f"/generated-books/{slug}/scene-{index}.webp", "alt": scene["picture"][:180]})
-    if len(pages) != 15:
+    pages.append({"type": "end", "title": "The End", "text": "The friends smiled. They had fun and helped each other."})
+    if len(pages) != 16:
         raise RuntimeError("Book page safety check failed.")
     book = {
         "slug": slug,
@@ -148,7 +149,7 @@ def create_book(client, number):
     temporary = MANIFEST.with_suffix(".tmp")
     temporary.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.replace(MANIFEST)
-    print(f"Finished: {plan['title']} (15 pages)", flush=True)
+    print(f"Finished: {plan['title']} (16 pages)", flush=True)
 
 
 def main():

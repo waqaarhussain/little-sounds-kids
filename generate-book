@@ -36,7 +36,7 @@ else
 fi
 
 while true; do
-  read -r -p "How many new 15-page books would you like to create? [1-10]: " book_count
+  read -r -p "How many new 16-page books would you like to create? [1-10]: " book_count
   if [[ "$book_count" =~ ^([1-9]|10)$ ]]; then break; fi
   echo "Choose a number from 1 to 10."
 done

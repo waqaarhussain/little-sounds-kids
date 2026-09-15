@@ -51,13 +51,12 @@ ACTIVITY_ITEMS = {
     "more-or-less": tuple(f"round-{number}" for number in range(1, 21)),
     "letter-hunt": tuple(f"round-{number}" for number in range(1, 21)),
     "number-hunt": tuple(f"round-{number}" for number in range(1, 21)),
-    "picture-partners": tuple(f"round-{number}" for number in range(1, 21)),
     **NUMBER_LEVELS,
 }
 RANDOM_ACTIVITIES = {
     "count-and-choose", "match-the-pairs", "sort-colours-shapes",
     "finish-the-pattern", "odd-one-out", "more-or-less",
-    "letter-hunt", "number-hunt", "picture-partners",
+    "letter-hunt", "number-hunt",
 }
 COUNTING_ICONS = (
     ("apples", "🍎"), ("stars", "⭐"), ("ladybirds", "🐞"), ("fish", "🐠"),
@@ -87,24 +86,6 @@ GAME_SYMBOLS = (
     "🐸", "🍪", "🎈", "🦆", "🐝", "💛", "🍊", "🚀",
     "🌙", "☀️", "🍀", "⚽", "🎀", "🍇", "🧸", "🎨",
 )
-PICTURE_PARTNERS = (
-    ("bee", "🐝", "flower", "🌼"), ("toothbrush", "🪥", "teeth", "😁"),
-    ("rain", "🌧️", "umbrella", "☂️"), ("lock", "🔒", "key", "🔑"),
-    ("foot", "🦶", "shoe", "👟"), ("hand", "✋", "glove", "🧤"),
-    ("dog", "🐶", "bone", "🦴"), ("cat", "🐱", "wool", "🧶"),
-    ("baby", "👶", "bottle", "🍼"), ("sun", "☀️", "sunglasses", "🕶️"),
-    ("letter", "✉️", "postbox", "📮"), ("pencil", "✏️", "paper", "📄"),
-    ("paint", "🎨", "brush", "🖌️"), ("cake", "🎂", "candle", "🕯️"),
-    ("car", "🚗", "road", "🛣️"), ("train", "🚂", "track", "🛤️"),
-    ("boat", "⛵", "water", "🌊"), ("fish", "🐠", "pond", "🏞️"),
-    ("bird", "🐦", "nest", "🪹"), ("rabbit", "🐰", "carrot", "🥕"),
-    ("monkey", "🐵", "banana", "🍌"), ("cow", "🐮", "milk", "🥛"),
-    ("hen", "🐔", "egg", "🥚"), ("spider", "🕷️", "web", "🕸️"),
-    ("sock", "🧦", "washing machine", "🧺"), ("bed", "🛏️", "pillow", "🛌"),
-    ("book", "📖", "shelf", "🗄️"), ("football", "⚽", "goal", "🥅"),
-    ("seed", "🌱", "watering can", "🚿"), ("present", "🎁", "party", "🎉"),
-)
-
 app = Flask(__name__)
 
 
@@ -344,7 +325,8 @@ def build_activity_plan(activity):
             if key in used:
                 continue
             used.add(key)
-            choices = shuffled_choices(answer, list(GAME_SYMBOLS))
+            choices = list(dict.fromkeys(sequence))
+            random.shuffle(choices)
             index = len(rounds) + 1
             rounds.append({"item": f"round-{index}", "sequence": sequence, "answer": answer, "choices": choices})
         plan = {"rounds": rounds}
@@ -398,21 +380,6 @@ def build_activity_plan(activity):
         for index, number in enumerate(random.sample(range(1, 101), 20), 1):
             choices = shuffled_choices(number, list(range(1, 101)), 4)
             rounds.append({"item": f"round-{index}", "target": number, "answer": number, "choices": choices})
-        plan = {"rounds": rounds}
-        signature_source = plan
-    elif activity == "picture-partners":
-        rounds = []
-        selected = random.sample(PICTURE_PARTNERS, 20)
-        all_answers = [(name, icon) for _, _, name, icon in PICTURE_PARTNERS]
-        for index, (target_name, target_icon, answer_name, answer_icon) in enumerate(selected, 1):
-            distractors = random.sample([pair for pair in all_answers if pair[0] != answer_name], 3)
-            choices = distractors + [(answer_name, answer_icon)]
-            random.shuffle(choices)
-            rounds.append({
-                "item": f"round-{index}", "target": target_name, "target_icon": target_icon,
-                "answer": answer_name,
-                "choices": [{"name": name, "icon": icon} for name, icon in choices],
-            })
         plan = {"rounds": rounds}
         signature_source = plan
     else:

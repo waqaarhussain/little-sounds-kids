@@ -361,7 +361,6 @@
     if (pagePath.startsWith("/more-or-less")) return "more-or-less";
     if (pagePath.startsWith("/letter-hunt")) return "letter-hunt";
     if (pagePath.startsWith("/number-hunt")) return "number-hunt";
-    if (pagePath.startsWith("/picture-partners")) return "picture-partners";
     return "";
   }
 

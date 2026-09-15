@@ -38,7 +38,7 @@ install -m 0755 "$stage/generate-book" /usr/local/bin/generate-book
 install -m 0755 "$stage/backup" /usr/local/bin/backup
 cat > /etc/systemd/system/little-sounds-book-generator.service <<'SYSTEMD'
 [Unit]
-Description=Create Little Sounds 15-page storybooks
+Description=Create Little Sounds 16-page storybooks
 After=network-online.target
 Wants=network-online.target
 [Service]
