@@ -84,7 +84,7 @@
         {type:"end",title:"The End",text:"The friends cheered under the rainbow. They had worked together, helped one another and brought every colour safely home."}
       ]
     };
-    let books=[base],active=null,current=0,activeButton=null,reading=false,playId=0;
+    let books=[base],active=null,current=0,activeButton=null,reading=false,playingFinalWords=false,playId=0,endingTimer=0;
     const narration=new Audio();narration.preload="auto";
     const byId=id=>document.getElementById(id);
     const asset=src=>String(src).startsWith("/")?ProfileShell.url(src):src;
@@ -114,11 +114,15 @@
       if(!page){const h=document.createElement("h2");h.textContent="The End";element.appendChild(h);return;}
       if(page.type==="image"){
         const image=document.createElement("img");image.src=asset(page.src);image.alt=page.alt||"Story picture";element.appendChild(image);
-      }else{
-        if(page.type==="title"||page.type==="end"){const stars=document.createElement("div");stars.className="story-stars";stars.textContent="★ ★ ★";element.appendChild(stars);}
-        const heading=document.createElement(page.type==="title"||page.type==="end"?"h2":"h3");heading.textContent=page.title||active.title;element.appendChild(heading);
+      }else if(page.type==="end"){
+        const stars=document.createElement("div");stars.className="story-stars";stars.textContent="★ ★ ★";element.appendChild(stars);
         const paragraph=document.createElement("p");paragraph.textContent=page.text||"";element.appendChild(paragraph);
-        if(page.type==="end"){const icon=document.createElement("div");icon.className="big-emoji";icon.textContent="🌟📖";element.appendChild(icon);}
+        const heading=document.createElement("h2");heading.textContent=page.title||"The End";element.appendChild(heading);
+        const icon=document.createElement("div");icon.className="big-emoji";icon.textContent="🌟📖";element.appendChild(icon);
+      }else{
+        if(page.type==="title"){const stars=document.createElement("div");stars.className="story-stars";stars.textContent="★ ★ ★";element.appendChild(stars);}
+        const heading=document.createElement(page.type==="title"?"h2":"h3");heading.textContent=page.title||active.title;element.appendChild(heading);
+        const paragraph=document.createElement("p");paragraph.textContent=page.text||"";element.appendChild(paragraph);
       }
       const mark=document.createElement("span");mark.className="page-number";mark.textContent=number<=active.pages.length?number:"";element.appendChild(mark);
     }
@@ -129,19 +133,30 @@
       byId("spreadCount").textContent=(first+1)+"–"+Math.min(first+2,active.pages.length)+" of "+active.pages.length;
     }
     function narrationUrl(){return ProfileShell.url("/generated-books/narration/"+encodeURIComponent(active.slug)+"/spread-"+(current+1)+".mp3");}
+    function finalWordsUrl(){return ProfileShell.url("/generated-books/narration/"+encodeURIComponent(active.slug)+"/spread-8-end.mp3");}
     function updateReadButton(){const button=byId("readAloud");button.classList.toggle("reading",reading);button.setAttribute("aria-pressed",String(reading));button.textContent=reading?"⏹ Stop reading":"🔊 Read aloud";}
     function stopReading(message=""){
-      reading=false;playId++;narration.pause();narration.removeAttribute("src");narration.load();
+      reading=false;playingFinalWords=false;playId++;window.clearTimeout(endingTimer);narration.pause();narration.removeAttribute("src");narration.load();
       if(byId("readAloud"))updateReadButton();if(byId("voiceStatus"))byId("voiceStatus").textContent=message;
     }
     async function playCurrentSpread(){
-      if(!reading||!active)return;const thisPlay=++playId;byId("voiceStatus").textContent="Reading this page…";
+      if(!reading||!active)return;playingFinalWords=false;window.clearTimeout(endingTimer);const thisPlay=++playId;byId("voiceStatus").textContent="Reading this page…";
       narration.src=narrationUrl();narration.currentTime=0;
       try{await narration.play();}catch(_){if(thisPlay!==playId)return;stopReading("Narration is not ready yet. Ask a grown-up to run narrate-books.");}
     }
+    async function playFinalWords(){
+      if(!reading||!active)return;playingFinalWords=true;const thisPlay=++playId;byId("voiceStatus").textContent="Finishing the story…";
+      narration.src=finalWordsUrl();narration.currentTime=0;
+      try{await narration.play();}catch(_){if(thisPlay!==playId)return;stopReading("The final words are not ready yet. Ask a grown-up to run narrate-books.");}
+    }
     narration.addEventListener("ended",()=>{
       if(!reading||!active)return;const total=Math.ceil(active.pages.length/2);
-      if(current>=total-1){stopReading("Story finished! ⭐");return;}
+      if(current>=total-1){
+        if(playingFinalWords){stopReading("Story finished! ⭐");return;}
+        const finishedPlay=playId;byId("voiceStatus").textContent="Almost finished…";
+        endingTimer=window.setTimeout(()=>{if(reading&&active&&playId===finishedPlay)playFinalWords();},1000);
+        return;
+      }
       current++;draw(1);window.setTimeout(()=>{if(reading)playCurrentSpread();},480);
     });
     narration.addEventListener("error",()=>{if(reading)stopReading("Narration is not ready yet. Ask a grown-up to run narrate-books.");});

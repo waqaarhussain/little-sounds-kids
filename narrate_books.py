@@ -68,7 +68,7 @@ def spoken_text(page):
         return ""
     title = " ".join(str(page.get("title", "")).split())
     text = " ".join(str(page.get("text", "")).split())
-    if page.get("type") == "text":
+    if page.get("type") in {"text", "end"}:
         return text
     return " ".join(part for part in (title, text) if part)
 
@@ -90,6 +90,41 @@ def audio_signature(text):
     return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
 
+def create_cached_audio(client, destination, filename, text, label):
+    audio_path = destination / f"{filename}.mp3"
+    hash_path = destination / f"{filename}.sha256"
+    signature = audio_signature(text)
+    existing_hash = hash_path.read_text(encoding="utf-8").strip() if hash_path.is_file() else ""
+    if audio_path.is_file() and audio_path.stat().st_size > 1024 and existing_hash == signature:
+        print(f"{label} is already cached.", flush=True)
+        return 0
+    temporary = destination / f".{filename}.mp3.tmp"
+    temporary.unlink(missing_ok=True)
+    print(f"Creating {label}...", flush=True)
+
+    def create_audio():
+        with client.audio.speech.with_streaming_response.create(
+            model=TTS_MODEL,
+            voice=TTS_VOICE,
+            input=text,
+            instructions=TTS_INSTRUCTIONS,
+            response_format="mp3",
+        ) as response:
+            response.stream_to_file(temporary)
+
+    try:
+        request_with_retry(label, create_audio)
+        if not temporary.is_file() or temporary.stat().st_size <= 1024:
+            raise RuntimeError("OpenAI returned an empty narration file.")
+        temporary.replace(audio_path)
+        audio_path.chmod(0o644)
+        hash_path.write_text(signature + "\n", encoding="utf-8")
+        hash_path.chmod(0o644)
+        return 1
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def narrate_book(client, book):
     if not valid_book(book):
         raise RuntimeError("Book is not a valid 16-page story.")
@@ -101,38 +136,22 @@ def narrate_book(client, book):
     for spread, text in enumerate(spread_texts(book), 1):
         if not text:
             raise RuntimeError(f"Spread {spread} has no words to read.")
-        audio_path = destination / f"spread-{spread}.mp3"
-        hash_path = destination / f"spread-{spread}.sha256"
-        signature = audio_signature(text)
-        existing_hash = hash_path.read_text(encoding="utf-8").strip() if hash_path.is_file() else ""
-        if audio_path.is_file() and audio_path.stat().st_size > 1024 and existing_hash == signature:
-            print(f"{book['title']}: spread {spread} is already cached.", flush=True)
-            continue
-        temporary = destination / f".spread-{spread}.mp3.tmp"
-        temporary.unlink(missing_ok=True)
-        print(f"{book['title']}: creating narration {spread} of 8...", flush=True)
-
-        def create_audio():
-            with client.audio.speech.with_streaming_response.create(
-                model=TTS_MODEL,
-                voice=TTS_VOICE,
-                input=text,
-                instructions=TTS_INSTRUCTIONS,
-                response_format="mp3",
-            ) as response:
-                response.stream_to_file(temporary)
-
-        try:
-            request_with_retry(f"Narration {spread}", create_audio)
-            if not temporary.is_file() or temporary.stat().st_size <= 1024:
-                raise RuntimeError("OpenAI returned an empty narration file.")
-            temporary.replace(audio_path)
-            audio_path.chmod(0o644)
-            hash_path.write_text(signature + "\n", encoding="utf-8")
-            hash_path.chmod(0o644)
-            made += 1
-        finally:
-            temporary.unlink(missing_ok=True)
+        made += create_cached_audio(
+            client,
+            destination,
+            f"spread-{spread}",
+            text,
+            f"{book['title']}: narration {spread} of 8",
+        )
+    end_page = next((page for page in book["pages"] if page.get("type") == "end"), None)
+    end_title = " ".join(str((end_page or {}).get("title", "The End")).split()) or "The End"
+    made += create_cached_audio(
+        client,
+        destination,
+        "spread-8-end",
+        end_title,
+        f"{book['title']}: final words",
+    )
     return made
 
 
@@ -165,7 +184,7 @@ def main():
         except Exception as error:
             failures += 1
             print(f"{book.get('title', 'Book')} failed safely: {error}", flush=True)
-    print(f"Narration finished: {total} new spread(s), {len(books) - failures} book(s) ready.", flush=True)
+    print(f"Narration finished: {total} new audio clip(s), {len(books) - failures} book(s) ready.", flush=True)
     if failures:
         raise SystemExit(1)
 
