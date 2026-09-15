@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+service_name="little-sounds-book-generator.service"
+key_dir="/root/.config/little-sounds"
+key_file="$key_dir/openai.env"
+run_file="/run/little-sounds-book.env"
+manifest="/var/www/little-sounds/generated-books/books.json"
+
+if [ "$(id -u)" -ne 0 ]; then echo "Run repair-book as root."; exit 1; fi
+case "${1:-start}" in
+  status) systemctl status "$service_name" --no-pager || true; exit 0 ;;
+  watch) journalctl -u "$service_name" -f; exit 0 ;;
+  log|logs) journalctl -u "$service_name" -n 100 --no-pager; exit 0 ;;
+  start|"") ;;
+  *) echo "Use: repair-book, repair-book status, repair-book watch, or repair-book logs"; exit 1 ;;
+esac
+
+if systemctl is-active --quiet "$service_name" 2>/dev/null; then
+  echo "A book job is already running. Watch it with: repair-book watch"
+  exit 0
+fi
+if [ ! -s "$key_file" ]; then
+  echo "No saved OpenAI API key was found. Run generate-book once to save it."
+  exit 1
+fi
+mapfile -t book_rows < <(python3 - "$manifest" <<'PY'
+import json
+import sys
+from pathlib import Path
+try:
+    data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    for book in data.get("books", []):
+        if not isinstance(book, dict):
+            continue
+        slug = str(book.get("slug", ""))
+        title = " ".join(str(book.get("title", "Book")).split()).replace("|", "-")
+        if slug:
+            print(f"{slug}|{title}")
+except (OSError, ValueError, TypeError):
+    pass
+PY
+)
+book_count="${#book_rows[@]}"
+if [ "$book_count" -eq 0 ]; then
+  echo "There are no generated books to repair."
+  exit 0
+fi
+
+if [ "$book_count" -eq 1 ]; then
+  selected_row="${book_rows[0]}"
+else
+  echo "Choose one generated book to repair:"
+  for index in "${!book_rows[@]}"; do
+    echo "$((index + 1))) ${book_rows[$index]#*|}"
+  done
+  while true; do
+    read -r -p "Book number [1-$book_count]: " selection
+    if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -le "$book_count" ]; then
+      selected_row="${book_rows[$((selection - 1))]}"
+      break
+    fi
+    echo "Choose one number from 1 to $book_count."
+  done
+fi
+selected_slug="${selected_row%%|*}"
+selected_title="${selected_row#*|}"
+
+minimum_images=8
+maximum_images=24
+echo "Selected book: $selected_title"
+echo "This keeps its story and narration, then replaces only its pictures."
+echo "It creates at least $minimum_images checked landscape illustrations; the retry limit is $maximum_images."
+echo "The current pictures stay untouched unless every replacement for that book passes."
+read -r -p "Start repairing the generated book pictures? [Y/n]: " confirmation
+if [[ "$confirmation" =~ ^[Nn]$ ]]; then echo "Cancelled."; exit 0; fi
+
+umask 077
+printf 'REPAIR_SLUG=%s\nPYTHONUNBUFFERED=1\n' "$selected_slug" > "$run_file"
+chmod 0600 "$run_file"
+systemctl reset-failed "$service_name" 2>/dev/null || true
+systemctl start "$service_name"
+sleep 2
+rm -f "$run_file"
+if systemctl is-failed --quiet "$service_name"; then journalctl -u "$service_name" -n 40 --no-pager; exit 1; fi
+echo "Book-picture repair is running in the background; you can close Termius."
+echo "Watch it with: repair-book watch"
