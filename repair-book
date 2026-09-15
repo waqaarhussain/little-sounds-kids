@@ -67,7 +67,7 @@ selected_slug="${selected_row%%|*}"
 selected_title="${selected_row#*|}"
 
 minimum_images=8
-maximum_images=24
+maximum_images=48
 echo "Selected book: $selected_title"
 echo "This keeps its story and narration, then replaces only its pictures."
 echo "It creates at least $minimum_images checked landscape illustrations; the retry limit is $maximum_images."
