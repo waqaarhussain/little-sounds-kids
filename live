@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Run live as root."
+  exit 1
+fi
+
+repository="waqaarhussain/little-sounds-kids"
+test_app="/opt/little-sounds-test"
+test_site="/var/www/little-sounds-test"
+live_app="/opt/little-sounds"
+live_site="/var/www/little-sounds"
+test_sha="$(tr -d '[:space:]' < "$test_app/source-commit" 2>/dev/null || true)"
+remote_test_sha="$(curl -fsSL "https://api.github.com/repos/$repository/branches/test" | python3 -c 'import json,sys; print(json.load(sys.stdin)["commit"]["sha"])')"
+
+if ! [[ "$test_sha" =~ ^[0-9a-f]{40}$ ]] || [ "$test_sha" != "$remote_test_sha" ]; then
+  echo "The installed test site does not match GitHub's test branch. Run update-test first."
+  exit 1
+fi
+python3 -m py_compile "$test_app/app.py"
+if ! curl -fsS http://127.0.0.1:8788/api/health >/dev/null; then
+  echo "The test service is not healthy. Nothing was promoted."
+  exit 1
+fi
+
+while true; do
+  read -r -s -p "Paste a GitHub token with Contents write access to $repository: " github_token
+  echo
+  if [[ "$github_token" =~ ^[A-Za-z0-9_]{30,}$ ]]; then break; fi
+  echo "That does not look like a complete GitHub token."
+done
+token_length="${#github_token}"
+echo "Token received: ${github_token:0:7}...${github_token:token_length-4:4} (${token_length} characters)"
+
+work_dir="$(mktemp -d /tmp/little-sounds-promote.XXXXXX)"
+trap 'rm -rf "$work_dir"; unset github_token' EXIT
+mkdir -p "$work_dir/site" "$work_dir/app"
+rsync -a --delete --exclude sticker-images --exclude sticker-generator "$live_site/" "$work_dir/site/"
+rsync -a "$live_app/" "$work_dir/app/"
+
+rollback() {
+  echo "Promotion failed. Restoring the previous live code."
+  rsync -a --delete --exclude sticker-images --exclude sticker-generator "$work_dir/site/" "$live_site/"
+  rsync -a --delete "$work_dir/app/" "$live_app/"
+  systemctl restart little-sounds.service
+}
+
+rsync -a --delete --exclude sticker-images --exclude sticker-generator "$test_site/" "$live_site/"
+install -m 0644 "$test_app/app.py" "$live_app/app.py"
+install -m 0644 "$test_app/requirements.txt" "$live_app/requirements.txt"
+/opt/little-sounds-venv/bin/pip install --disable-pip-version-check -r "$live_app/requirements.txt" >/dev/null
+chmod -R a+rX "$live_site"
+systemctl restart little-sounds.service
+
+healthy=false
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -fsS http://127.0.0.1:8787/api/health >/dev/null; then healthy=true; break; fi
+  sleep 1
+done
+if [ "$healthy" != true ]; then rollback; exit 1; fi
+
+response_file="$work_dir/github-response.json"
+if ! curl -fSs -X PATCH   -H "Accept: application/vnd.github+json"   -H "Authorization: Bearer $github_token"   -H "X-GitHub-Api-Version: 2022-11-28"   "https://api.github.com/repos/$repository/git/refs/heads/main"   -d "{\"sha\":\"$test_sha\",\"force\":false}" > "$response_file"; then
+  rollback
+  echo "GitHub main was not updated, so the local live code was rolled back too."
+  exit 1
+fi
+
+printf '%s
+' "$test_sha" > "$live_app/source-commit"
+unset github_token
+refresh-test
+echo "Test build $test_sha is now live. Live albums and sticker usage were preserved."

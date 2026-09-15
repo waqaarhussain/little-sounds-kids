@@ -1,10 +1,10 @@
-<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Match the Pairs</title><link rel="stylesheet" href="/assets/site-shell.css"><link rel="stylesheet" href="/assets/games.css"></head><body>
+<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Match the Pairs</title><link rel="stylesheet" href="../assets/site-shell.css"><link rel="stylesheet" href="../assets/games.css"></head><body>
 <main class="game-wrap"><h1 class="game-title">🧠 Match the Pairs</h1><div class="progress-card"><span id="progressText">0 of 6 pairs found</span><div class="progress-track"><div class="progress-fill" id="progressFill"></div></div></div><section class="game-card" id="gameCard"><p class="prompt" id="prompt">Look carefully and remember the pictures!</p><div class="matching-grid previewing" id="grid"></div><p class="feedback" id="feedback" aria-live="polite"></p></section></main>
-<script src="/assets/site-shell.js"></script><script>
+<script src="../assets/site-shell.js"></script><script>
 (function(){
  const activity="match-the-pairs";let plan=null,first=null,locked=true,done=new Set();
  const byId=id=>document.getElementById(id);
- const api=async(path,options={})=>{const r=await fetch(path,{credentials:"same-origin",headers:{"Content-Type":"application/json"},...options});const j=await r.json();if(!r.ok)throw new Error(j.error||"Try again.");return j};
+ const api=async(path,options={})=>{const r=await fetch(ProfileShell.url(path),{credentials:"same-origin",headers:{"Content-Type":"application/json"},...options});const j=await r.json();if(!r.ok)throw new Error(j.error||"Try again.");return j};
  function update(n){byId("progressText").textContent=n+" of 6 pairs found";byId("progressFill").style.width=(n/6*100)+"%"}
  function render(){byId("grid").innerHTML=plan.deck.map(card=>'<button class="match-card preview '+(done.has(card.round)?"matched":"")+'" type="button" data-round="'+card.round+'" '+(done.has(card.round)?"disabled":"")+'><span>'+card.icon+'</span></button>').join("");byId("grid").querySelectorAll("button:not(:disabled)").forEach(b=>b.onclick=()=>flip(b))}
  function begin(){render();byId("prompt").textContent="Look carefully and remember the pictures!";byId("feedback").textContent="Cards turn over in 3 seconds…";setTimeout(()=>{byId("grid").classList.remove("previewing");byId("grid").querySelectorAll(".match-card:not(.matched)").forEach(card=>card.classList.remove("preview"));byId("prompt").textContent="Turn over two cards. Can you find a pair?";byId("feedback").textContent="";locked=false},3000)}

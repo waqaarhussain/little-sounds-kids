@@ -14,7 +14,7 @@ from flask import Flask, jsonify, request
 DATA_DIRECTORY = Path(os.environ.get("LITTLE_SOUNDS_DATA", "/var/lib/little-sounds"))
 DATABASE = DATA_DIRECTORY / "little-sounds.sqlite3"
 SWITCH_PIN = os.environ.get("LITTLE_SOUNDS_PIN", "0000")
-COOKIE_NAME = "little_sounds_device"
+COOKIE_NAME = os.environ.get("LITTLE_SOUNDS_COOKIE_NAME", "little_sounds_device")
 PARENT_PROFILE = os.environ.get("LITTLE_SOUNDS_PARENT", "Parent").strip() or "Parent"
 CHILD_PROFILES = (
     os.environ.get("LITTLE_SOUNDS_CHILD_1", "Child 1").strip() or "Child 1",
@@ -46,9 +46,15 @@ ACTIVITY_ITEMS = {
     "count-and-choose": tuple(f"round-{number}" for number in range(1, 21)),
     "match-the-pairs": tuple(f"round-{number}" for number in range(1, 7)),
     "sort-colours-shapes": tuple(f"round-{number}" for number in range(1, 21)),
+    "finish-the-pattern": tuple(f"round-{number}" for number in range(1, 21)),
+    "odd-one-out": tuple(f"round-{number}" for number in range(1, 21)),
+    "more-or-less": tuple(f"round-{number}" for number in range(1, 21)),
     **NUMBER_LEVELS,
 }
-RANDOM_ACTIVITIES = {"count-and-choose", "match-the-pairs", "sort-colours-shapes"}
+RANDOM_ACTIVITIES = {
+    "count-and-choose", "match-the-pairs", "sort-colours-shapes",
+    "finish-the-pattern", "odd-one-out", "more-or-less",
+}
 COUNTING_ICONS = (
     ("apples", "🍎"), ("stars", "⭐"), ("ladybirds", "🐞"), ("fish", "🐠"),
     ("butterflies", "🦋"), ("strawberries", "🍓"), ("flowers", "🌼"), ("cars", "🚗"),
@@ -71,6 +77,11 @@ MATCHING_ANIMALS = (
     ("pig", "🐷"), ("mouse", "🐭"), ("hamster", "🐹"), ("bear", "🐻"),
     ("chicken", "🐔"), ("penguin", "🐧"), ("owl", "🦉"), ("duck", "🦆"),
     ("octopus", "🐙"), ("whale", "🐳"), ("snail", "🐌"), ("butterfly", "🦋"),
+)
+GAME_SYMBOLS = (
+    "🍎", "⭐", "🐞", "🐠", "🦋", "🍓", "🌼", "🚗",
+    "🐸", "🍪", "🎈", "🦆", "🐝", "💛", "🍊", "🚀",
+    "🌙", "☀️", "🍀", "⚽", "🎀", "🍇", "🧸", "🎨",
 )
 
 app = Flask(__name__)
@@ -315,6 +326,67 @@ def build_activity_plan(activity):
         random.shuffle(deck)
         plan = {"pairs": [{"round": f"round-{index}", "animal": animal, "icon": icon} for index, (animal, icon) in enumerate(animals, 1)], "deck": deck}
         signature_source = sorted(animal for animal, _ in animals)
+    elif activity == "finish-the-pattern":
+        kinds = ("AB", "AAB", "ABB", "ABC")
+        rounds = []
+        used = set()
+        while len(rounds) < 20:
+            kind = random.choice(kinds)
+            symbols = random.sample(GAME_SYMBOLS, 3)
+            unit = {
+                "AB": [symbols[0], symbols[1]],
+                "AAB": [symbols[0], symbols[0], symbols[1]],
+                "ABB": [symbols[0], symbols[1], symbols[1]],
+                "ABC": [symbols[0], symbols[1], symbols[2]],
+            }[kind]
+            sequence = (unit * 4)[:6]
+            answer = (unit * 4)[6]
+            key = (kind, tuple(symbols), answer)
+            if key in used:
+                continue
+            used.add(key)
+            choices = shuffled_choices(answer, list(GAME_SYMBOLS))
+            index = len(rounds) + 1
+            rounds.append({"item": f"round-{index}", "sequence": sequence, "answer": answer, "choices": choices})
+        plan = {"rounds": rounds}
+        signature_source = plan
+    elif activity == "odd-one-out":
+        rounds = []
+        used = set()
+        while len(rounds) < 20:
+            same, odd = random.sample(GAME_SYMBOLS, 2)
+            position = random.randrange(4)
+            key = (same, odd, position)
+            if key in used:
+                continue
+            used.add(key)
+            pictures = [same] * 4
+            pictures[position] = odd
+            index = len(rounds) + 1
+            rounds.append({"item": f"round-{index}", "pictures": pictures, "answer": position})
+        plan = {"rounds": rounds}
+        signature_source = plan
+    elif activity == "more-or-less":
+        rounds = []
+        used = set()
+        while len(rounds) < 20:
+            left_count, right_count = random.sample(range(1, 11), 2)
+            left_icon, right_icon = random.sample(GAME_SYMBOLS, 2)
+            key = (left_count, right_count, left_icon, right_icon)
+            if key in used:
+                continue
+            used.add(key)
+            index = len(rounds) + 1
+            rounds.append({
+                "item": f"round-{index}",
+                "left_count": left_count,
+                "right_count": right_count,
+                "left_icon": left_icon,
+                "right_icon": right_icon,
+                "answer": "left" if left_count > right_count else "right",
+            })
+        plan = {"rounds": rounds}
+        signature_source = plan
     else:
         raise ValueError("That activity does not use a generated plan.")
     canonical = json.dumps(signature_source, sort_keys=True, separators=(",", ":"), ensure_ascii=False)

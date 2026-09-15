@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Run refresh-test as root."
+  exit 1
+fi
+
+live_site="/var/www/little-sounds"
+test_site="/var/www/little-sounds-test"
+live_app="/opt/little-sounds/app.py"
+test_app_dir="/opt/little-sounds-test"
+live_db="/var/lib/little-sounds/little-sounds.sqlite3"
+test_data="/var/lib/little-sounds-test"
+test_db="$test_data/little-sounds.sqlite3"
+
+systemctl stop little-sounds-test.service 2>/dev/null || true
+install -d -m 0755 "$test_site" "$test_app_dir"
+install -d -o www-data -g www-data -m 0750 "$test_data"
+rsync -a --delete --exclude sticker-images --exclude sticker-generator "$live_site/" "$test_site/"
+ln -sfn "$live_site/sticker-images" "$test_site/sticker-images"
+install -m 0644 "$live_app" "$test_app_dir/app.py"
+if [ -f /opt/little-sounds/requirements.txt ]; then
+  install -m 0644 /opt/little-sounds/requirements.txt "$test_app_dir/requirements.txt"
+fi
+if [ -f /opt/little-sounds/source-commit ]; then
+  install -m 0644 /opt/little-sounds/source-commit "$test_app_dir/source-commit"
+fi
+
+if [ -f "$live_db" ]; then
+  LIVE_DB="$live_db" TEST_DB="$test_db" python3 - <<'PY'
+import os
+import sqlite3
+from pathlib import Path
+
+source_path = Path(os.environ["LIVE_DB"])
+target_path = Path(os.environ["TEST_DB"])
+target_path.unlink(missing_ok=True)
+source = sqlite3.connect(f"file:{source_path}?mode=ro", uri=True)
+target = sqlite3.connect(target_path)
+try:
+    source.backup(target)
+finally:
+    target.close()
+    source.close()
+PY
+fi
+
+chown -R www-data:www-data "$test_data"
+chmod -R a+rX "$test_site"
+systemctl enable --now little-sounds-test.service
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -fsS http://127.0.0.1:8788/api/health >/dev/null; then
+    echo "Test site refreshed from live. Open http://$(hostname -I | awk '{print $1}')/test/"
+    exit 0
+  fi
+  sleep 1
+done
+echo "The test service did not start. Run: journalctl -u little-sounds-test -n 80"
+exit 1

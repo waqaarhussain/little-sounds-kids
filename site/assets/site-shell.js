@@ -12,9 +12,15 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
   })[character]);
   const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+  const basePath = location.pathname === "/test" || location.pathname.startsWith("/test/") ? "/test" : "";
+  const pagePath = basePath ? location.pathname.slice(basePath.length) || "/" : location.pathname;
+  const sitePath = path => {
+    if (!String(path).startsWith("/") || !basePath || String(path).startsWith(basePath + "/")) return path;
+    return basePath + path;
+  };
 
   async function api(path, options = {}) {
-    const response = await fetch(path, {
+    const response = await fetch(sitePath(path), {
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", ...(options.headers || {}) },
       ...options
@@ -32,18 +38,19 @@
   }
 
   function createInterface() {
-    const phonicsTools = location.pathname.startsWith("/phonicsbook")
+    const phonicsTools = pagePath.startsWith("/phonicsbook")
       ? '<button class="site-tool-button site-tool-icon" id="siteAlphabetButton" type="button" aria-label="Choose a letter">🔤</button>'
       : "";
     document.body.insertAdjacentHTML("beforeend", `
-      <a class="site-brand" href="/" aria-label="Little Learners home"><span class="site-brand-mark">📚</span><span>Little Learners</span></a>
+      <a class="site-brand" href="${sitePath("/")}" aria-label="Little Learners home"><span class="site-brand-mark">📚</span><span>Little Learners</span></a>
       <nav class="site-tools" aria-label="Site controls">
-        <a class="site-tool-button site-tool-icon" href="/" aria-label="Little Learners home">🏠</a>
+        <a class="site-tool-button site-tool-icon" href="${sitePath("/")}" aria-label="Little Learners home">🏠</a>
         ${phonicsTools}
         <button class="site-tool-button site-tool-icon" id="siteGiveSticker" type="button" aria-label="Give a good behaviour sticker">🎁</button>
-        <a class="site-tool-button site-tool-icon" href="/stickers/" aria-label="Open earned sticker album">🌟</a>
+        <a class="site-tool-button site-tool-icon" href="${sitePath("/stickers/")}" aria-label="Open earned sticker album">🌟</a>
         <button class="site-tool-button site-profile-initials" id="siteProfileButton" type="button" aria-label="Switch profile"><span id="siteProfileName">?</span></button>
       </nav>
+      <a class="site-books-link" href="${sitePath("/books/")}" aria-label="Open the Little Learners book shelf">📖</a>
       <div class="site-modal" id="profileModal" hidden>
         <section class="site-modal-card" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
           <h2 id="profileTitle">Choose Profile</h2>
@@ -338,11 +345,14 @@
   let touchingSession = false;
 
   function currentActivity() {
-    if (location.pathname.startsWith("/handwriting")) return document.body.dataset.progressActivity || "letters";
-    if (location.pathname.startsWith("/phonicsbook")) return "phonics";
-    if (location.pathname.startsWith("/counting")) return "count-and-choose";
-    if (location.pathname.startsWith("/matching")) return "match-the-pairs";
-    if (location.pathname.startsWith("/sorting")) return "sort-colours-shapes";
+    if (pagePath.startsWith("/handwriting")) return document.body.dataset.progressActivity || "letters";
+    if (pagePath.startsWith("/phonicsbook")) return "phonics";
+    if (pagePath.startsWith("/counting")) return "count-and-choose";
+    if (pagePath.startsWith("/matching")) return "match-the-pairs";
+    if (pagePath.startsWith("/sorting")) return "sort-colours-shapes";
+    if (pagePath.startsWith("/patterns")) return "finish-the-pattern";
+    if (pagePath.startsWith("/odd-one-out")) return "odd-one-out";
+    if (pagePath.startsWith("/more-or-less")) return "more-or-less";
     return "";
   }
 
@@ -411,7 +421,7 @@
   }
 
   window.ProfileShell = Object.freeze({
-    ready, claimReward, giveSticker: openBonusReward,
+    ready, claimReward, giveSticker: openBonusReward, url: sitePath,
     get parentProfile() { return parentProfile; },
     get childProfiles() { return [...childProfiles]; },
     get profile() { return profile; }

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#42b9f5">
   <meta name="description" content="A colourful, interactive phonics book for little learners.">
   <title>Little Sounds</title>
-  <link rel="stylesheet" href="/assets/site-shell.css">
+  <link rel="stylesheet" href="../assets/site-shell.css">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%236c4cff'/%3E%3Cpath d='M18 47 28 17h9l10 30h-8l-2-7H27l-2 7Zm11-14h6l-3-10Z' fill='white'/%3E%3C/svg%3E">
   <style>
     :root {
@@ -576,7 +576,7 @@
   </div>
 
   <div class="sr-only" id="announcement" aria-live="assertive"></div>
-  <script src="/assets/site-shell.js"></script>
+  <script src="../assets/site-shell.js"></script>
   <script>
     const letters = [
       { l: "A", colour: "#f05d78", dark: "#c83856", soft: "#ffe4ea", items: [["🍎","apple"],["🐜","ant"],["🐊","alligator"],["🪓","axe"]] },
@@ -736,7 +736,7 @@
     async function completePhonicsLetter(letter) {
       try {
         await window.ProfileShell.ready;
-        const response = await fetch("/api/progress/complete", {
+        const response = await fetch(ProfileShell.url("/api/progress/complete"), {
           method: "POST",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
