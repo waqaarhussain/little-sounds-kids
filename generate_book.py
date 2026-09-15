@@ -110,7 +110,7 @@ Previous attempt problem to fix: {last_problem or "none"}
                 raise ValueError("return one title and exactly seven scenes")
             if normalised(title) in used_titles:
                 raise ValueError("use a title that has never been used before")
-            if not 10 <= len(ending.split()) <= 24 or normalised(ending) in used_texts:
+            if not 12 <= len(ending.split()) <= 22 or normalised(ending) in used_texts:
                 raise ValueError("write a new ending using 12 to 22 simple words")
             cleaned = []
             new_texts = set()
@@ -124,7 +124,7 @@ Previous attempt problem to fix: {last_problem or "none"}
                 picture_key = normalised(picture)
                 if not heading or not text or not picture:
                     raise ValueError("complete every heading, text and picture field")
-                if not 20 <= words <= 40:
+                if not 24 <= words <= 34:
                     raise ValueError("write 24 to 34 simple words for every scene")
                 if text_key in used_texts or text_key in new_texts:
                     raise ValueError("do not repeat page wording from any book")
@@ -196,7 +196,7 @@ def create_book(client, number):
     for index, scene in enumerate(plan["scenes"], 1):
         page_type = "title" if index == 1 else "text"
         pages.append({"type": page_type, "title": plan["title"] if index == 1 else scene["heading"], "text": scene["text"]})
-        pages.append({"type": "image", "src": f"/generated-books/{slug}/scene-{index}.webp", "alt": scene["picture"][:180]})
+        pages.append({"type": "image", "src": f"/generated-books/{slug}/scene-{index}.webp", "alt": scene["picture"]})
     pages.append({"type": "end", "title": "The End", "text": plan["ending"]})
     if len(pages) != 16:
         raise RuntimeError("Book page safety check failed.")
