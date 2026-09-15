@@ -1,1 +1,96 @@
-<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Little Learners Books</title><link rel="stylesheet" href="../assets/site-shell.css"><style>:root{font-family:"Trebuchet MS",system-ui,sans-serif;color:#20345d}*{box-sizing:border-box}body{margin:0;min-height:100vh;padding:120px 18px 50px;background:linear-gradient(145deg,#6f61e9,#55d2e8 58%,#fff2a8);text-align:center}.shelf{width:min(900px,100%);margin:auto;padding:clamp(25px,6vw,55px);border:7px solid #fff;border-radius:34px;background:#fff9e8;box-shadow:0 12px 0 #365394,0 24px 55px #18315f38}h1{margin:0;font-size:clamp(2.6rem,8vw,5.2rem);color:#314987}.book{font-size:clamp(5rem,18vw,10rem);filter:drop-shadow(0 12px 8px #31498735);animation:bookFloat 2.4s ease-in-out infinite}p{font-size:clamp(1rem,3vw,1.35rem);font-weight:900;line-height:1.5}.coming{display:inline-block;margin-top:10px;padding:10px 20px;border-radius:999px;background:#ffe56d;color:#704e00;font-weight:1000}@keyframes bookFloat{50%{transform:translateY(-10px) rotate(3deg)}}@media(prefers-reduced-motion:reduce){.book{animation:none}}</style></head><body><main class="shelf"><div class="book">📚</div><h1>Our Book Shelf</h1><p>This is where our Little Learners books will live.</p><span class="coming">New books coming soon</span></main><script src="../assets/site-shell.js"></script></body></html>
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Little Learners Books</title>
+  <link rel="stylesheet" href="../assets/site-shell.css">
+  <style>
+    :root{font-family:"Trebuchet MS",system-ui,sans-serif;color:#20345d}*{box-sizing:border-box}
+    body{margin:0;min-height:100vh;padding:118px 16px 48px;background:linear-gradient(145deg,#7162eb,#57cee8 58%,#fff1a4);overflow-x:hidden}
+    .library{width:min(1080px,100%);margin:auto;text-align:center}.library h1{margin:0;color:#fff;font-size:clamp(2.7rem,7vw,5.4rem);line-height:.95;text-shadow:0 7px 0 #33478c}.library>p{font-size:clamp(1rem,2.5vw,1.3rem);font-weight:900}
+    .bookcase{position:relative;margin:34px auto 0;width:min(850px,95%);min-height:455px;padding:44px 38px 64px;border:18px solid #8b4b25;border-radius:28px;background:linear-gradient(90deg,#c97739,#e6a35e 46%,#bd652e);box-shadow:inset 0 0 0 7px #f6c07e,0 18px 0 #49356e,0 30px 50px #20345d55}
+    .bookcase:after{content:"";position:absolute;left:-15px;right:-15px;bottom:40px;height:28px;border-radius:8px;background:linear-gradient(#f0b872,#985027);box-shadow:0 10px 0 #6c391e}
+    .shelf-row{position:relative;z-index:1;display:flex;align-items:flex-end;justify-content:center;min-height:320px}
+    .shelf-book{position:relative;width:210px;height:300px;padding:0;border:0;border-radius:6px 18px 18px 6px;background:#6748d8;box-shadow:-9px 0 0 #4e31ae,11px 11px 18px #462a194f;cursor:pointer;transform-origin:bottom center;transition:filter .2s,transform .25s}
+    .shelf-book:hover,.shelf-book:focus-visible{transform:translateY(-13px) rotate(-2deg);filter:brightness(1.07)}.shelf-book img{width:100%;height:100%;object-fit:cover;border-radius:inherit;opacity:.68}.shelf-title{position:absolute;inset:auto 12px 20px;padding:13px 7px;border-radius:10px;background:#fff8dcdf;color:#263867;font-size:1.22rem;font-weight:1000;line-height:1.05}.shelf-ribbon{position:absolute;top:14px;right:-7px;padding:7px 11px;background:#ffe45e;border-radius:9px 3px 3px 9px;color:#684900;font-weight:1000;box-shadow:0 4px 0 #c99813}
+    .shelf-book.leaving{animation:leaveShelf .72s cubic-bezier(.2,.8,.3,1) forwards;z-index:20}
+    .reader{position:fixed;z-index:2000;inset:0;display:grid;place-items:center;padding:72px 18px 22px;background:radial-gradient(circle,#7fe3f2,#314988e8 70%);opacity:0;visibility:hidden;transition:opacity .35s}.reader.open{opacity:1;visibility:visible}.reader-shell{width:min(1180px,96vw)}
+    .reader-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:#fff;font-weight:1000}.reader-close{width:48px;height:48px;border:4px solid #fff;border-radius:50%;background:#263b74;color:#fff;font-size:1.5rem;cursor:pointer;box-shadow:0 5px 0 #17234a}
+    .book-spread{position:relative;display:grid;grid-template-columns:1fr 1fr;width:100%;height:min(70vh,690px);min-height:420px;perspective:1500px;filter:drop-shadow(0 24px 24px #15254c66);transform:scale(.2) rotateY(-34deg);opacity:0;transition:transform .72s cubic-bezier(.2,.85,.2,1),opacity .35s}.reader.open .book-spread{transform:scale(1) rotateY(0);opacity:1}
+    .book-spread:after{content:"";position:absolute;top:2%;bottom:2%;left:50%;width:14px;transform:translateX(-50%);background:linear-gradient(90deg,#a47c5366,#fff8dc,#a47c5366);border-radius:50%;z-index:5;pointer-events:none}
+    .page{position:relative;overflow:hidden;background:linear-gradient(90deg,#fff9e8,#fffef8);border:5px solid #fff3d3;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:clamp(20px,4vw,52px);box-shadow:inset 0 0 35px #c99a4f20}.page.left{border-radius:28px 4px 4px 28px}.page.right{border-radius:4px 28px 28px 4px}.page.turning-left{animation:turnLeft .48s ease}.page.turning-right{animation:turnRight .48s ease}
+    .page.image-page{padding:13px}.page img{width:100%;height:100%;object-fit:cover;border-radius:18px}.page h2{margin:.2em 0;color:#5140bb;font-size:clamp(2rem,4vw,4.2rem);line-height:.95}.page h3{margin:.2em 0;font-size:clamp(1.4rem,2.7vw,2.5rem);color:#e64075}.page p{margin:.55em 0;font-size:clamp(.98rem,1.65vw,1.48rem);font-weight:900;line-height:1.48;max-width:20em}.big-emoji{font-size:clamp(4rem,10vw,8rem)}.story-stars{color:#f4ba16;font-size:1.5rem;letter-spacing:.25em}.page-number{position:absolute;bottom:11px;color:#846e57;font-weight:900;font-size:.82rem}
+    .reader-controls{display:flex;align-items:center;justify-content:center;gap:13px;margin-top:15px}.page-btn{min-width:122px;padding:12px 18px;border:4px solid #fff;border-radius:999px;background:#694de1;color:#fff;font:1000 1rem "Trebuchet MS",sans-serif;box-shadow:0 6px 0 #39258e;cursor:pointer}.page-btn:disabled{opacity:.4;cursor:not-allowed}.spread-count{min-width:84px;color:#fff;font-weight:1000}
+    @keyframes leaveShelf{45%{transform:translateY(-120px) rotate(-7deg) scale(1.12)}100%{transform:translate(0,-150px) rotate(0) scale(1.55);opacity:0}}
+    @keyframes turnLeft{50%{transform:perspective(800px) rotateY(13deg);filter:brightness(1.12)}}@keyframes turnRight{50%{transform:perspective(800px) rotateY(-13deg);filter:brightness(1.12)}}
+    @media(max-width:650px){body{padding:108px 10px 30px}.bookcase{min-height:395px;padding:32px 20px 55px;border-width:13px}.shelf-row{min-height:285px}.shelf-book{width:184px;height:264px}.reader{padding:70px 6px 10px}.book-spread{height:64vh;min-height:430px}.page{padding:14px 11px}.page p{font-size:clamp(.78rem,3vw,1rem);line-height:1.35}.page h2{font-size:clamp(1.5rem,6vw,2.4rem)}.page h3{font-size:clamp(1.05rem,4vw,1.55rem)}.page.image-page{padding:6px}.page img{border-radius:10px}.page-btn{min-width:94px;padding:9px 11px;font-size:.86rem}.reader-top{font-size:.9rem}.reader-close{width:42px;height:42px}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+  <main class="library">
+    <h1>Our Book Shelf</h1>
+    <p>Tap a book and watch it come off the shelf!</p>
+    <section class="bookcase" aria-label="Book shelf">
+      <div class="shelf-row">
+        <button class="shelf-book" id="rainbowBook" type="button" aria-label="Read The Rainbow Rescue">
+          <img src="rainbow-rescue/cover.webp" alt="Our friends gathered around a magical rainbow book">
+          <span class="shelf-ribbon">NEW!</span>
+          <span class="shelf-title">The Rainbow Rescue</span>
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <section class="reader" id="reader" aria-hidden="true" aria-label="The Rainbow Rescue storybook">
+    <div class="reader-shell">
+      <div class="reader-top"><span>📖 The Rainbow Rescue</span><button class="reader-close" id="closeReader" type="button" aria-label="Close book">✕</button></div>
+      <div class="book-spread" id="spread"><article class="page left" id="leftPage"></article><article class="page right" id="rightPage"></article></div>
+      <nav class="reader-controls" aria-label="Story pages"><button class="page-btn" id="previousPage" type="button">← Back</button><span class="spread-count" id="spreadCount"></span><button class="page-btn" id="nextPage" type="button">Next →</button></nav>
+    </div>
+  </section>
+
+  <script>
+    const spreads = [
+      [
+        `<div class="story-stars">★ ★ ★</div><h2>The Rainbow Rescue</h2><p>A Little Learners adventure about helping each other.</p><div class="big-emoji">🌈📖</div><span class="page-number">1</span>`,
+        `<img src="rainbow-rescue/cover.webp" alt="All the friends discover a glowing rainbow storybook"><span class="page-number">2</span>`
+      ],
+      [
+        `<h3>The runaway rainbow</h3><p>Bluey and Bingo found a glowing book beneath their favourite tree.</p><p>But whoosh! Its colours, letters and numbers began to fly away.</p><p>“Let’s bring every piece home,” said Ginny. “Super helpers, ready?”</p><span class="page-number">3</span>`,
+        `<img src="rainbow-rescue/scene-1.webp" alt="Bluey, Bingo and Ginny watch colours, letters and numbers fly from the book"><span class="page-number">4</span>`
+      ],
+      [
+        `<img src="rainbow-rescue/scene-2.webp" alt="The friends cross the sparkling Numberblocks bridge towards a rainbow gate"><span class="page-number">5</span>`,
+        `<h3>Across the number bridge</h3><p>Owlette flew ahead while Skye swooped beside her. Chase spotted the rainbow gate.</p><p>Numberblocks One, Two and Three made a sparkling bridge: one step, two steps, three!</p><p>The team crossed together. Nobody was left behind.</p><span class="page-number">6</span>`
+      ],
+      [
+        `<h3>The rainbow puzzle</h3><p>At the castle, Alphablocks A, B and C found the missing clue.</p><p>Colourblocks Red, Blue and Yellow shone brightly. The friends matched every letter, number and colour.</p><p>Click! The last piece fitted perfectly.</p><span class="page-number">7</span>`,
+        `<img src="rainbow-rescue/scene-3.webp" alt="All the friends restore the rainbow puzzle and celebrate"><span class="page-number">8</span>`
+      ],
+      [
+        `<div class="big-emoji">🌟</div><h3>A brilliant team</h3><p>The rainbow glowed brighter than ever. The friends cheered and shared a picnic.</p><p>Bluey smiled. “We all knew something different — and that made us brilliant together!”</p><span class="page-number">9</span>`,
+        `<div class="story-stars">★ ★ ★</div><h2>The End</h2><p>Which friend would you take on your next adventure?</p><div class="big-emoji">💙🌈</div><span class="page-number">10</span>`
+      ]
+    ];
+    const book = document.getElementById('rainbowBook'), reader = document.getElementById('reader');
+    const left = document.getElementById('leftPage'), right = document.getElementById('rightPage');
+    const previous = document.getElementById('previousPage'), next = document.getElementById('nextPage'), counter = document.getElementById('spreadCount');
+    let current = 0;
+    function draw(direction){
+      left.className = 'page left' + (spreads[current][0].includes('<img') ? ' image-page' : '');
+      right.className = 'page right' + (spreads[current][1].includes('<img') ? ' image-page' : '');
+      if(direction){left.classList.add(direction > 0 ? 'turning-left' : 'turning-right');right.classList.add(direction > 0 ? 'turning-left' : 'turning-right')}
+      left.innerHTML = spreads[current][0]; right.innerHTML = spreads[current][1];
+      previous.disabled = current === 0; next.textContent = current === spreads.length - 1 ? 'Again ↻' : 'Next →'; counter.textContent = `${current + 1} / ${spreads.length}`;
+    }
+    book.addEventListener('click',()=>{book.classList.add('leaving');setTimeout(()=>{reader.classList.add('open');reader.setAttribute('aria-hidden','false');draw(0);document.getElementById('closeReader').focus()},560)});
+    document.getElementById('closeReader').addEventListener('click',()=>{reader.classList.remove('open');reader.setAttribute('aria-hidden','true');setTimeout(()=>{book.classList.remove('leaving');book.focus()},360)});
+    previous.addEventListener('click',()=>{if(current>0){current--;draw(-1)}});next.addEventListener('click',()=>{current=current===spreads.length-1?0:current+1;draw(1)});
+    document.addEventListener('keydown',event=>{if(!reader.classList.contains('open'))return;if(event.key==='Escape')document.getElementById('closeReader').click();if(event.key==='ArrowRight')next.click();if(event.key==='ArrowLeft')previous.click()});
+    draw(0);
+  </script>
+  <script src="../assets/site-shell.js"></script>
+</body>
+</html>
