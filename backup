@@ -2,9 +2,20 @@
 set -euo pipefail
 if [ "$(id -u)" -ne 0 ]; then echo "Run backup as root."; exit 1; fi
 archive="/root/stickers/little-sounds-sticker-pack.tar.gz"; repository="waqaarhussain/little-sounds-kids"
-/usr/bin/python3 /opt/little-sounds/sticker_pack.py create --output "$archive"
+create_args=(create --output "$archive")
+if [[ "${1:-}" == "no-books" || "${1:-}" == "--no-books" ]]; then
+  create_args+=(--without-books)
+  book_message="It deliberately excludes every generated book and narration file."
+elif [ -n "${1:-}" ]; then
+  echo "Use: backup or backup no-books"
+  exit 1
+else
+  book_message="It includes generated books and their narration."
+fi
+/usr/bin/python3 /opt/little-sounds/sticker_pack.py "${create_args[@]}"
 echo "Local reusable backup: $archive ($(du -h "$archive" | awk '{print $1}'))"
-echo "It includes stickers, both child albums, used/unused state, game-plan memory and generated books."
+echo "It includes stickers, both child albums, used/unused state and game-plan memory."
+echo "$book_message"
 echo "It never includes child names, PINs or API keys. The GitHub repository is public."
 read -r -p "Upload this backup to the public GitHub Release? [y/N]: " confirmation
 if [[ ! "$confirmation" =~ ^[Yy]$ ]]; then echo "Upload skipped. Copy $archive away from this VPS before resetting it."; exit 0; fi
@@ -15,4 +26,4 @@ while true; do
 done
 GITHUB_TOKEN="$github_token" /usr/bin/python3 /opt/little-sounds/sticker_pack.py upload "$archive" --repository "$repository"
 unset github_token
-echo "Future full installations will restore the complete saved family collection and books."
+echo "Future full installations will restore exactly what this backup contains."
