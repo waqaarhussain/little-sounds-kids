@@ -22,6 +22,31 @@ TEXT_MODEL = os.environ.get("LITTLE_SOUNDS_TEXT_MODEL", "gpt-5-mini")
 IMAGE_MODEL = os.environ.get("LITTLE_SOUNDS_IMAGE_MODEL", "gpt-image-2")
 THEMES = "Bluey, PJ Masks, SuperKitties, Paw Patrol, Numberblocks, Alphablocks and Colourblocks"
 SOUND_EFFECT_WORDS = {"bang", "beep", "boom", "click", "crash", "ding", "pop", "pow", "splash", "whoosh", "zap"}
+STORY_PLAN_ATTEMPTS = 8
+STORY_PLAN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "ending": {"type": "string"},
+        "scenes": {
+            "type": "array",
+            "minItems": 7,
+            "maxItems": 7,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "heading": {"type": "string"},
+                    "text": {"type": "string"},
+                    "picture": {"type": "string"},
+                },
+                "required": ["heading", "text", "picture"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["title", "ending", "scenes"],
+    "additionalProperties": False,
+}
 
 
 def clean_slug(title):
@@ -85,7 +110,7 @@ def story_plan(client, number, previous_books):
     used_pictures = existing_values(previous_books, "alt")
     previous_notes = previous_story_notes(previous_books)
     last_problem = ""
-    for attempt in range(1, 5):
+    for attempt in range(1, STORY_PLAN_ATTEMPTS + 1):
         prompt = f"""
 Create one original 16-page picture-book plan for children aged 3 to 5 in UK English.
 It must be a playful crossover using friendly characters from all seven themes: {THEMES}.
@@ -106,7 +131,18 @@ Previous attempt problem to fix: {last_problem or "none"}
         try:
             response = request_with_retry(
                 f"Story plan attempt {attempt}",
-                lambda: client.responses.create(model=TEXT_MODEL, input=prompt),
+                lambda: client.responses.create(
+                    model=TEXT_MODEL,
+                    input=prompt,
+                    text={
+                        "format": {
+                            "type": "json_schema",
+                            "name": "little_sounds_story_plan",
+                            "strict": True,
+                            "schema": STORY_PLAN_SCHEMA,
+                        }
+                    },
+                ),
             )
             raw = response.output_text.strip()
             raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.I | re.S)
@@ -146,7 +182,7 @@ Previous attempt problem to fix: {last_problem or "none"}
             return {"title": title, "ending": ending, "scenes": cleaned}
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             last_problem = str(error)
-            if attempt < 4:
+            if attempt < STORY_PLAN_ATTEMPTS:
                 print(f"Story plan attempt {attempt} was incomplete. Retrying automatically: {last_problem}", flush=True)
             else:
                 print(f"Story plan attempt {attempt} was still incomplete: {last_problem}", flush=True)
@@ -243,12 +279,21 @@ def main():
     BOOK_ROOT.mkdir(parents=True, exist_ok=True)
     client = OpenAI(api_key=key, timeout=240.0, max_retries=0)
     request_with_retry("API key check", lambda: client.models.list())
+    completed = 0
+    failures = []
     for number in range(1, count + 1):
         try:
             create_book(client, number)
+            completed += 1
         except Exception as error:
             print(f"Book {number} failed safely: {error}", flush=True)
-    print("Book generation finished. Open /books/ to see completed books.", flush=True)
+            failures.append(number)
+    print(f"Book generation finished: {completed} of {count} completed.", flush=True)
+    if failures:
+        failed_numbers = ", ".join(str(number) for number in failures)
+        print(f"FAILED book number(s): {failed_numbers}. Nothing incomplete was published.", flush=True)
+        raise SystemExit(1)
+    print("SUCCESS: every requested book is ready. Open /books/ to see them.", flush=True)
 
 
 if __name__ == "__main__":
