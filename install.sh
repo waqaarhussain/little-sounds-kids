@@ -53,9 +53,11 @@ python3 -m venv /opt/little-sounds-ai-venv
 install -d -m 0755 /opt/little-sounds
 install -m 0755 "$installer_dir/generate_stickers.py" /opt/little-sounds/generate_stickers.py
 install -m 0755 "$installer_dir/generate_book.py" /opt/little-sounds/generate_book.py
+install -m 0755 "$installer_dir/narrate_books.py" /opt/little-sounds/narrate_books.py
 rm -f /usr/local/bin/generate /usr/local/bin/backup-stickers
 install -m 0755 "$installer_dir/generate-stickers" /usr/local/bin/generate-stickers
 install -m 0755 "$installer_dir/generate-book" /usr/local/bin/generate-book
+install -m 0755 "$installer_dir/narrate-books" /usr/local/bin/narrate-books
 install -m 0755 "$installer_dir/sticker_pack.py" /opt/little-sounds/sticker_pack.py
 install -m 0755 "$installer_dir/backup" /usr/local/bin/backup
 install -m 0755 "$installer_dir/refresh-test" /usr/local/bin/refresh-test
