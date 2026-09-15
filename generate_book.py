@@ -37,11 +37,12 @@ STORY_PLAN_SCHEMA = {
     "type": "object",
     "properties": {
         "title": {"type": "string"},
+        "intro": {"type": "string"},
         "ending": {"type": "string"},
         "scenes": {
             "type": "array",
-            "minItems": 7,
-            "maxItems": 7,
+            "minItems": 6,
+            "maxItems": 6,
             "items": {
                 "type": "object",
                 "properties": {
@@ -53,7 +54,7 @@ STORY_PLAN_SCHEMA = {
             },
         },
     },
-    "required": ["title", "ending", "scenes"],
+    "required": ["title", "intro", "ending", "scenes"],
     "additionalProperties": False,
 }
 IMAGE_CHECK_SCHEMA = {
@@ -161,12 +162,13 @@ excitedly, gathered, journey, magnificent, mysterious, noticed, puzzled, sparkli
 whispered or wonderful. If there is an easier word, always use it.
 Write complete spoken sentences only. Do not write sound effects or standalone sound words such as
 Bang!, Whoosh!, Pop!, Click!, Beep! or Crash!. Describe the action naturally in a proper sentence instead.
-Return JSON only with: title, ending, and scenes. ending must be a unique 12 to 22 word final message
-made from two or three very short sentences.
-scenes must contain exactly 7 objects with heading and text. Every scene must work on its own. Name every
+Return JSON only with: title, intro, ending, and scenes. intro and ending must each use 24 to 34 words
+made from four or five very short sentences. The intro must begin the story. The ending must finish it.
+Name every character shown in the intro and ending so their matching pictures can be made from those words.
+scenes must contain exactly 6 objects with heading and text. Every scene must work on its own. Name every
 character who appears in that scene so its picture can be made from those exact words. Do not rely on a
 previous page to identify a character. Every scene must show a different moment, setting or group action.
-Scene 7 must finish the main action. Do not copy any title, plot, page wording or picture from earlier books.
+Scene 6 must lead clearly into the ending. Do not copy any title, plot, page wording or picture from earlier books.
 Use a new problem, setting, action order and ending. This is generated book number {number}.
 Earlier books to avoid repeating: {previous_notes}
 Previous attempt problem to fix: {last_problem or "none"}
@@ -191,20 +193,24 @@ Previous attempt problem to fix: {last_problem or "none"}
             raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.I | re.S)
             data = json.loads(raw)
             title = str(data.get("title", "")).strip()[:80]
+            intro = " ".join(str(data.get("intro", "")).split())
             ending = " ".join(str(data.get("ending", "")).split())
             scenes = data.get("scenes", [])
-            if not title or not isinstance(scenes, list) or len(scenes) != 7:
-                raise ValueError("return one title and exactly seven scenes")
+            if not title or not isinstance(scenes, list) or len(scenes) != 6:
+                raise ValueError("return one title and exactly six scenes")
             if not 2 <= len(title.split()) <= 5 or difficult_story_words(title) or banned_story_names(title):
                 raise ValueError("use a short title made from easy words for a four-year-old")
             if normalised(title) in used_titles:
                 raise ValueError("use a title that has never been used before")
-            if not 12 <= len(ending.split()) <= 22 or normalised(ending) in used_texts:
-                raise ValueError("write a new ending using 12 to 22 simple words")
-            if difficult_story_words(ending) or banned_story_names(ending) or has_long_sentence(ending):
-                raise ValueError("make the ending much easier for a four-year-old")
+            for label, text in (("intro", intro), ("ending", ending)):
+                if not 24 <= len(text.split()) <= 34 or normalised(text) in used_texts:
+                    raise ValueError(f"write a new {label} using 24 to 34 simple words")
+                if difficult_story_words(text) or banned_story_names(text) or has_long_sentence(text):
+                    raise ValueError(f"make the {label} much easier for a four-year-old")
+                if has_standalone_sound_effect(text):
+                    raise ValueError(f"replace sound effects in the {label} with complete spoken sentences")
             cleaned = []
-            new_texts = set()
+            new_texts = {normalised(intro), normalised(ending)}
             for scene in scenes:
                 heading = str(scene.get("heading", "")).strip()[:60]
                 text = " ".join(str(scene.get("text", "")).split())
@@ -230,7 +236,7 @@ Previous attempt problem to fix: {last_problem or "none"}
                     raise ValueError("do not repeat page wording from any book")
                 new_texts.add(text_key)
                 cleaned.append({"heading": heading, "text": text})
-            return {"title": title, "ending": ending, "scenes": cleaned}
+            return {"title": title, "intro": intro, "ending": ending, "scenes": cleaned}
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             last_problem = str(error)
             if attempt < STORY_PLAN_ATTEMPTS:
@@ -246,7 +252,7 @@ def image_bytes(client, prompt):
         lambda: client.images.generate(
             model=IMAGE_MODEL,
             prompt=prompt,
-            size="1536x1024",
+            size="1024x1536",
             quality="low",
             output_format="png",
         ),
@@ -370,14 +376,13 @@ def create_book(client, number):
     directory.mkdir(parents=True, exist_ok=False)
     style = (
         "Friendly polished preschool picture-book illustration, bright clean colours, soft 3D cartoon look, "
-        "landscape scene, clear happy faces, simple uncluttered background, no written words, no logos, no watermark. "
+        "portrait storybook page, clear happy faces, simple uncluttered background, no written words, no logos, no watermark. "
         f"Faithful friendly characters only from these allowed worlds: {STORY_THEMES}. "
         "Never show Numberblocks, Alphablocks or Colourblocks. Show only characters named in the exact page words. "
         "Match every stated action, colour, count, object and setting. Do not add a different main action or extra hero. "
     )
     print(f"Creating cover for: {plan['title']}", flush=True)
-    first_scene = plan["scenes"][0]
-    cover_words = f"Title: {plan['title']}. First page: {first_scene['text']}"
+    cover_words = f"Title: {plan['title']}. First page: {plan['intro']}"
     cover_prompt = style + "Create book-cover art for this exact title and first story moment. " + cover_words
     save_webp(matching_image_bytes(client, "Cover", cover_prompt, cover_words), directory / "cover.webp")
     for index, scene in enumerate(plan["scenes"], 1):
@@ -388,12 +393,24 @@ def create_book(client, number):
             matching_image_bytes(client, f"Picture {index} of 7", scene_prompt, page_words),
             directory / f"scene-{index}.webp",
         )
-    pages = [{"type": "image", "src": f"/generated-books/{slug}/cover.webp", "alt": f"Cover of {plan['title']}"}]
+    final_words = f"The final story page. {plan['ending']}"
+    final_prompt = style + "Illustrate this exact happy ending and nothing else. Exact page words: " + final_words
+    print(f"Creating picture 7 of 7 for: {plan['title']}", flush=True)
+    save_webp(
+        matching_image_bytes(client, "Picture 7 of 7", final_prompt, final_words),
+        directory / "scene-7.webp",
+    )
+    pages = [
+        {"type": "image", "src": f"/generated-books/{slug}/cover.webp", "alt": f"Cover of {plan['title']}"},
+        {"type": "title", "title": plan["title"], "text": plan["intro"]},
+    ]
     for index, scene in enumerate(plan["scenes"], 1):
-        page_type = "title" if index == 1 else "text"
-        pages.append({"type": page_type, "title": plan["title"] if index == 1 else scene["heading"], "text": scene["text"]})
         pages.append({"type": "image", "src": f"/generated-books/{slug}/scene-{index}.webp", "alt": f"Picture for: {scene['text']}"})
-    pages.append({"type": "end", "title": "The End", "text": plan["ending"]})
+        pages.append({"type": "text", "title": scene["heading"], "text": scene["text"]})
+    pages.extend([
+        {"type": "image", "src": f"/generated-books/{slug}/scene-7.webp", "alt": f"Picture for: {plan['ending']}"},
+        {"type": "end", "title": "The End", "text": plan["ending"]},
+    ])
     if len(pages) != 16:
         raise RuntimeError("Book page safety check failed.")
     book = {
