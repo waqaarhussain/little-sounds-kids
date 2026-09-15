@@ -18,6 +18,7 @@ from narrate_books import BASE_BOOK, narrate_book
 
 BOOK_ROOT = Path("/var/www/little-sounds/generated-books")
 MANIFEST = BOOK_ROOT / "books.json"
+HISTORY = BOOK_ROOT / "story-history.json"
 TEXT_MODEL = os.environ.get("LITTLE_SOUNDS_TEXT_MODEL", "gpt-5-mini")
 IMAGE_MODEL = os.environ.get("LITTLE_SOUNDS_IMAGE_MODEL", "gpt-image-2")
 VISION_MODEL = os.environ.get("LITTLE_SOUNDS_VISION_MODEL", TEXT_MODEL)
@@ -321,9 +322,48 @@ def read_manifest():
     return {"format": 1, "books": []}
 
 
+def read_history():
+    if not HISTORY.is_file():
+        return {"format": 1, "books": []}
+    try:
+        data = json.loads(HISTORY.read_text(encoding="utf-8"))
+        if isinstance(data.get("books"), list):
+            return data
+    except (OSError, ValueError):
+        pass
+    return {"format": 1, "books": []}
+
+
+def write_json_atomic(destination, data):
+    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(destination)
+
+
+def merge_history(history, books):
+    known = {
+        normalised(book.get("title", ""))
+        for book in history["books"]
+        if isinstance(book, dict) and normalised(book.get("title", ""))
+    }
+    changed = False
+    for book in books:
+        if not isinstance(book, dict):
+            continue
+        title = normalised(book.get("title", ""))
+        if title and title not in known:
+            history["books"].append(book)
+            known.add(title)
+            changed = True
+    return changed
+
+
 def create_book(client, number):
     manifest = read_manifest()
-    plan = story_plan(client, number, [BASE_BOOK, *manifest["books"]])
+    history = read_history()
+    if merge_history(history, manifest["books"]):
+        write_json_atomic(HISTORY, history)
+    plan = story_plan(client, number, [BASE_BOOK, *history["books"], *manifest["books"]])
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     slug = f"{clean_slug(plan['title'])}-{stamp}-{random.randrange(1000, 9999)}"
     directory = BOOK_ROOT / slug
@@ -364,10 +404,10 @@ def create_book(client, number):
         "pages": pages,
     }
     (directory / "book.json").write_text(json.dumps(book, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    merge_history(history, [book])
+    write_json_atomic(HISTORY, history)
     manifest["books"].append(book)
-    temporary = MANIFEST.with_suffix(".tmp")
-    temporary.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    temporary.replace(MANIFEST)
+    write_json_atomic(MANIFEST, manifest)
     try:
         narrate_book(client, book)
     except Exception as error:
