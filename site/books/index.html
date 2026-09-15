@@ -32,7 +32,6 @@
     .book-spread:after{content:"";position:absolute;top:2%;bottom:2%;left:50%;width:14px;transform:translateX(-50%);background:linear-gradient(90deg,#a47c5366,#fff8dc,#a47c5366);border-radius:50%;z-index:5}
     .page{position:relative;overflow:hidden;background:linear-gradient(90deg,#fff9e8,#fffef8);border:5px solid #fff3d3;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:clamp(20px,4vw,52px);box-shadow:inset 0 0 35px #c99a4f20}
     .page.left{border-radius:28px 4px 4px 28px}.page.right{border-radius:4px 28px 28px 4px}
-    .page.turning-left{animation:turnLeft .48s ease}.page.turning-right{animation:turnRight .48s ease}
     .page.image-page{padding:12px}.page img{width:100%;height:100%;object-fit:contain;border-radius:18px;background:#fff9e8}
     .page h2{margin:.2em 0;color:#5140bb;font-size:clamp(2rem,4vw,4.2rem);line-height:.95}.page h3{margin:.2em 0;font-size:clamp(1.4rem,2.7vw,2.5rem);color:#e64075}
     .page p{margin:.55em 0;font-size:clamp(1.08rem,1.85vw,1.6rem);font-weight:900;line-height:1.42;max-width:18em}.big-emoji{font-size:clamp(4rem,10vw,8rem)}
@@ -40,7 +39,6 @@
     .reader-controls{display:flex;align-items:center;justify-content:center;gap:13px;margin-top:15px}.page-btn{min-width:122px;padding:12px 18px;border:4px solid #fff;border-radius:999px;background:#694de1;color:#fff;font:1000 1rem "Trebuchet MS",sans-serif;box-shadow:0 6px 0 #39258e;cursor:pointer}.page-btn:disabled{opacity:.4}.spread-count{min-width:130px;color:#fff;font-weight:1000;transform:translateX(22px)}
     @keyframes leaveShelf{0%{transform:translateY(0) rotate(0) scale(1);filter:brightness(1)}25%{transform:translateY(-32px) rotate(-6deg) scale(1.06);filter:brightness(1.18)}52%{transform:translateY(-145px) rotate(8deg) scale(1.22);filter:brightness(1.3) drop-shadow(0 0 18px #fff06f)}76%{transform:translateY(-95px) rotate(-4deg) scale(1.48);filter:brightness(1.45) drop-shadow(0 0 30px #fff)}100%{transform:translateY(-45px) rotate(0) scale(2.35);filter:brightness(1.6);opacity:0}}
     @keyframes shelfMagic{0%{transform:scale(.2) rotate(-25deg);opacity:0}35%{opacity:1}100%{transform:scale(2.2) rotate(22deg);opacity:0}}
-    @keyframes turnLeft{50%{transform:perspective(800px) rotateY(13deg);filter:brightness(1.12)}}@keyframes turnRight{50%{transform:perspective(800px) rotateY(-13deg);filter:brightness(1.12)}}
     @media(max-width:650px){body{padding:108px 10px 30px}.bookcase{min-height:395px;padding:32px 15px 55px;border-width:13px}.shelf-row{min-height:285px;gap:18px}.shelf-book{width:145px;height:215px}.reader{padding:70px 6px 10px}.book-spread{height:61vh;min-height:400px}.page{padding:14px 11px}.page p{font-size:clamp(.86rem,3.15vw,1.05rem);line-height:1.35}.page h2{font-size:clamp(1.5rem,6vw,2.4rem)}.page h3{font-size:clamp(1.05rem,4vw,1.55rem)}.page.image-page{padding:6px}.page-btn{min-width:94px;padding:9px 11px;font-size:.86rem}.reader-top{font-size:.9rem}.reader-heading{gap:7px}.read-aloud{padding:7px 9px;font-size:.76rem}.voice-note{font-size:.62rem}.spread-count{min-width:100px;transform:translateX(12px)}}
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
   </style>
@@ -124,9 +122,8 @@
       }
       const mark=document.createElement("span");mark.className="page-number";mark.textContent=number<=active.pages.length?number:"";element.appendChild(mark);
     }
-    function draw(direction){
+    function draw(){
       const first=current*2;renderPage(byId("leftPage"),active.pages[first],first+1);renderPage(byId("rightPage"),active.pages[first+1],first+2);
-      if(direction){byId("leftPage").classList.add(direction>0?"turning-left":"turning-right");byId("rightPage").classList.add(direction>0?"turning-left":"turning-right");}
       const total=Math.ceil(active.pages.length/2);byId("previousPage").disabled=current===0;byId("nextPage").textContent=current===total-1?"Again ↻":"Next →";
       byId("spreadCount").textContent=(first+1)+"–"+Math.min(first+2,active.pages.length)+" of "+active.pages.length;
     }
