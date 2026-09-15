@@ -208,8 +208,8 @@ server {
     }
 
     location ^~ /test/ {
-        rewrite ^/test/(.*)$ /$1 break;
-        root /var/www/little-sounds-test;
+        alias /var/www/little-sounds-test/;
+        index index.html;
         try_files $uri $uri/ =404;
     }
 
