@@ -58,6 +58,7 @@ rm -f /usr/local/bin/generate /usr/local/bin/backup-stickers
 install -m 0755 "$installer_dir/generate-stickers" /usr/local/bin/generate-stickers
 install -m 0755 "$installer_dir/generate-book" /usr/local/bin/generate-book
 install -m 0755 "$installer_dir/narrate-books" /usr/local/bin/narrate-books
+install -m 0755 "$installer_dir/repair-book" /usr/local/bin/repair-book
 install -m 0755 "$installer_dir/clean" /usr/local/bin/clean
 install -m 0755 "$installer_dir/sticker_pack.py" /opt/little-sounds/sticker_pack.py
 install -m 0755 "$installer_dir/backup" /usr/local/bin/backup
@@ -329,6 +330,7 @@ echo "All stickers monitor: http://${server_ip}/allstickers/"
 echo
 echo "Create or refill stickers: generate-stickers"
 echo "Create one or more 16-page books: generate-book"
+echo "Keep generated stories but replace their pictures: repair-book"
 echo "Remove all books and narration, but remember old stories: clean"
 echo "Remove generated books but keep The Rainbow Game: clean generated"
 echo "Save stickers, albums, game memory and generated books: backup"
