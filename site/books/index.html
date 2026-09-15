@@ -83,7 +83,7 @@
         {type:"end",title:"The End",text:"All the friends stand under a big rainbow. They smile and wave together. The book game is done, and every bright piece is home."}
       ]
     };
-    let books=[base],active=null,current=0,activeButton=null,reading=false,playingFinalWords=false,playId=0,endingTimer=0;
+    let books=[],active=null,current=0,activeButton=null,reading=false,playingFinalWords=false,playId=0,endingTimer=0;
     const narration=new Audio();narration.preload="auto";
     const byId=id=>document.getElementById(id);
     const asset=src=>String(src).startsWith("/")?ProfileShell.url(src):src;
@@ -164,6 +164,9 @@
     byId("nextPage").onclick=()=>{const total=Math.ceil(active.pages.length/2);current=current===total-1?0:current+1;draw(1);if(reading)playCurrentSpread();};
     document.addEventListener("keydown",event=>{if(!byId("reader").classList.contains("open"))return;if(event.key==="Escape")closeBook();if(event.key==="ArrowRight")byId("nextPage").click();if(event.key==="ArrowLeft")byId("previousPage").click();});
     ProfileShell.ready.then(async()=>{
+      let showBuiltin=true;
+      try{const response=await fetch(ProfileShell.url("/generated-books/shelf-state.json"),{cache:"no-store"});if(response.ok){const state=await response.json();if(state&&state.show_builtin===false)showBuiltin=false;}}catch(_){}
+      if(showBuiltin)books.push(base);
       try{const response=await fetch(ProfileShell.url("/generated-books/books.json"),{cache:"no-store"});if(response.ok){const generated=await response.json();if(Array.isArray(generated.books))books=books.concat(generated.books.filter(book=>book&&Array.isArray(book.pages)&&book.pages.length===16));}}catch(_){}
       drawShelf();
     });
