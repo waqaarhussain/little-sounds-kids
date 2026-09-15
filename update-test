@@ -42,6 +42,7 @@ rm -f /usr/local/bin/generate /usr/local/bin/backup-stickers
 install -m 0755 "$stage/generate-stickers" /usr/local/bin/generate-stickers
 install -m 0755 "$stage/generate-book" /usr/local/bin/generate-book
 install -m 0755 "$stage/narrate-books" /usr/local/bin/narrate-books
+install -m 0755 "$stage/clean" /usr/local/bin/clean
 install -m 0755 "$stage/backup" /usr/local/bin/backup
 cat > /etc/systemd/system/little-sounds-book-generator.service <<'SYSTEMD'
 [Unit]
