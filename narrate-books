@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+key_dir="/root/.config/little-sounds"
+key_file="$key_dir/openai.env"
+
+if [ "$(id -u)" -ne 0 ]; then echo "Run narrate-books as root."; exit 1; fi
+if [ ! -s "$key_file" ]; then
+  while true; do
+    read -r -s -p "Paste your OpenAI API key (you will only be asked once): " openai_key; echo
+    if [[ "$openai_key" =~ ^sk-[A-Za-z0-9_-]{20,}$ ]]; then break; fi
+    echo "That does not look like a complete OpenAI API key. Try again."
+  done
+  install -d -m 0700 "$key_dir"
+  umask 077
+  printf 'OPENAI_API_KEY=%s\n' "$openai_key" > "$key_file"
+  chmod 0600 "$key_file"
+  unset openai_key
+  echo "API key saved securely on this VPS. It is never included in backup."
+else
+  echo "Using the saved OpenAI API key."
+fi
+
+echo "Creating only missing or changed narration. Finished audio is reused and included by backup."
+set -a
+# shellcheck disable=SC1090
+. "$key_file"
+set +a
+umask 022
+/opt/little-sounds-ai-venv/bin/python /opt/little-sounds/narrate_books.py
+echo "Read Aloud is ready at: http://$(hostname -I | awk '{print $1}')/test/books/"

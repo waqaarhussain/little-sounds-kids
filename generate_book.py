@@ -13,6 +13,8 @@ from pathlib import Path
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, RateLimitError
 from PIL import Image
 
+from narrate_books import narrate_book
+
 
 BOOK_ROOT = Path("/var/www/little-sounds/generated-books")
 MANIFEST = BOOK_ROOT / "books.json"
@@ -149,6 +151,11 @@ def create_book(client, number):
     temporary = MANIFEST.with_suffix(".tmp")
     temporary.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.replace(MANIFEST)
+    try:
+        narrate_book(client, book)
+    except Exception as error:
+        print(f"Book saved, but its narration was not ready: {error}", flush=True)
+        print("Run narrate-books later to create only the missing audio.", flush=True)
     print(f"Finished: {plan['title']} (16 pages)", flush=True)
 
 

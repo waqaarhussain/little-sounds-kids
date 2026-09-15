@@ -31,10 +31,12 @@ install -m 0755 "$stage/refresh-test" /usr/local/bin/refresh-test
 install -m 0755 "$stage/live" /usr/local/bin/live
 install -m 0755 "$stage/generate_stickers.py" /opt/little-sounds/generate_stickers.py
 install -m 0755 "$stage/generate_book.py" /opt/little-sounds/generate_book.py
+install -m 0755 "$stage/narrate_books.py" /opt/little-sounds/narrate_books.py
 install -m 0755 "$stage/sticker_pack.py" /opt/little-sounds/sticker_pack.py
 rm -f /usr/local/bin/generate /usr/local/bin/backup-stickers
 install -m 0755 "$stage/generate-stickers" /usr/local/bin/generate-stickers
 install -m 0755 "$stage/generate-book" /usr/local/bin/generate-book
+install -m 0755 "$stage/narrate-books" /usr/local/bin/narrate-books
 install -m 0755 "$stage/backup" /usr/local/bin/backup
 cat > /etc/systemd/system/little-sounds-book-generator.service <<'SYSTEMD'
 [Unit]
