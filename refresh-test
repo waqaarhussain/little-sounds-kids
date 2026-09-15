@@ -17,8 +17,10 @@ test_db="$test_data/little-sounds.sqlite3"
 systemctl stop little-sounds-test.service 2>/dev/null || true
 install -d -m 0755 "$test_site" "$test_app_dir"
 install -d -o www-data -g www-data -m 0750 "$test_data"
-rsync -a --delete --exclude sticker-images --exclude sticker-generator "$live_site/" "$test_site/"
+rsync -a --delete --exclude sticker-images --exclude sticker-generator --exclude generated-books "$live_site/" "$test_site/"
 ln -sfn "$live_site/sticker-images" "$test_site/sticker-images"
+install -d -m 0755 "$live_site/generated-books"
+ln -sfn "$live_site/generated-books" "$test_site/generated-books"
 install -m 0644 "$live_app" "$test_app_dir/app.py"
 if [ -f /opt/little-sounds/requirements.txt ]; then
   install -m 0644 /opt/little-sounds/requirements.txt "$test_app_dir/requirements.txt"

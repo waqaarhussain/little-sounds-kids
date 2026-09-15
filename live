@@ -37,17 +37,17 @@ work_dir="$(mktemp -d /tmp/little-sounds-promote.XXXXXX)"
 trap 'rm -rf "$work_dir"; unset github_token' EXIT
 mkdir -p "$work_dir/site" "$work_dir/app"
 /opt/little-sounds-venv/bin/pip install --disable-pip-version-check -r "$test_app/requirements.txt" >/dev/null
-rsync -a --delete --exclude sticker-images --exclude sticker-generator "$live_site/" "$work_dir/site/"
+rsync -a --delete --exclude sticker-images --exclude sticker-generator --exclude generated-books "$live_site/" "$work_dir/site/"
 rsync -a "$live_app/" "$work_dir/app/"
 
 rollback() {
   echo "Promotion failed. Restoring the previous live code."
-  rsync -a --delete --exclude sticker-images --exclude sticker-generator "$work_dir/site/" "$live_site/"
+  rsync -a --delete --exclude sticker-images --exclude sticker-generator --exclude generated-books "$work_dir/site/" "$live_site/"
   rsync -a --delete "$work_dir/app/" "$live_app/"
   systemctl restart little-sounds.service
 }
 
-rsync -a --delete --exclude sticker-images --exclude sticker-generator "$test_site/" "$live_site/"
+rsync -a --delete --exclude sticker-images --exclude sticker-generator --exclude generated-books "$test_site/" "$live_site/"
 install -m 0644 "$test_app/app.py" "$live_app/app.py"
 install -m 0644 "$test_app/requirements.txt" "$live_app/requirements.txt"
 chmod -R a+rX "$live_site"

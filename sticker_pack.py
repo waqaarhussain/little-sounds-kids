@@ -21,6 +21,7 @@ DATABASE = Path("/var/lib/little-sounds/little-sounds.sqlite3")
 PRIVATE_ROOT = Path("/root/stickers/catalog")
 SITE_ROOT = Path("/var/www/little-sounds")
 PUBLIC_ROOT = SITE_ROOT / "sticker-images"
+BOOKS_ROOT = SITE_ROOT / "generated-books"
 DEFAULT_ARCHIVE = Path("/root/stickers/little-sounds-sticker-pack.tar.gz")
 DEFAULT_REPOSITORY = "waqaarhussain/little-sounds-kids"
 RELEASE_TAG = "sticker-pack"
@@ -134,7 +135,7 @@ def create_pack(destination):
     }
     for category, count in active_counts.items():
         if count != TARGET:
-            raise RuntimeError(f"{category} has {count} active stickers. Run generate before creating the backup.")
+            raise RuntimeError(f"{category} has {count} active stickers. Run generate-stickers before creating the backup.")
 
     rows = connection.execute(
         """
@@ -233,8 +234,16 @@ def create_pack(destination):
             }
         )
     connection.close()
+    book_files = []
+    if BOOKS_ROOT.is_dir():
+        for source in sorted(path for path in BOOKS_ROOT.rglob("*") if path.is_file()):
+            relative = source.relative_to(BOOKS_ROOT)
+            if any(part in ("", ".", "..") for part in relative.parts):
+                continue
+            content_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+            book_files.append({"path": relative.as_posix(), "sha256": content_hash})
     manifest = {
-        "format": 4,
+        "format": 5,
         "created_at": utc_now(),
         "target_per_theme": TARGET,
         "themes": list(THEMES),
@@ -242,6 +251,7 @@ def create_pack(destination):
         "history": history,
         "rewards": rewards,
         "activity_variants": activity_variants,
+        "book_files": book_files,
     }
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(destination.suffix + ".tmp")
@@ -250,10 +260,13 @@ def create_pack(destination):
         for private_name, private_source, public_name, public_source in source_files:
             archive.add(private_source, arcname=private_name, recursive=False)
             archive.add(public_source, arcname=public_name, recursive=False)
+        for book_file in book_files:
+            archive.add(BOOKS_ROOT / book_file["path"], arcname="books/" + book_file["path"], recursive=False)
     temporary.replace(destination)
     print(
         f"Created {destination} with {len(items)} sticker files, {len(rewards)} anonymised album entries, "
-        f"{len(activity_variants)} remembered game plans and {len(history)} design fingerprints."
+        f"{len(activity_variants)} remembered game plans, {len(book_files)} generated-book files "
+        f"and {len(history)} design fingerprints."
     )
     return destination
 
@@ -278,7 +291,7 @@ def restore_pack(source):
     with tarfile.open(source, "r:gz") as archive:
         manifest = json.loads(member_bytes(archive, "manifest.json"))
         format_version = int(manifest.get("format", 0))
-        if format_version not in (2, 3, 4) or tuple(manifest.get("themes", [])) != THEMES:
+        if format_version not in (2, 3, 4, 5) or tuple(manifest.get("themes", [])) != THEMES:
             raise RuntimeError("This is not a compatible Little Sounds sticker pack.")
         items = manifest.get("stickers", [])
         if format_version == 2:
@@ -390,11 +403,24 @@ def restore_pack(source):
                     ),
                 )
                 restored_variants += 1
+        restored_book_files = 0
+        if format_version >= 5:
+            for book_file in manifest.get("book_files", []):
+                relative = Path(str(book_file.get("path", "")))
+                if relative.is_absolute() or not relative.parts or any(part in ("", ".", "..") for part in relative.parts):
+                    raise RuntimeError("Sticker pack contains an unsafe generated-book path.")
+                content = member_bytes(archive, "books/" + relative.as_posix())
+                if hashlib.sha256(content).hexdigest() != book_file.get("sha256"):
+                    raise RuntimeError("Sticker pack checksum failed for a generated-book file.")
+                target = BOOKS_ROOT / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(content)
+                restored_book_files += 1
         connection.commit()
     connection.close()
     print(
-        f"Restored {len(items)} sticker files, {restored_rewards} album entries "
-        f"and {restored_variants} remembered game plans from {source}."
+        f"Restored {len(items)} sticker files, {restored_rewards} album entries, "
+        f"{restored_variants} remembered game plans and {restored_book_files} generated-book files from {source}."
     )
     return True
 
@@ -454,7 +480,7 @@ def upload_pack(source, repository):
                 "tag_name": RELEASE_TAG,
                 "target_commitish": "main",
                 "name": "Reusable Little Sounds sticker pack",
-                "body": "Generated sticker assets plus anonymised child album positions and used-sticker state for fresh family VPS installations.",
+                "body": "Generated stickers and books plus anonymised child album positions, used-sticker state and game-plan memory for fresh family VPS installations.",
                 "draft": False,
                 "prerelease": False,
             },

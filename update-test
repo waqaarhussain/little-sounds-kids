@@ -26,12 +26,48 @@ mkdir -p "$stage" "$backup/site" "$backup/app"
 tar -xzf "$archive" --strip-components=1 -C "$stage"
 python3 -m py_compile "$stage/server/app.py"
 /opt/little-sounds-test-venv/bin/pip install --disable-pip-version-check -r "$stage/server/requirements.txt" >/dev/null
+install -m 0755 "$stage/update-test" /usr/local/bin/update-test
+install -m 0755 "$stage/refresh-test" /usr/local/bin/refresh-test
+install -m 0755 "$stage/live" /usr/local/bin/live
+install -m 0755 "$stage/generate_stickers.py" /opt/little-sounds/generate_stickers.py
+install -m 0755 "$stage/generate_book.py" /opt/little-sounds/generate_book.py
+install -m 0755 "$stage/sticker_pack.py" /opt/little-sounds/sticker_pack.py
+rm -f /usr/local/bin/generate /usr/local/bin/backup-stickers
+install -m 0755 "$stage/generate-stickers" /usr/local/bin/generate-stickers
+install -m 0755 "$stage/generate-book" /usr/local/bin/generate-book
+install -m 0755 "$stage/backup" /usr/local/bin/backup
+cat > /etc/systemd/system/little-sounds-book-generator.service <<'SYSTEMD'
+[Unit]
+Description=Create Little Sounds 15-page storybooks
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=simple
+EnvironmentFile=/root/.config/little-sounds/openai.env
+EnvironmentFile=/run/little-sounds-book.env
+WorkingDirectory=/opt/little-sounds
+ExecStart=/opt/little-sounds-ai-venv/bin/python /opt/little-sounds/generate_book.py
+User=root
+Group=root
+UMask=0022
+Nice=10
+Restart=no
+TimeoutStartSec=infinity
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/var/www/little-sounds/generated-books
+SYSTEMD
+systemctl daemon-reload
 
-rsync -a --delete --exclude sticker-images "$test_site/" "$backup/site/"
+rsync -a --delete --exclude sticker-images --exclude generated-books "$test_site/" "$backup/site/"
 rsync -a "$test_app/" "$backup/app/"
 systemctl stop little-sounds-test.service
-rsync -a --delete --exclude sticker-images --exclude sticker-generator "$stage/site/" "$test_site/"
+rsync -a --delete --exclude sticker-images --exclude sticker-generator --exclude generated-books "$stage/site/" "$test_site/"
 ln -sfn /var/www/little-sounds/sticker-images "$test_site/sticker-images"
+install -d -m 0755 /var/www/little-sounds/generated-books
+ln -sfn /var/www/little-sounds/generated-books "$test_site/generated-books"
 install -m 0644 "$stage/server/app.py" "$test_app/app.py"
 install -m 0644 "$stage/server/requirements.txt" "$test_app/requirements.txt"
 printf '%s\n' "$test_sha" > "$test_app/source-commit"
@@ -45,9 +81,10 @@ for attempt in 1 2 3 4 5 6 7 8 9 10; do
 done
 if [ "$healthy" != true ]; then
   echo "The test build failed its health check. Restoring the previous test code."
-  rsync -a --delete --exclude sticker-images "$backup/site/" "$test_site/"
+  rsync -a --delete --exclude sticker-images --exclude generated-books "$backup/site/" "$test_site/"
   rsync -a --delete "$backup/app/" "$test_app/"
   ln -sfn /var/www/little-sounds/sticker-images "$test_site/sticker-images"
+  ln -sfn /var/www/little-sounds/generated-books "$test_site/generated-books"
   systemctl restart little-sounds-test.service
   exit 1
 fi

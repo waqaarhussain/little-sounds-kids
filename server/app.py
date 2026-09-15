@@ -5,7 +5,7 @@ import random
 import secrets
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import Flask, jsonify, request
@@ -49,11 +49,15 @@ ACTIVITY_ITEMS = {
     "finish-the-pattern": tuple(f"round-{number}" for number in range(1, 21)),
     "odd-one-out": tuple(f"round-{number}" for number in range(1, 21)),
     "more-or-less": tuple(f"round-{number}" for number in range(1, 21)),
+    "letter-hunt": tuple(f"round-{number}" for number in range(1, 21)),
+    "number-hunt": tuple(f"round-{number}" for number in range(1, 21)),
+    "picture-partners": tuple(f"round-{number}" for number in range(1, 21)),
     **NUMBER_LEVELS,
 }
 RANDOM_ACTIVITIES = {
     "count-and-choose", "match-the-pairs", "sort-colours-shapes",
     "finish-the-pattern", "odd-one-out", "more-or-less",
+    "letter-hunt", "number-hunt", "picture-partners",
 }
 COUNTING_ICONS = (
     ("apples", "🍎"), ("stars", "⭐"), ("ladybirds", "🐞"), ("fish", "🐠"),
@@ -83,6 +87,23 @@ GAME_SYMBOLS = (
     "🐸", "🍪", "🎈", "🦆", "🐝", "💛", "🍊", "🚀",
     "🌙", "☀️", "🍀", "⚽", "🎀", "🍇", "🧸", "🎨",
 )
+PICTURE_PARTNERS = (
+    ("bee", "🐝", "flower", "🌼"), ("toothbrush", "🪥", "teeth", "😁"),
+    ("rain", "🌧️", "umbrella", "☂️"), ("lock", "🔒", "key", "🔑"),
+    ("foot", "🦶", "shoe", "👟"), ("hand", "✋", "glove", "🧤"),
+    ("dog", "🐶", "bone", "🦴"), ("cat", "🐱", "wool", "🧶"),
+    ("baby", "👶", "bottle", "🍼"), ("sun", "☀️", "sunglasses", "🕶️"),
+    ("letter", "✉️", "postbox", "📮"), ("pencil", "✏️", "paper", "📄"),
+    ("paint", "🎨", "brush", "🖌️"), ("cake", "🎂", "candle", "🕯️"),
+    ("car", "🚗", "road", "🛣️"), ("train", "🚂", "track", "🛤️"),
+    ("boat", "⛵", "water", "🌊"), ("fish", "🐠", "pond", "🏞️"),
+    ("bird", "🐦", "nest", "🪹"), ("rabbit", "🐰", "carrot", "🥕"),
+    ("monkey", "🐵", "banana", "🍌"), ("cow", "🐮", "milk", "🥛"),
+    ("hen", "🐔", "egg", "🥚"), ("spider", "🕷️", "web", "🕸️"),
+    ("sock", "🧦", "washing machine", "🧺"), ("bed", "🛏️", "pillow", "🛌"),
+    ("book", "📖", "shelf", "🗄️"), ("football", "⚽", "goal", "🥅"),
+    ("seed", "🌱", "watering can", "🚿"), ("present", "🎁", "party", "🎉"),
+)
 
 app = Flask(__name__)
 
@@ -110,6 +131,8 @@ def database():
 def initialise_database() -> None:
     DATA_DIRECTORY.mkdir(parents=True, exist_ok=True)
     with database() as connection:
+        connection.execute("PRAGMA journal_mode = WAL")
+        connection.execute("PRAGMA synchronous = NORMAL")
         connection.executescript(
             """
             CREATE TABLE IF NOT EXISTS devices (
@@ -234,32 +257,8 @@ def pending_reward(connection, token):
     ).fetchone()
 
 
-INACTIVITY_LIMIT = timedelta(minutes=10)
-
-
 def touch_activity_progress(connection, profile, activity):
     timestamp = datetime.now(timezone.utc)
-    session = connection.execute(
-        "SELECT last_active_at FROM activity_sessions WHERE profile = ? AND activity = ?",
-        (profile, activity),
-    ).fetchone()
-    expired = False
-    if session:
-        try:
-            last_active = datetime.fromisoformat(session["last_active_at"])
-            expired = timestamp - last_active >= INACTIVITY_LIMIT
-        except (TypeError, ValueError):
-            expired = True
-    if expired:
-        connection.execute(
-            "DELETE FROM activity_progress WHERE profile = ? AND activity = ?",
-            (profile, activity),
-        )
-        if activity in RANDOM_ACTIVITIES:
-            connection.execute(
-                "DELETE FROM activity_variants WHERE profile = ? AND activity = ? AND completed = 0",
-                (profile, activity),
-            )
     connection.execute(
         """
         INSERT INTO activity_sessions(profile, activity, last_active_at)
@@ -268,7 +267,7 @@ def touch_activity_progress(connection, profile, activity):
         """,
         (profile, activity, timestamp.isoformat(timespec="seconds")),
     )
-    return expired
+    return False
 
 
 def shuffled_choices(answer, values, size=3):
@@ -387,6 +386,35 @@ def build_activity_plan(activity):
             })
         plan = {"rounds": rounds}
         signature_source = plan
+    elif activity == "letter-hunt":
+        rounds = []
+        for index, letter in enumerate(random.sample(list("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), 20), 1):
+            choices = shuffled_choices(letter.lower(), list("abcdefghijklmnopqrstuvwxyz"), 4)
+            rounds.append({"item": f"round-{index}", "target": letter, "answer": letter.lower(), "choices": choices})
+        plan = {"rounds": rounds}
+        signature_source = plan
+    elif activity == "number-hunt":
+        rounds = []
+        for index, number in enumerate(random.sample(range(1, 101), 20), 1):
+            choices = shuffled_choices(number, list(range(1, 101)), 4)
+            rounds.append({"item": f"round-{index}", "target": number, "answer": number, "choices": choices})
+        plan = {"rounds": rounds}
+        signature_source = plan
+    elif activity == "picture-partners":
+        rounds = []
+        selected = random.sample(PICTURE_PARTNERS, 20)
+        all_answers = [(name, icon) for _, _, name, icon in PICTURE_PARTNERS]
+        for index, (target_name, target_icon, answer_name, answer_icon) in enumerate(selected, 1):
+            distractors = random.sample([pair for pair in all_answers if pair[0] != answer_name], 3)
+            choices = distractors + [(answer_name, answer_icon)]
+            random.shuffle(choices)
+            rounds.append({
+                "item": f"round-{index}", "target": target_name, "target_icon": target_icon,
+                "answer": answer_name,
+                "choices": [{"name": name, "icon": icon} for name, icon in choices],
+            })
+        plan = {"rounds": rounds}
+        signature_source = plan
     else:
         raise ValueError("That activity does not use a generated plan.")
     canonical = json.dumps(signature_source, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -411,6 +439,11 @@ def get_or_create_activity_variant(connection, profile, activity):
     ).fetchone()[0])
     for _ in range(100):
         plan, signature = build_activity_plan(activity)
+        if connection.execute(
+            "SELECT 1 FROM activity_variants WHERE activity = ? AND signature = ? LIMIT 1",
+            (activity, signature),
+        ).fetchone():
+            continue
         try:
             connection.execute(
                 """
@@ -701,7 +734,7 @@ def claim_reward():
         if requested_sticker is None:
             categories = available_category_rows(connection, pending["profile"])
             if not categories:
-                return jsonify({"error": "No stickers are available. Ask a grown-up to run generate."}), 409
+                return jsonify({"error": "No stickers are available. Ask a grown-up to run generate-stickers."}), 409
             return jsonify(
                 {
                     "needs_choice": True,
@@ -841,6 +874,38 @@ def touch_progress():
             ).fetchone()[0]
         )
         return jsonify({"activity": activity, "expired": expired, "count": count})
+
+
+@app.post("/api/progress/reset")
+def reset_progress():
+    body = json_body()
+    requested = body.get("activities", [])
+    if isinstance(requested, str):
+        requested = [requested]
+    activities = sorted({str(activity) for activity in requested if str(activity) in ACTIVITY_ITEMS})
+    if not activities:
+        return jsonify({"reset": []})
+    with database() as connection:
+        device = current_device(connection)
+        if not device:
+            return jsonify({"error": "Choose a profile first."}), 401
+        profile = device["profile"]
+        connection.execute("BEGIN IMMEDIATE")
+        for activity in activities:
+            connection.execute(
+                "DELETE FROM activity_progress WHERE profile = ? AND activity = ?",
+                (profile, activity),
+            )
+            connection.execute(
+                "DELETE FROM activity_sessions WHERE profile = ? AND activity = ?",
+                (profile, activity),
+            )
+            if activity in RANDOM_ACTIVITIES:
+                connection.execute(
+                    "UPDATE activity_variants SET completed = 1 WHERE profile = ? AND activity = ? AND completed = 0",
+                    (profile, activity),
+                )
+        return jsonify({"profile": profile, "reset": activities})
 
 
 @app.post("/api/progress/complete")

@@ -535,7 +535,7 @@ def replenish_category(connection, client, category):
     active, used_active, staged = inventory(connection, category)
     needed = max(0, TARGET - (active - used_active))
     if staged < needed:
-        raise RuntimeError(f"{details['label']} needs {needed} replacements but only {staged} are ready. Run generate again later.")
+        raise RuntimeError(f"{details['label']} needs {needed} replacements but only {staged} are ready. Run generate-stickers again later.")
     publish_category(connection, category, needed)
     print(f"{details['label']}: shared book restored to {TARGET} active stickers.", flush=True)
 
@@ -571,13 +571,13 @@ def main():
         except Exception as error:
             errors.append(f"{THEMES[category]['label']}: {error}")
             print(f"FAILED {THEMES[category]['label']}: {error}", flush=True)
-    message = "All seven shared sticker books are ready." if not errors else "Some themes need another generate run: " + " | ".join(errors)
+    message = "All seven shared sticker books are ready." if not errors else "Some themes need another generate-stickers run: " + " | ".join(errors)
     write_status(connection, False, message)
     connection.close()
     if errors:
         raise RuntimeError(message)
     print(message, flush=True)
-    print("Run backup-stickers once generation finishes to save this sticker pack for future VPS resets.", flush=True)
+    print("Run backup once generation finishes to save stickers, albums, game memory and books for future VPS resets.", flush=True)
 
 
 if __name__ == "__main__":

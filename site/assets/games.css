@@ -28,3 +28,4 @@
 .odd-choice.correct,.more-choice.correct{background:#bff4d1;border-color:#35b86a}
 .odd-choice.wrong,.more-choice.wrong{animation:shake .35s;background:#ffe0e5;border-color:#f15b75}
 @media(max-width:600px){.pattern-row{gap:6px}.pattern-row>span{width:48px;border-width:3px;border-radius:15px}.odd-grid{grid-template-columns:repeat(2,1fr);gap:10px}.more-choice{min-height:190px;padding:10px}}
+.hunt-target{font-size:clamp(5rem,18vw,10rem);font-weight:1000;line-height:1;color:#5a42ce;text-shadow:0 7px 0 #d9d2ff}.picture-choice{display:grid;place-items:center;gap:5px}.picture-choice span{font-size:clamp(2rem,6vw,4rem)}.picture-choice small{font-size:.78rem;text-transform:capitalize}

@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+service_name="little-sounds-book-generator.service"
+key_dir="/root/.config/little-sounds"
+key_file="$key_dir/openai.env"
+run_file="/run/little-sounds-book.env"
+
+if [ "$(id -u)" -ne 0 ]; then echo "Run generate-book as root."; exit 1; fi
+case "${1:-start}" in
+  status) systemctl status "$service_name" --no-pager || true; exit 0 ;;
+  watch) journalctl -u "$service_name" -f; exit 0 ;;
+  log|logs) journalctl -u "$service_name" -n 100 --no-pager; exit 0 ;;
+  forget-key) rm -f "$key_file"; echo "Saved OpenAI API key removed."; exit 0 ;;
+  start|"") ;;
+  *) echo "Use: generate-book, generate-book status, generate-book watch, generate-book logs, or generate-book forget-key"; exit 1 ;;
+esac
+
+if systemctl is-active --quiet "$service_name" 2>/dev/null; then
+  echo "A book generator is already running. Watch it with: generate-book watch"; exit 0
+fi
+if [ ! -s "$key_file" ]; then
+  while true; do
+    read -r -s -p "Paste your OpenAI API key (you will only be asked once): " openai_key; echo
+    if [[ "$openai_key" =~ ^sk-[A-Za-z0-9_-]{20,}$ ]]; then break; fi
+    echo "That does not look like a complete OpenAI API key. Try again."
+  done
+  install -d -m 0700 "$key_dir"
+  umask 077
+  printf 'OPENAI_API_KEY=%s\n' "$openai_key" > "$key_file"
+  chmod 0600 "$key_file"
+  unset openai_key
+  echo "API key saved securely on this VPS. It is never included in backup."
+else
+  echo "Using the saved OpenAI API key."
+fi
+
+while true; do
+  read -r -p "How many new 15-page books would you like to create? [1-10]: " book_count
+  if [[ "$book_count" =~ ^([1-9]|10)$ ]]; then break; fi
+  echo "Choose a number from 1 to 10."
+done
+image_count=$((book_count * 8))
+echo "This creates $book_count book(s) and about $image_count low-quality illustrations."
+echo "Estimated image-output cost: about \$$(awk -v n="$image_count" 'BEGIN { printf "%.2f", n * 0.005 }') plus a small text/input cost."
+read -r -p "Start the background book generator? [Y/n]: " confirmation
+if [[ "$confirmation" =~ ^[Nn]$ ]]; then echo "Cancelled."; exit 0; fi
+umask 077
+printf 'BOOK_COUNT=%s\nPYTHONUNBUFFERED=1\n' "$book_count" > "$run_file"
+chmod 0600 "$run_file"
+systemctl reset-failed "$service_name" 2>/dev/null || true
+systemctl start "$service_name"
+sleep 2
+rm -f "$run_file"
+if systemctl is-failed --quiet "$service_name"; then journalctl -u "$service_name" -n 40 --no-pager; exit 1; fi
+echo "Book creation is running in the background; you can close Termius."
+echo "Watch it with: generate-book watch"
+echo "When each book finishes, it appears automatically at: http://$(hostname -I | awk '{print $1}')/books/"

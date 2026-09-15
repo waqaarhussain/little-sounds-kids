@@ -122,7 +122,6 @@
 .sticker-choice span { display: block; }
 .sticker-choice small { display: block; margin-top: 6px; color: #687795; font-size: .82rem; }
 .reward-image { width: min(420px, 78vw); aspect-ratio: 1; object-fit: contain; filter: drop-shadow(0 15px 14px rgba(32, 44, 77, .2)); }
-.reward-number { display: inline-block; margin-top: 4px; padding: 7px 14px; border-radius: 999px; color: #765100; background: #ffe568; font-weight: 950; }
 .reward-confetti { margin-bottom: 8px; font-size: clamp(2.1rem, 8vw, 4rem); }
 
 .sticker-sheet-loading { padding: 80px 20px; font-size: clamp(1.3rem, 5vw, 2.2rem); font-weight: 950; }
@@ -385,18 +384,26 @@
 .sticker-slot.peeled-hole img{opacity:0}
 .sticker-slot.peeled-hole .peel-mark{background:linear-gradient(145deg,#fff,#f1ede4);box-shadow:inset 0 0 18px rgba(80,64,42,.14)}
 .sticker-slot.peeled-hole::after{content:"peeled!";position:absolute;inset:30% 10%;display:grid;place-items:center;color:#b5a995;font:900 clamp(.55rem,1.5vw,.82rem)/1 ui-rounded,system-ui,sans-serif;transform:rotate(-8deg)}
-.peel-ghost{position:fixed;z-index:1000;pointer-events:none;transform-origin:88% 88%;filter:drop-shadow(0 18px 16px rgba(21,31,65,.34));will-change:transform,opacity}
+.peel-ghost{position:fixed;z-index:2105;pointer-events:none;transform-origin:88% 88%;filter:drop-shadow(0 18px 16px rgba(21,31,65,.34)) drop-shadow(0 0 18px #ffe43e);will-change:transform,opacity}
 .peel-ghost img{width:100%;height:100%;object-fit:contain;display:block}
 .peel-ghost::after{content:"";position:absolute;right:-2%;bottom:-2%;width:48%;height:48%;border-radius:90% 0 20% 0;background:linear-gradient(135deg,rgba(255,255,255,0) 0 35%,#fff 58%,#dfe5f2 100%);animation:ghostCurl 1.05s ease-in-out both}
 .peel-ghost.peel-finish{opacity:0;filter:drop-shadow(0 0 25px #ffd62e);transition:opacity .35s ease,filter .35s ease}
-.screen-sparkle{position:fixed;z-index:1001;left:50%;top:50%;color:#ffd52f;font-style:normal;font-size:clamp(1rem,3vw,2rem);pointer-events:none;text-shadow:0 0 9px #fff;animation:sparkFly 1.35s var(--delay) ease-out both}
-.reward-modal-card .reward-image{animation:rewardLand .7s cubic-bezier(.2,.8,.2,1) both}
+.screen-sparkle{position:fixed;z-index:2110;left:50%;top:50%;color:#ffd52f;font-style:normal;font-size:clamp(1rem,3vw,2rem);pointer-events:none;text-shadow:0 0 9px #fff,0 0 22px #ff73d1;animation:sparkFly 1.35s var(--delay) ease-out both}
+.peel-magic-stage{position:fixed;z-index:2100;inset:0;display:grid;place-items:center;pointer-events:none;background:radial-gradient(circle,rgba(255,248,130,.72),rgba(255,131,220,.25) 25%,transparent 55%);animation:magicStage 1.9s ease both}
+.peel-magic-stage>b{font-size:clamp(4rem,15vw,10rem);filter:drop-shadow(0 0 26px #fff);animation:magicStar 1.65s ease both}
+.magic-ring{position:absolute;left:50%;top:50%;width:90px;height:90px;border:8px solid rgba(255,255,255,.92);border-radius:50%;box-shadow:0 0 25px #ffe45b,inset 0 0 25px #ff7bd1;animation:magicRing 1.65s ease-out both}
+.ring-two{animation-delay:.18s;border-color:#ffd645}.ring-three{animation-delay:.36s;border-color:#9cf4ff}
+.reward-modal-card .reward-image{animation:rewardLand .85s cubic-bezier(.2,.8,.2,1) both,rewardGlow 1.2s .75s ease-in-out 2 alternate}
 .reward-modal-card .reward-confetti{animation:confettiBounce .8s ease both}
 @keyframes ghostCurl{0%{transform:scale(0) rotate(0);opacity:0}30%{transform:scale(.55) rotate(-8deg);opacity:1}100%{transform:scale(1.2) rotate(-25deg);opacity:.18}}
 @keyframes sparkFly{0%{opacity:0;transform:translate(-50%,-50%) scale(.2)}25%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) scale(1.3) rotate(180deg)}}
 @keyframes rewardLand{0%{opacity:0;transform:scale(.55) rotate(-10deg)}70%{transform:scale(1.08) rotate(3deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
 @keyframes confettiBounce{0%{opacity:0;transform:translateY(-25px) scale(.7)}60%{opacity:1;transform:translateY(5px) scale(1.08)}100%{transform:none}}
-@media(prefers-reduced-motion:reduce){.peel-ghost::after,.screen-sparkle,.reward-modal-card .reward-image,.reward-modal-card .reward-confetti{animation-duration:.01ms!important}}
+@keyframes magicStage{0%{opacity:0}22%,76%{opacity:1}100%{opacity:0}}
+@keyframes magicRing{0%{opacity:0;transform:translate(-50%,-50%) scale(.15)}35%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(7)}}
+@keyframes magicStar{0%{opacity:0;transform:scale(.2) rotate(-45deg)}45%{opacity:1;transform:scale(1.2) rotate(12deg)}100%{opacity:0;transform:scale(2.2) rotate(45deg)}}
+@keyframes rewardGlow{from{filter:drop-shadow(0 15px 14px rgba(32,44,77,.2))}to{filter:drop-shadow(0 0 28px #ffd838) drop-shadow(0 0 42px #ff80cf);transform:scale(1.04)}}
+@media(prefers-reduced-motion:reduce){.peel-ghost::after,.screen-sparkle,.peel-magic-stage,.magic-ring,.peel-magic-stage>b,.reward-modal-card .reward-image,.reward-modal-card .reward-confetti{animation-duration:.01ms!important}}
 
 .site-books-link{position:fixed;z-index:240;right:max(16px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));width:50px;height:50px;display:grid;place-items:center;border:4px solid #fff;border-radius:18px;background:linear-gradient(145deg,#ffda58,#ff9b4a);box-shadow:0 7px 0 #b95732,0 12px 24px rgba(27,42,77,.24);font-size:1.65rem;text-decoration:none;transition:transform .18s ease}
 .site-books-link:hover,.site-books-link:focus-visible{transform:translateY(-4px) rotate(-4deg)}

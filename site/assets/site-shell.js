@@ -38,6 +38,8 @@
   }
 
   function createInterface() {
+    const testBadge = document.querySelector(".test-badge");
+    if (testBadge && basePath) testBadge.hidden = false;
     const phonicsTools = pagePath.startsWith("/phonicsbook")
       ? '<button class="site-tool-button site-tool-icon" id="siteAlphabetButton" type="button" aria-label="Choose a letter">🔤</button>'
       : "";
@@ -129,10 +131,12 @@
       return;
     }
     try {
+      await resetAttemptNow();
       const result = await api("/api/profile/switch", {
         method: "POST",
         body: JSON.stringify({ profile: selectedProfile, pin: document.getElementById("profilePinInput").value })
       });
+      suppressExitReset = true;
       setProfile(result.profile);
       document.getElementById("profileModal").hidden = true;
       location.reload();
@@ -277,17 +281,21 @@
     ghost.style.height = rect.height + "px";
     ghost.appendChild(image.cloneNode(true));
     document.body.appendChild(ghost);
+    const magicStage = document.createElement("div");
+    magicStage.className = "peel-magic-stage";
+    magicStage.innerHTML = '<i class="magic-ring ring-one"></i><i class="magic-ring ring-two"></i><i class="magic-ring ring-three"></i><b>✨</b>';
+    document.body.appendChild(magicStage);
     button.classList.remove("peel-ready");
     button.classList.add("peeled-hole");
     const centreX = innerWidth / 2 - (rect.left + rect.width / 2);
     const centreY = innerHeight / 2 - (rect.top + rect.height / 2);
     const scale = Math.min(3.2, Math.max(1.7, 330 / Math.max(rect.width, 1)));
-    for (let index = 0; index < 22; index += 1) {
+    for (let index = 0; index < 36; index += 1) {
       const sparkle = document.createElement("i");
       sparkle.className = "screen-sparkle";
       sparkle.textContent = ["✦", "★", "✨", "●"][index % 4];
-      const angle = index * Math.PI * 2 / 22;
-      const distance = 90 + Math.random() * 150;
+      const angle = index * Math.PI * 2 / 36;
+      const distance = 100 + Math.random() * 220;
       sparkle.style.setProperty("--x", (Math.cos(angle) * distance) + "px");
       sparkle.style.setProperty("--y", (Math.sin(angle) * distance) + "px");
       sparkle.style.setProperty("--delay", (Math.random() * 220) + "ms");
@@ -306,6 +314,7 @@
     ghost.classList.add("peel-finish");
     await wait(350);
     ghost.remove();
+    magicStage.remove();
   }
 
   function showClaimedSticker(reward) {
@@ -315,7 +324,6 @@
     card.innerHTML = `
       <div class="reward-confetti" aria-hidden="true">✨ ⭐ 🎉 ⭐ ✨</div>
       <h2>Well done! Here is your sticker</h2>
-      <p class="reward-number">Sticker ${reward.position} for ${escapeHtml(reward.profile)}</p>
       <img class="reward-image" src="${escapeHtml(reward.image)}" alt="${escapeHtml(reward.category_label)} reward sticker">
       <p>Your new ${escapeHtml(reward.category_label)} sticker is safely saved.</p>
       <div class="site-actions"><button class="site-primary" id="rewardContinue" type="button">Continue activity</button></div>`;
@@ -339,10 +347,8 @@
     }
   }
 
-  const inactivityLimit = 10 * 60 * 1000;
-  let lastInteraction = Date.now();
-  let lastSessionTouch = 0;
-  let touchingSession = false;
+  const attemptedActivities = new Set();
+  let suppressExitReset = false;
 
   function currentActivity() {
     if (pagePath.startsWith("/handwriting")) return document.body.dataset.progressActivity || "letters";
@@ -353,52 +359,45 @@
     if (pagePath.startsWith("/patterns")) return "finish-the-pattern";
     if (pagePath.startsWith("/odd-one-out")) return "odd-one-out";
     if (pagePath.startsWith("/more-or-less")) return "more-or-less";
+    if (pagePath.startsWith("/letter-hunt")) return "letter-hunt";
+    if (pagePath.startsWith("/number-hunt")) return "number-hunt";
+    if (pagePath.startsWith("/picture-partners")) return "picture-partners";
     return "";
   }
 
-  async function touchActivitySession(force = false) {
+  function rememberCurrentActivity() {
     const activity = currentActivity();
-    if (!activity || touchingSession || (!force && Date.now() - lastSessionTouch < 45000)) return;
-    touchingSession = true;
-    try {
-      await ready;
-      const result = await api("/api/progress/touch", {
-        method: "POST",
-        body: JSON.stringify({ activity })
-      });
-      lastSessionTouch = Date.now();
-      if (result.expired) location.reload();
-    } catch (_) {
-      // Normal page requests will display service errors if the server is unavailable.
-    } finally {
-      touchingSession = false;
-    }
+    if (activity) attemptedActivities.add(activity);
   }
 
-  function recordInteraction(event) {
-    const idleFor = Date.now() - lastInteraction;
-    lastInteraction = Date.now();
-    if (idleFor >= inactivityLimit && currentActivity()) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      location.reload();
-      return;
+  async function resetAttemptNow() {
+    rememberCurrentActivity();
+    if (!attemptedActivities.size || !profile) return;
+    try {
+      await api("/api/progress/reset", {
+        method: "POST",
+        body: JSON.stringify({ activities: [...attemptedActivities] })
+      });
+      attemptedActivities.clear();
+    } catch (_) {
+      // The page-exit beacon below provides one more best-effort reset.
     }
-    touchActivitySession();
   }
 
   function startActivityTracking() {
     if (!currentActivity()) return;
-    document.addEventListener("pointerdown", recordInteraction, true);
-    document.addEventListener("keydown", recordInteraction, true);
-    document.addEventListener("pointermove", () => { lastInteraction = Date.now(); }, { passive: true });
-    document.addEventListener("visibilitychange", () => {
-      if (!document.hidden && Date.now() - lastInteraction >= inactivityLimit) location.reload();
+    rememberCurrentActivity();
+    const observer = new MutationObserver(rememberCurrentActivity);
+    observer.observe(document.body, { attributes: true, attributeFilter: ["data-progress-activity"] });
+    window.addEventListener("pagehide", () => {
+      rememberCurrentActivity();
+      if (suppressExitReset || !attemptedActivities.size || !profile) return;
+      const payload = new Blob(
+        [JSON.stringify({ activities: [...attemptedActivities] })],
+        { type: "application/json" }
+      );
+      navigator.sendBeacon(sitePath("/api/progress/reset"), payload);
     });
-    ready.then(() => touchActivitySession(true));
-    setInterval(() => {
-      if (!document.hidden && Date.now() - lastInteraction < 60000) touchActivitySession();
-    }, 60000);
   }
 
   async function boot() {

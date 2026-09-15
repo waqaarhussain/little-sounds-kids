@@ -52,18 +52,22 @@ python3 -m venv /opt/little-sounds-ai-venv
   "openai>=2.0,<3.0" "Pillow>=11.0,<13.0" "ImageHash>=4.3,<5.0"
 install -d -m 0755 /opt/little-sounds
 install -m 0755 "$installer_dir/generate_stickers.py" /opt/little-sounds/generate_stickers.py
-install -m 0755 "$installer_dir/generate" /usr/local/bin/generate
+install -m 0755 "$installer_dir/generate_book.py" /opt/little-sounds/generate_book.py
+rm -f /usr/local/bin/generate /usr/local/bin/backup-stickers
+install -m 0755 "$installer_dir/generate-stickers" /usr/local/bin/generate-stickers
+install -m 0755 "$installer_dir/generate-book" /usr/local/bin/generate-book
 install -m 0755 "$installer_dir/sticker_pack.py" /opt/little-sounds/sticker_pack.py
-install -m 0755 "$installer_dir/backup-stickers" /usr/local/bin/backup-stickers
+install -m 0755 "$installer_dir/backup" /usr/local/bin/backup
 install -m 0755 "$installer_dir/refresh-test" /usr/local/bin/refresh-test
 install -m 0755 "$installer_dir/update-test" /usr/local/bin/update-test
 install -m 0755 "$installer_dir/live" /usr/local/bin/live
 install -d -m 0700 /root/stickers/catalog
 install -d -m 0755 /var/www/little-sounds/sticker-images
 install -d -m 0755 /var/www/little-sounds/sticker-generator
+install -d -m 0755 /var/www/little-sounds/generated-books
 
 cat > /var/www/little-sounds/sticker-generator/index.html <<'STATUS'
-<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sticker Generator</title><style>body{min-height:100vh;margin:0;display:grid;place-items:center;padding:20px;box-sizing:border-box;color:#263657;background:linear-gradient(145deg,#68d2f7,#efe6ff,#fff0a6);font-family:ui-rounded,"Arial Rounded MT Bold",system-ui,sans-serif;text-align:center}main{max-width:650px;padding:35px;border:6px solid #fff;border-radius:32px;background:#ffffffc9;box-shadow:0 12px 30px #34486a30}h1{font-size:clamp(2rem,8vw,4rem);margin:0 0 15px}p{font-size:1.15rem;font-weight:800}code{padding:4px 9px;border-radius:8px;background:#e9e4ff}</style></head><body><main><h1>✨ Sticker Generator</h1><p>Your sticker helper is ready.</p><p>Open Termius as root and run <code>generate</code>.</p><p><a href="/">◀ Back home</a></p></main></body></html>
+<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sticker Generator</title><style>body{min-height:100vh;margin:0;display:grid;place-items:center;padding:20px;box-sizing:border-box;color:#263657;background:linear-gradient(145deg,#68d2f7,#efe6ff,#fff0a6);font-family:ui-rounded,"Arial Rounded MT Bold",system-ui,sans-serif;text-align:center}main{max-width:650px;padding:35px;border:6px solid #fff;border-radius:32px;background:#ffffffc9;box-shadow:0 12px 30px #34486a30}h1{font-size:clamp(2rem,8vw,4rem);margin:0 0 15px}p{font-size:1.15rem;font-weight:800}code{padding:4px 9px;border-radius:8px;background:#e9e4ff}</style></head><body><main><h1>✨ Sticker Generator</h1><p>Your sticker helper is ready.</p><p>Open Termius as root and run <code>generate-stickers</code>.</p><p><a href="/">◀ Back home</a></p></main></body></html>
 STATUS
 
 cat > /etc/systemd/system/little-sounds-sticker-generator.service <<'SYSTEMD'
@@ -74,7 +78,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-EnvironmentFile=/run/little-sounds-openai.env
+EnvironmentFile=/root/.config/little-sounds/openai.env
 WorkingDirectory=/opt/little-sounds
 ExecStart=/opt/little-sounds-ai-venv/bin/python /opt/little-sounds/generate_stickers.py
 User=root
@@ -91,6 +95,31 @@ ReadWritePaths=/root/stickers/catalog /var/www/little-sounds/sticker-images /var
 
 [Install]
 WantedBy=multi-user.target
+SYSTEMD
+
+cat > /etc/systemd/system/little-sounds-book-generator.service <<'SYSTEMD'
+[Unit]
+Description=Create Little Sounds 15-page storybooks
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/root/.config/little-sounds/openai.env
+EnvironmentFile=/run/little-sounds-book.env
+WorkingDirectory=/opt/little-sounds
+ExecStart=/opt/little-sounds-ai-venv/bin/python /opt/little-sounds/generate_book.py
+User=root
+Group=root
+UMask=0022
+Nice=10
+Restart=no
+TimeoutStartSec=infinity
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/var/www/little-sounds/generated-books
 SYSTEMD
 
 echo "[3/4] Installing the profile and achievement service..."
@@ -194,6 +223,9 @@ server {
     location = /odd-one-out { return 301 /odd-one-out/; }
     location = /more-or-less { return 301 /more-or-less/; }
     location = /books { return 301 /books/; }
+    location = /letter-hunt { return 301 /letter-hunt/; }
+    location = /number-hunt { return 301 /number-hunt/; }
+    location = /picture-partners { return 301 /picture-partners/; }
     location = /stickers { return 301 /stickers/; }
     location = /allstickers { return 301 /allstickers/; }
     location = /sticker-generator { return 301 /sticker-generator/; }
@@ -258,10 +290,10 @@ if curl -fsSL --retry 3 --retry-delay 2 "$sticker_backup_url" -o "$work_dir/stic
     chmod -R a+rX /var/www/little-sounds/sticker-images
     systemctl restart little-sounds
   else
-    echo "The published sticker pack is from an older setup. Installation will continue; run generate to build the current seven themes."
+    echo "The published backup is from an older setup. Installation will continue; run generate-stickers if stickers are missing."
   fi
 else
-  echo "No reusable sticker pack is published yet. Run generate after installation."
+  echo "No reusable backup is published yet. Run generate-stickers after installation."
 fi
 
 source_commit="$(curl -fsSL "https://api.github.com/repos/waqaarhussain/little-sounds-kids/branches/main" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["commit"]["sha"])' 2>/dev/null || true)"
@@ -286,11 +318,15 @@ echo "Sort and Learn: http://${server_ip}/sorting/"
 echo "Finish the Pattern: http://${server_ip}/patterns/"
 echo "Odd One Out: http://${server_ip}/odd-one-out/"
 echo "Which Has More: http://${server_ip}/more-or-less/"
+echo "Letter Hunt: http://${server_ip}/letter-hunt/"
+echo "Number Hunt: http://${server_ip}/number-hunt/"
+echo "Picture Partners: http://${server_ip}/picture-partners/"
 echo "Books: http://${server_ip}/books/"
 echo "Test site: http://${server_ip}/test/"
 echo "Sticker book: http://${server_ip}/stickers/"
 echo "All stickers monitor: http://${server_ip}/allstickers/"
 echo
-echo "When you are ready to create or refill stickers, run: generate"
-echo "After the first complete generation, save the reusable pack with: backup-stickers"
+echo "Create or refill stickers: generate-stickers"
+echo "Create one or more 15-page books: generate-book"
+echo "Save stickers, albums, game memory and generated books: backup"
 echo "Future test workflow: update-test, test at /test/, then run live to promote it."
