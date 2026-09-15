@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Run clean as root."
+  exit 1
+fi
+
+service_name="little-sounds-book-generator.service"
+if systemctl is-active --quiet "$service_name" 2>/dev/null; then
+  echo "A book is being generated. Wait for it to finish, then run clean again."
+  echo "Watch it with: generate-book watch"
+  exit 1
+fi
+
+/usr/bin/python3 <<'PY'
+import json
+import re
+import shutil
+from pathlib import Path
+
+root = Path("/var/www/little-sounds/generated-books")
+root.mkdir(parents=True, exist_ok=True)
+if root.resolve() != Path("/var/www/little-sounds/generated-books"):
+    raise SystemExit("Refusing to clean an unexpected directory.")
+
+manifest_path = root / "books.json"
+history_path = root / "story-history.json"
+state_path = root / "shelf-state.json"
+
+
+def load_books(path):
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        books = data.get("books", [])
+        return [book for book in books if isinstance(book, dict)] if isinstance(books, list) else []
+    except (OSError, ValueError, TypeError):
+        return []
+
+
+def key(book):
+    return re.sub(r"[^a-z0-9]+", " ", str(book.get("title", "")).lower()).strip()
+
+
+current_books = load_books(manifest_path)
+remembered_books = load_books(history_path)
+known = {key(book) for book in remembered_books if key(book)}
+for book in current_books:
+    identity = key(book)
+    if identity and identity not in known:
+        remembered_books.append(book)
+        known.add(identity)
+
+audio_files = sum(1 for path in root.rglob("*.mp3") if path.is_file())
+for child in list(root.iterdir()):
+    if child == history_path:
+        continue
+    if child.is_symlink() or child.is_file():
+        child.unlink()
+    elif child.is_dir():
+        shutil.rmtree(child)
+
+
+def save(path, data):
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+save(history_path, {"format": 1, "books": remembered_books})
+save(manifest_path, {"format": 1, "books": []})
+save(state_path, {"format": 1, "show_builtin": False})
+for path in (history_path, manifest_path, state_path):
+    path.chmod(0o644)
+
+print(f"Removed {len(current_books)} generated book(s) and {audio_files} narration file(s).")
+print(f"Remembered {len(remembered_books)} old generated story plan(s), so they are not reused.")
+PY
+
+echo "The book shelf is clean. Run generate-book when you want new books."
