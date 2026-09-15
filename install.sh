@@ -329,4 +329,5 @@ echo
 echo "Create or refill stickers: generate-stickers"
 echo "Create one or more 16-page books: generate-book"
 echo "Save stickers, albums, game memory and generated books: backup"
+echo "Save everything except generated books: backup no-books"
 echo "Future test workflow: update-test, test at /test/, then run live to promote it."
