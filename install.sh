@@ -210,7 +210,6 @@ server {
     location ^~ /test/ {
         alias /var/www/little-sounds-test/;
         index index.html;
-        try_files $uri $uri/ =404;
     }
 
     location /api/ {
