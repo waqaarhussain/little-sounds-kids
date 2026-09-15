@@ -27,24 +27,24 @@ TTS_INSTRUCTIONS = (
 
 BASE_BOOK = {
     "slug": "rainbow-rescue",
-    "title": "The Rainbow Rescue",
+    "title": "The Rainbow Game",
     "pages": [
         {"type": "image"},
-        {"type": "title", "title": "The Rainbow Rescue", "text": "Bluey and her friends find a book with no colours. They look for red, blue and yellow. Then they help put each colour back."},
+        {"type": "title", "title": "The Rainbow Game", "text": "Bluey and her friends find a bright book. It shows a rainbow path to a far castle. They open it and start a fun game."},
         {"type": "image"},
-        {"type": "text", "title": "A windy day", "text": "Bluey and Bingo find a bright book by a tree. The wind opens the book. Red, blue and yellow fly out and hide."},
+        {"type": "text", "title": "Book magic", "text": "Bluey and Bingo open the book by a big tree. Bright letters, numbers and shapes fly out. Their friends smile as the magic signs shine in the sun."},
         {"type": "image"},
-        {"type": "text", "title": "Let us help", "text": "Ginny sees the empty book and runs to help. “We can find the colours,” she says. The friends sit down and make a plan."},
+        {"type": "text", "title": "A bright plan", "text": "Bluey, Bingo and a little dog sit by the open book. A rainbow glows on each page. They look at it and make a plan."},
         {"type": "image"},
-        {"type": "text", "title": "One, two, three", "text": "One, Two and Three make a bridge over a small stream. The friends count each step. They walk slowly and reach the other side."},
+        {"type": "text", "title": "Rainbow bridge", "text": "Bluey, Bingo and their friends cross a bright bridge. The happy blocks lead them to a rainbow door. Owlette and Skye fly above and show the way."},
         {"type": "image"},
-        {"type": "text", "title": "Up in the sky", "text": "Owlette and Skye fly over the trees. They see red, blue and yellow lights in three soft clouds. The colours shine and wave."},
+        {"type": "text", "title": "Sky lights", "text": "Owlette and Skye fly high over the town. They find red, blue and yellow lights in the sky. The three lights glow beside them."},
         {"type": "image"},
-        {"type": "text", "title": "A, B, C", "text": "A, B and C find three clues by the path. Chase reads each clue. The friends match them. The last piece fits in place."},
+        {"type": "text", "title": "A, B, C", "text": "Chase finds A, B and C by a stone game. Each friend holds a bright piece. They put the red, blue and yellow pieces in place."},
         {"type": "image"},
-        {"type": "text", "title": "The book is bright", "text": "The friends take every colour back to the book. Red, blue and yellow jump onto the pages. A big rainbow shines in the sky."},
+        {"type": "text", "title": "The last pieces", "text": "The friends reach a sunny garden. They fit the last numbers and letters into a rainbow arch. Then everyone sits down for a happy picnic."},
         {"type": "image"},
-        {"type": "end", "title": "The End", "text": "The friends smile under the rainbow. They helped each other. Every colour is back in the book."},
+        {"type": "end", "title": "The End", "text": "All the friends stand under a big rainbow. They smile and wave together. The book game is done, and every bright piece is home."},
     ],
 }
 
