@@ -40,9 +40,11 @@ while true; do
   if [[ "$book_count" =~ ^([1-9]|10)$ ]]; then break; fi
   echo "Choose a number from 1 to 10."
 done
-image_count=$((book_count * 8))
-echo "This creates $book_count book(s) and about $image_count low-quality illustrations."
-echo "Estimated image-output cost: about \$$(awk -v n="$image_count" 'BEGIN { printf "%.2f", n * 0.005 }') plus a small text/input cost."
+minimum_images=$((book_count * 8))
+maximum_images=$((book_count * 24))
+echo "This creates $book_count book(s), checks every picture against its page and retries mismatches."
+echo "It normally needs at least $minimum_images low-quality illustrations; the safety limit is $maximum_images."
+echo "Estimated image-output range: about \$$(awk -v n="$minimum_images" 'BEGIN { printf "%.2f", n * 0.005 }') to \$$(awk -v n="$maximum_images" 'BEGIN { printf "%.2f", n * 0.005 }'), plus text, image-check and narration costs."
 read -r -p "Start the background book generator? [Y/n]: " confirmation
 if [[ "$confirmation" =~ ^[Nn]$ ]]; then echo "Cancelled."; exit 0; fi
 umask 077
