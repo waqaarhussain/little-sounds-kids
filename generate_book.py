@@ -22,6 +22,12 @@ TEXT_MODEL = os.environ.get("LITTLE_SOUNDS_TEXT_MODEL", "gpt-5-mini")
 IMAGE_MODEL = os.environ.get("LITTLE_SOUNDS_IMAGE_MODEL", "gpt-image-2")
 THEMES = "Bluey, PJ Masks, SuperKitties, Paw Patrol, Numberblocks, Alphablocks and Colourblocks"
 SOUND_EFFECT_WORDS = {"bang", "beep", "boom", "click", "crash", "ding", "pop", "pow", "splash", "whoosh", "zap"}
+HARD_STORY_WORDS = {
+    "adventure", "amazed", "astonished", "beautiful", "beneath", "carefully", "celebrated",
+    "discovered", "enormous", "exclaimed", "excitedly", "gathered", "journey", "magnificent",
+    "mysterious", "noticed", "puzzled", "sparkling", "suddenly", "whispered", "wonderful",
+}
+LONG_NAME_WORDS = {"alphablocks", "colourblocks", "numberblocks", "superkitties"}
 STORY_PLAN_ATTEMPTS = 8
 STORY_PLAN_SCHEMA = {
     "type": "object",
@@ -80,6 +86,19 @@ def has_standalone_sound_effect(text):
     return any(word in SOUND_EFFECT_WORDS for word in words)
 
 
+def difficult_story_words(text):
+    words = re.findall(r"[a-z]+", str(text).lower())
+    return sorted({
+        word for word in words
+        if word in HARD_STORY_WORDS or (len(word) > 8 and word not in LONG_NAME_WORDS)
+    })
+
+
+def has_long_sentence(text):
+    sentences = [part.strip() for part in re.split(r"[.!?]+", str(text)) if part.strip()]
+    return any(len(re.findall(r"[A-Za-z]+", sentence)) > 11 for sentence in sentences)
+
+
 def previous_story_notes(books):
     notes = []
     for book in books[-24:]:
@@ -115,12 +134,18 @@ def story_plan(client, number, previous_books):
 Create one original 16-page picture-book plan for children aged 3 to 5 in UK English.
 It must be a playful crossover using friendly characters from all seven themes: {THEMES}.
 Use familiar character names, kindness, counting, letters and colours. Keep it safe, warm and funny.
-Reading level: like a very early school reader. Each scene must have two to four short sentences and
-24 to 34 words total. Use common words. Never use hard words such as beneath, suddenly,
-discovered, magnificent, enormous, exclaimed, journey or mysterious.
+Reading level: for a four-year-old who is just starting school. Each scene must have four or five very
+short sentences and 24 to 34 words total. No sentence may have more than 11 words. Use only words a
+four-year-old hears often, such as look, find, help, play, happy, big, small, red, run and jump.
+Use a simple title of two to five words and simple headings of one to four words. Apart from character
+and theme names, avoid words longer than eight letters. Never use hard words such as adventure,
+amazed, astonished, beautiful, beneath, carefully, celebrated, discovered, enormous, exclaimed,
+excitedly, gathered, journey, magnificent, mysterious, noticed, puzzled, sparkling, suddenly,
+whispered or wonderful. If there is an easier word, always use it.
 Write complete spoken sentences only. Do not write sound effects or standalone sound words such as
 Bang!, Whoosh!, Pop!, Click!, Beep! or Crash!. Describe the action naturally in a proper sentence instead.
-Return JSON only with: title, ending, and scenes. ending must be a unique 12 to 22 word final message.
+Return JSON only with: title, ending, and scenes. ending must be a unique 12 to 22 word final message
+made from two or three very short sentences.
 scenes must contain exactly 7 objects with heading, text, and picture. picture is a clear visual description
 for one landscape illustration. Every picture must show a different moment, setting or group action.
 Scene 7 must finish the main action. Do not copy any title, plot, page wording or picture from earlier books.
@@ -152,10 +177,14 @@ Previous attempt problem to fix: {last_problem or "none"}
             scenes = data.get("scenes", [])
             if not title or not isinstance(scenes, list) or len(scenes) != 7:
                 raise ValueError("return one title and exactly seven scenes")
+            if not 2 <= len(title.split()) <= 5 or difficult_story_words(title):
+                raise ValueError("use a short title made from easy words for a four-year-old")
             if normalised(title) in used_titles:
                 raise ValueError("use a title that has never been used before")
             if not 12 <= len(ending.split()) <= 22 or normalised(ending) in used_texts:
                 raise ValueError("write a new ending using 12 to 22 simple words")
+            if difficult_story_words(ending) or has_long_sentence(ending):
+                raise ValueError("make the ending much easier for a four-year-old")
             cleaned = []
             new_texts = set()
             new_pictures = set()
@@ -168,8 +197,15 @@ Previous attempt problem to fix: {last_problem or "none"}
                 picture_key = normalised(picture)
                 if not heading or not text or not picture:
                     raise ValueError("complete every heading, text and picture field")
+                if len(heading.split()) > 4 or difficult_story_words(heading):
+                    raise ValueError("use short, easy page headings")
                 if not 24 <= words <= 34:
                     raise ValueError("write 24 to 34 simple words for every scene")
+                hard_words = difficult_story_words(text)
+                if hard_words:
+                    raise ValueError(f"replace hard or long story words: {', '.join(hard_words)}")
+                if has_long_sentence(text):
+                    raise ValueError("keep every spoken sentence to 11 words or fewer")
                 if has_standalone_sound_effect(text):
                     raise ValueError("replace standalone sound effects with complete spoken sentences")
                 if text_key in used_texts or text_key in new_texts:
