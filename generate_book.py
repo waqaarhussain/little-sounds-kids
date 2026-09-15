@@ -6,6 +6,7 @@ import json
 import os
 import random
 import re
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -252,7 +253,7 @@ def image_bytes(client, prompt):
         lambda: client.images.generate(
             model=IMAGE_MODEL,
             prompt=prompt,
-            size="1024x1536",
+            size="1536x1024",
             quality="low",
             output_format="png",
         ),
@@ -270,7 +271,9 @@ Exact page words: {page_text}
 Return matches=true only if the picture clearly shows the same named characters, main action, setting,
 colours, number of important objects and outcome. Return false if it adds a different named character,
 changes the action, misses an important object, or shows Numberblocks, Alphablocks or Colourblocks.
-Small background details do not matter. Do not require written words in the picture.
+Return false if the picture contains a story heading, caption, sentence, paragraph, speech bubble or page
+wording. A single learning symbol such as A or 3 is allowed only when the page itself needs that object.
+Small background details do not matter. Never require story words to be printed inside the picture.
 """
     response = request_with_retry(
         f"{label} check",
@@ -308,6 +311,64 @@ def matching_image_bytes(client, label, prompt, page_text):
         last_reason = reason
         print(f"{label} did not match on attempt {attempt}: {reason}", flush=True)
     raise RuntimeError(f"{label} could not be matched to its words after {IMAGE_ATTEMPTS} attempts: {last_reason}")
+
+
+def visual_briefs(client, page_words):
+    count = len(page_words)
+    schema = {
+        "type": "object",
+        "properties": {
+            "briefs": {
+                "type": "array",
+                "minItems": count,
+                "maxItems": count,
+                "items": {"type": "string"},
+            }
+        },
+        "required": ["briefs"],
+        "additionalProperties": False,
+    }
+    numbered = "\n".join(f"{index + 1}. {words}" for index, words in enumerate(page_words))
+    prompt = f"""
+Turn these {count} preschool story pages into {count} visual-only illustration briefs in the same order.
+Each brief must name the visible characters, setting, main action, colours, count and important objects.
+Use one short sentence. Do not copy a title, heading or full story sentence. Do not include dialogue, quotes,
+speech bubbles, signs, labels, captions, page text or instructions to print words. A learning object such as a
+single letter A or number 3 may appear only when the page explicitly needs it as an object.
+Story pages:
+{numbered}
+"""
+    response = request_with_retry(
+        "Visual briefs",
+        lambda: client.responses.create(
+            model=TEXT_MODEL,
+            input=prompt,
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "storybook_visual_briefs",
+                    "strict": True,
+                    "schema": schema,
+                }
+            },
+        ),
+    )
+    data = json.loads(response.output_text)
+    briefs = [" ".join(str(value).split()) for value in data.get("briefs", [])]
+    if len(briefs) != count or any(not value for value in briefs):
+        raise RuntimeError("The image planner did not return every visual brief.")
+    return briefs
+
+
+def illustration_style():
+    return (
+        "Friendly polished preschool picture-book illustration, bright clean colours, soft 3D cartoon look, "
+        "wide landscape storybook scene, clear happy faces, simple uncluttered background. Illustration only. "
+        "Absolutely no title, heading, caption, sentence, paragraph, speech bubble, page wording, logo or watermark. "
+        f"Faithful friendly characters only from these allowed worlds: {STORY_THEMES}. "
+        "Never show Numberblocks, Alphablocks or Colourblocks. Show only characters named in the visual brief. "
+        "Match every stated action, colour, count, object and setting. Do not add a different main action or extra hero. "
+    )
 
 
 def save_webp(raw, destination):
@@ -374,27 +435,27 @@ def create_book(client, number):
     slug = f"{clean_slug(plan['title'])}-{stamp}-{random.randrange(1000, 9999)}"
     directory = BOOK_ROOT / slug
     directory.mkdir(parents=True, exist_ok=False)
-    style = (
-        "Friendly polished preschool picture-book illustration, bright clean colours, soft 3D cartoon look, "
-        "portrait storybook page, clear happy faces, simple uncluttered background, no written words, no logos, no watermark. "
-        f"Faithful friendly characters only from these allowed worlds: {STORY_THEMES}. "
-        "Never show Numberblocks, Alphablocks or Colourblocks. Show only characters named in the exact page words. "
-        "Match every stated action, colour, count, object and setting. Do not add a different main action or extra hero. "
-    )
+    page_words = [
+        f"{plan['title']}. {plan['intro']}",
+        *(f"{scene['heading']}. {scene['text']}" for scene in plan["scenes"]),
+        f"The final story page. {plan['ending']}",
+    ]
+    briefs = visual_briefs(client, page_words)
+    style = illustration_style()
     print(f"Creating cover for: {plan['title']}", flush=True)
-    cover_words = f"Title: {plan['title']}. First page: {plan['intro']}"
-    cover_prompt = style + "Create book-cover art for this exact title and first story moment. " + cover_words
+    cover_words = page_words[0]
+    cover_prompt = style + "Draw this opening scene without any printed book title or story text: " + briefs[0]
     save_webp(matching_image_bytes(client, "Cover", cover_prompt, cover_words), directory / "cover.webp")
     for index, scene in enumerate(plan["scenes"], 1):
         print(f"Creating picture {index} of 7 for: {plan['title']}", flush=True)
-        page_words = f"{scene['heading']}. {scene['text']}"
-        scene_prompt = style + "Illustrate this exact page and nothing else. Exact page words: " + page_words
+        scene_words = page_words[index]
+        scene_prompt = style + "Draw this scene and nothing else: " + briefs[index]
         save_webp(
-            matching_image_bytes(client, f"Picture {index} of 7", scene_prompt, page_words),
+            matching_image_bytes(client, f"Picture {index} of 7", scene_prompt, scene_words),
             directory / f"scene-{index}.webp",
         )
-    final_words = f"The final story page. {plan['ending']}"
-    final_prompt = style + "Illustrate this exact happy ending and nothing else. Exact page words: " + final_words
+    final_words = page_words[-1]
+    final_prompt = style + "Draw this happy ending and nothing else: " + briefs[-1]
     print(f"Creating picture 7 of 7 for: {plan['title']}", flush=True)
     save_webp(
         matching_image_bytes(client, "Picture 7 of 7", final_prompt, final_words),
@@ -433,16 +494,69 @@ def create_book(client, number):
     print(f"Finished: {plan['title']} (16 pages)", flush=True)
 
 
+def repair_book_pictures(client, book):
+    slug = str(book.get("slug", ""))
+    pages = book.get("pages", [])
+    directory = BOOK_ROOT / slug
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,95}", slug) or len(pages) != 16 or not directory.is_dir():
+        raise RuntimeError(f"{book.get('title', 'Book')} has an invalid generated-book layout.")
+    page_words = []
+    for spread in range(8):
+        image_page = pages[spread * 2]
+        text_page = pages[spread * 2 + 1]
+        if image_page.get("type") != "image" or text_page.get("type") not in ("title", "text", "end"):
+            raise RuntimeError(f"{book.get('title', 'Book')} has an invalid page pair at spread {spread + 1}.")
+        heading = str(text_page.get("title", "")).strip()
+        text = str(text_page.get("text", "")).strip()
+        prefix = "The final story page. " if text_page.get("type") == "end" else ""
+        page_words.append(f"{prefix}{heading}. {text}".strip())
+    briefs = visual_briefs(client, page_words)
+    filenames = ["cover.webp", *(f"scene-{index}.webp" for index in range(1, 8))]
+    style = illustration_style()
+    with tempfile.TemporaryDirectory(prefix=f".{slug}-repair-", dir=BOOK_ROOT) as temporary_name:
+        temporary = Path(temporary_name)
+        for index, (filename, words, brief) in enumerate(zip(filenames, page_words, briefs), 1):
+            label = "Cover" if index == 1 else f"Picture {index - 1} of 7"
+            print(f"Repairing {book['title']}: {label.lower()}...", flush=True)
+            prompt = style + "Draw this scene and nothing else: " + brief
+            save_webp(matching_image_bytes(client, label, prompt, words), temporary / filename)
+        for filename in filenames:
+            (temporary / filename).replace(directory / filename)
+    version = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    image_pages = [pages[index] for index in range(0, 16, 2)]
+    for image_page, filename in zip(image_pages, filenames):
+        image_page["src"] = f"/generated-books/{slug}/{filename}?v={version}"
+    book["cover"] = f"/generated-books/{slug}/cover.webp?v={version}"
+    write_json_atomic(directory / "book.json", book)
+
+
+def repair_generated_book(client, selected_slug):
+    manifest = read_manifest()
+    books = [book for book in manifest.get("books", []) if isinstance(book, dict)]
+    book = next((item for item in books if item.get("slug") == selected_slug), None)
+    if book is None:
+        raise RuntimeError("The selected generated book was not found.")
+    repair_book_pictures(client, book)
+    write_json_atomic(MANIFEST, manifest)
+    print(f"Repaired: {book.get('title', 'Book')}", flush=True)
+    print("SUCCESS: the selected book kept its story and received checked, caption-free pictures.", flush=True)
+
+
 def main():
     key = os.environ.get("OPENAI_API_KEY", "")
     count = int(os.environ.get("BOOK_COUNT", "0"))
+    repair_slug = os.environ.get("REPAIR_SLUG", "").strip()
+    repair_mode = bool(repair_slug)
     if not key:
         raise RuntimeError("OPENAI_API_KEY is missing.")
-    if not 1 <= count <= 10:
+    if not repair_mode and not 1 <= count <= 10:
         raise RuntimeError("BOOK_COUNT must be from 1 to 10.")
     BOOK_ROOT.mkdir(parents=True, exist_ok=True)
     client = OpenAI(api_key=key, timeout=240.0, max_retries=0)
     request_with_retry("API key check", lambda: client.models.list())
+    if repair_mode:
+        repair_generated_book(client, repair_slug)
+        return
     completed = 0
     failures = []
     for number in range(1, count + 1):
