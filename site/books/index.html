@@ -19,7 +19,6 @@
     .shelf-book:hover,.shelf-book:focus-visible{transform:translateY(-13px) rotate(-2deg);filter:brightness(1.07)}
     .shelf-book img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
     .shelf-title{position:absolute;inset:auto 10px 16px;padding:11px 6px;border-radius:10px;background:#fff8dceb;color:#263867;font-size:1.05rem;font-weight:1000;line-height:1.05}
-    .shelf-ribbon{position:absolute;top:14px;right:-7px;padding:7px 11px;background:#ffe45e;border-radius:9px 3px 3px 9px;color:#684900;font-weight:1000;box-shadow:0 4px 0 #c99813}
     .shelf-book.leaving{animation:leaveShelf 1.05s cubic-bezier(.16,.8,.2,1) forwards;z-index:20}
     .shelf-book.leaving:after{content:"✨ ⭐ ✨";position:absolute;inset:25% -70%;display:grid;place-items:center;color:#ffe65b;font-size:2.3rem;letter-spacing:1.1rem;text-shadow:0 0 12px #fff,0 0 28px #ffe05b;pointer-events:none;animation:shelfMagic 1.05s ease-out forwards}
     .reader{position:fixed;z-index:2000;inset:0;display:grid;place-items:center;padding:72px 18px 22px;background:radial-gradient(circle,#7fe3f2,#314988ef 70%);opacity:0;visibility:hidden;transition:opacity .35s}
@@ -64,24 +63,24 @@
   <script>
   (function(){
     const base={
-      slug:"rainbow-rescue",title:"The Rainbow Rescue",cover:"rainbow-rescue/cover.webp",
+      slug:"rainbow-rescue",title:"The Rainbow Game",cover:"rainbow-rescue/cover.webp",
       pages:[
         {type:"image",src:"rainbow-rescue/cover.webp",alt:"Friends find a glowing rainbow book"},
-        {type:"title",title:"The Rainbow Rescue",text:"Bluey and her friends find a book with no colours. They look for red, blue and yellow. Then they help put each colour back."},
-        {type:"image",src:"rainbow-rescue/scene-1.webp",alt:"Bright colours fly out of the rainbow book"},
-        {type:"text",title:"A windy day",text:"Bluey and Bingo find a bright book by a tree. The wind opens the book. Red, blue and yellow fly out and hide."},
-        {type:"image",src:"rainbow-rescue/scene-4.webp",alt:"Bluey, Bingo and Ginny make a plan around the rainbow book"},
-        {type:"text",title:"Let us help",text:"Ginny sees the empty book and runs to help. “We can find the colours,” she says. The friends sit down and make a plan."},
-        {type:"image",src:"rainbow-rescue/scene-2.webp",alt:"The friends cross a bridge made by Numberblocks"},
-        {type:"text",title:"One, two, three",text:"One, Two and Three make a bridge over a small stream. The friends count each step. They walk slowly and reach the other side."},
+        {type:"title",title:"The Rainbow Game",text:"Bluey and her friends find a bright book. It shows a rainbow path to a far castle. They open it and start a fun game."},
+        {type:"image",src:"rainbow-rescue/scene-1.webp",alt:"Bluey, Bingo and their friends watch letters, numbers and shapes fly from a bright book"},
+        {type:"text",title:"Book magic",text:"Bluey and Bingo open the book by a big tree. Bright letters, numbers and shapes fly out. Their friends smile as the magic signs shine in the sun."},
+        {type:"image",src:"rainbow-rescue/scene-4.webp",alt:"Bluey, Bingo and a little dog look at the glowing rainbow book"},
+        {type:"text",title:"A bright plan",text:"Bluey, Bingo and a little dog sit by the open book. A rainbow glows on each page. They look at it and make a plan."},
+        {type:"image",src:"rainbow-rescue/scene-2.webp",alt:"Bluey, Bingo and their friends cross a bright bridge towards a rainbow door"},
+        {type:"text",title:"Rainbow bridge",text:"Bluey, Bingo and their friends cross a bright bridge. The happy blocks lead them to a rainbow door. Owlette and Skye fly above and show the way."},
         {type:"image",src:"rainbow-rescue/scene-5.webp",alt:"Owlette and Skye find red, blue and yellow lights in the sky"},
-        {type:"text",title:"Up in the sky",text:"Owlette and Skye fly over the trees. They see red, blue and yellow lights in three soft clouds. The colours shine and wave."},
-        {type:"image",src:"rainbow-rescue/scene-6.webp",alt:"Chase and Alphablocks A, B and C solve a colourful puzzle"},
-        {type:"text",title:"A, B, C",text:"A, B and C find three clues by the path. Chase reads each clue. The friends match them. The last piece fits in place."},
-        {type:"image",src:"rainbow-rescue/scene-3.webp",alt:"The friends put the rainbow colours back into the book"},
-        {type:"text",title:"The book is bright",text:"The friends take every colour back to the book. Red, blue and yellow jump onto the pages. A big rainbow shines in the sky."},
+        {type:"text",title:"Sky lights",text:"Owlette and Skye fly high over the town. They find red, blue and yellow lights in the sky. The three lights glow beside them."},
+        {type:"image",src:"rainbow-rescue/scene-6.webp",alt:"Chase and A, B and C place red, blue and yellow pieces into a stone game"},
+        {type:"text",title:"A, B, C",text:"Chase finds A, B and C by a stone game. Each friend holds a bright piece. They put the red, blue and yellow pieces in place."},
+        {type:"image",src:"rainbow-rescue/scene-3.webp",alt:"The friends finish a rainbow number and letter arch before a picnic"},
+        {type:"text",title:"The last pieces",text:"The friends reach a sunny garden. They fit the last numbers and letters into a rainbow arch. Then everyone sits down for a happy picnic."},
         {type:"image",src:"rainbow-rescue/scene-7.webp",alt:"All the friends cheer under a bright rainbow"},
-        {type:"end",title:"The End",text:"The friends smile under the rainbow. They helped each other. Every colour is back in the book."}
+        {type:"end",title:"The End",text:"All the friends stand under a big rainbow. They smile and wave together. The book game is done, and every bright piece is home."}
       ]
     };
     let books=[base],active=null,current=0,activeButton=null,reading=false,playingFinalWords=false,playId=0,endingTimer=0;
@@ -90,12 +89,11 @@
     const asset=src=>String(src).startsWith("/")?ProfileShell.url(src):src;
     function drawShelf(){
       const shelf=byId("shelfRow");shelf.innerHTML="";
-      books.forEach((book,index)=>{
+      books.forEach(book=>{
         const button=document.createElement("button");button.className="shelf-book";button.type="button";
         const image=document.createElement("img");image.src=asset(book.cover);image.alt="Cover of "+book.title;
         const title=document.createElement("span");title.className="shelf-title";title.textContent=book.title;
-        const ribbon=document.createElement("span");ribbon.className="shelf-ribbon";ribbon.textContent=index===0?"NEW":"STORY";
-        button.append(image,title,ribbon);button.onclick=()=>openBook(book,button);shelf.appendChild(button);
+        button.append(image,title);button.onclick=()=>openBook(book,button);shelf.appendChild(button);
       });
     }
     function openBook(book,button){
