@@ -27,21 +27,21 @@ BASE_BOOK = {
     "title": "The Rainbow Rescue",
     "pages": [
         {"type": "image"},
-        {"type": "title", "title": "The Rainbow Rescue", "text": "A story about friends who help."},
+        {"type": "title", "title": "The Rainbow Rescue", "text": "A story about friends who help each other and bring the rainbow colours home."},
         {"type": "image"},
-        {"type": "text", "title": "A windy day", "text": "Bluey and Bingo found a bright book. Whoosh! The colours flew away."},
+        {"type": "text", "title": "A windy day", "text": "Bluey and Bingo found a bright book near the tree. Whoosh! A strong wind opened it, and all the rainbow colours flew away."},
         {"type": "image"},
-        {"type": "text", "title": "Let us help", "text": "Ginny ran over. “We can get them back,” she said. The friends made a plan."},
+        {"type": "text", "title": "Let us help", "text": "Ginny ran over and saw the empty pages. “We can get the colours back,” she said. The friends sat together and made a clever plan."},
         {"type": "image"},
-        {"type": "text", "title": "One, two, three", "text": "One, Two and Three made a bridge. The friends took small steps."},
+        {"type": "text", "title": "One, two, three", "text": "One, Two and Three made a strong bridge across a little stream. The friends counted their steps and walked safely to the other side."},
         {"type": "image"},
-        {"type": "text", "title": "Up in the sky", "text": "Owlette and Skye flew up. They found red, blue and yellow."},
+        {"type": "text", "title": "Up in the sky", "text": "Owlette and Skye flew high above the trees. They spotted red, blue and yellow lights hiding inside three soft, fluffy clouds."},
         {"type": "image"},
-        {"type": "text", "title": "A, B, C", "text": "A, B and C found three clues. Chase put them in the right place. Click!"},
+        {"type": "text", "title": "A, B, C", "text": "A, B and C found three colourful clues beside the path. Chase read each clue and put them in the right place. Click!"},
         {"type": "image"},
-        {"type": "text", "title": "The book is bright", "text": "The colours went back in the book. The rainbow came back too."},
+        {"type": "text", "title": "The book is bright", "text": "The friends carried every colour back to the book. Red, blue and yellow jumped onto the pages, and a bright rainbow filled the sky."},
         {"type": "image"},
-        {"type": "end", "title": "The End", "text": "The friends smiled. They had fun and helped each other."},
+        {"type": "end", "title": "The End", "text": "The friends cheered under the rainbow. They had worked together, helped one another and brought every colour safely home."},
     ],
 }
 
@@ -68,6 +68,8 @@ def spoken_text(page):
         return ""
     title = " ".join(str(page.get("title", "")).split())
     text = " ".join(str(page.get("text", "")).split())
+    if page.get("type") == "text":
+        return text
     return " ".join(part for part in (title, text) if part)
 
 
