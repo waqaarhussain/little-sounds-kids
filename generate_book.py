@@ -20,14 +20,17 @@ BOOK_ROOT = Path("/var/www/little-sounds/generated-books")
 MANIFEST = BOOK_ROOT / "books.json"
 TEXT_MODEL = os.environ.get("LITTLE_SOUNDS_TEXT_MODEL", "gpt-5-mini")
 IMAGE_MODEL = os.environ.get("LITTLE_SOUNDS_IMAGE_MODEL", "gpt-image-2")
-THEMES = "Bluey, PJ Masks, SuperKitties, Paw Patrol, Numberblocks, Alphablocks and Colourblocks"
+VISION_MODEL = os.environ.get("LITTLE_SOUNDS_VISION_MODEL", TEXT_MODEL)
+STORY_THEMES = os.environ.get("LITTLE_SOUNDS_STORY_THEMES", "Bluey, PJ Masks, SuperKitties and Paw Patrol")
+BANNED_STORY_NAMES = {"alphablock", "alphablocks", "colourblock", "colourblocks", "numberblock", "numberblocks"}
 SOUND_EFFECT_WORDS = {"bang", "beep", "boom", "click", "crash", "ding", "pop", "pow", "splash", "whoosh", "zap"}
 HARD_STORY_WORDS = {
     "adventure", "amazed", "astonished", "beautiful", "beneath", "carefully", "celebrated",
     "discovered", "enormous", "exclaimed", "excitedly", "gathered", "journey", "magnificent",
     "mysterious", "noticed", "puzzled", "sparkling", "suddenly", "whispered", "wonderful",
 }
-LONG_NAME_WORDS = {"alphablocks", "colourblocks", "numberblocks", "superkitties"}
+LONG_NAME_WORDS = {"superkitties"}
+IMAGE_ATTEMPTS = 3
 STORY_PLAN_ATTEMPTS = 8
 STORY_PLAN_SCHEMA = {
     "type": "object",
@@ -43,14 +46,22 @@ STORY_PLAN_SCHEMA = {
                 "properties": {
                     "heading": {"type": "string"},
                     "text": {"type": "string"},
-                    "picture": {"type": "string"},
                 },
-                "required": ["heading", "text", "picture"],
+                "required": ["heading", "text"],
                 "additionalProperties": False,
             },
         },
     },
     "required": ["title", "ending", "scenes"],
+    "additionalProperties": False,
+}
+IMAGE_CHECK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "matches": {"type": "boolean"},
+        "reason": {"type": "string"},
+    },
+    "required": ["matches", "reason"],
     "additionalProperties": False,
 }
 
@@ -94,6 +105,11 @@ def difficult_story_words(text):
     })
 
 
+def banned_story_names(text):
+    words = set(re.findall(r"[a-z]+", str(text).lower()))
+    return sorted(words & BANNED_STORY_NAMES)
+
+
 def has_long_sentence(text):
     sentences = [part.strip() for part in re.split(r"[.!?]+", str(text)) if part.strip()]
     return any(len(re.findall(r"[A-Za-z]+", sentence)) > 11 for sentence in sentences)
@@ -126,13 +142,13 @@ def existing_values(books, field):
 def story_plan(client, number, previous_books):
     used_titles = {normalised(book.get("title", "")) for book in previous_books if isinstance(book, dict)}
     used_texts = existing_values(previous_books, "text")
-    used_pictures = existing_values(previous_books, "alt")
     previous_notes = previous_story_notes(previous_books)
     last_problem = ""
     for attempt in range(1, STORY_PLAN_ATTEMPTS + 1):
         prompt = f"""
 Create one original 16-page picture-book plan for children aged 3 to 5 in UK English.
-It must be a playful crossover using friendly characters from all seven themes: {THEMES}.
+It must be a playful crossover using friendly characters from two or more of these themes: {STORY_THEMES}.
+Never use, name or show Numberblocks, Alphablocks or Colourblocks. They are not allowed in these books.
 Use familiar character names, kindness, counting, letters and colours. Keep it safe, warm and funny.
 Reading level: for a four-year-old who is just starting school. Each scene must have four or five very
 short sentences and 24 to 34 words total. No sentence may have more than 11 words. Use only words a
@@ -146,8 +162,9 @@ Write complete spoken sentences only. Do not write sound effects or standalone s
 Bang!, Whoosh!, Pop!, Click!, Beep! or Crash!. Describe the action naturally in a proper sentence instead.
 Return JSON only with: title, ending, and scenes. ending must be a unique 12 to 22 word final message
 made from two or three very short sentences.
-scenes must contain exactly 7 objects with heading, text, and picture. picture is a clear visual description
-for one landscape illustration. Every picture must show a different moment, setting or group action.
+scenes must contain exactly 7 objects with heading and text. Every scene must work on its own. Name every
+character who appears in that scene so its picture can be made from those exact words. Do not rely on a
+previous page to identify a character. Every scene must show a different moment, setting or group action.
 Scene 7 must finish the main action. Do not copy any title, plot, page wording or picture from earlier books.
 Use a new problem, setting, action order and ending. This is generated book number {number}.
 Earlier books to avoid repeating: {previous_notes}
@@ -177,44 +194,41 @@ Previous attempt problem to fix: {last_problem or "none"}
             scenes = data.get("scenes", [])
             if not title or not isinstance(scenes, list) or len(scenes) != 7:
                 raise ValueError("return one title and exactly seven scenes")
-            if not 2 <= len(title.split()) <= 5 or difficult_story_words(title):
+            if not 2 <= len(title.split()) <= 5 or difficult_story_words(title) or banned_story_names(title):
                 raise ValueError("use a short title made from easy words for a four-year-old")
             if normalised(title) in used_titles:
                 raise ValueError("use a title that has never been used before")
             if not 12 <= len(ending.split()) <= 22 or normalised(ending) in used_texts:
                 raise ValueError("write a new ending using 12 to 22 simple words")
-            if difficult_story_words(ending) or has_long_sentence(ending):
+            if difficult_story_words(ending) or banned_story_names(ending) or has_long_sentence(ending):
                 raise ValueError("make the ending much easier for a four-year-old")
             cleaned = []
             new_texts = set()
-            new_pictures = set()
             for scene in scenes:
                 heading = str(scene.get("heading", "")).strip()[:60]
                 text = " ".join(str(scene.get("text", "")).split())
-                picture = " ".join(str(scene.get("picture", "")).split())
                 words = len(text.split())
                 text_key = normalised(text)
-                picture_key = normalised(picture)
-                if not heading or not text or not picture:
-                    raise ValueError("complete every heading, text and picture field")
-                if len(heading.split()) > 4 or difficult_story_words(heading):
+                if not heading or not text:
+                    raise ValueError("complete every heading and text field")
+                if len(heading.split()) > 4 or difficult_story_words(heading) or banned_story_names(heading):
                     raise ValueError("use short, easy page headings")
                 if not 24 <= words <= 34:
                     raise ValueError("write 24 to 34 simple words for every scene")
                 hard_words = difficult_story_words(text)
                 if hard_words:
                     raise ValueError(f"replace hard or long story words: {', '.join(hard_words)}")
+                blocked_names = banned_story_names(text)
+                if blocked_names:
+                    raise ValueError(f"remove blocked characters: {', '.join(blocked_names)}")
                 if has_long_sentence(text):
                     raise ValueError("keep every spoken sentence to 11 words or fewer")
                 if has_standalone_sound_effect(text):
                     raise ValueError("replace standalone sound effects with complete spoken sentences")
                 if text_key in used_texts or text_key in new_texts:
                     raise ValueError("do not repeat page wording from any book")
-                if picture_key in used_pictures or picture_key in new_pictures:
-                    raise ValueError("make every page picture different")
                 new_texts.add(text_key)
-                new_pictures.add(picture_key)
-                cleaned.append({"heading": heading, "text": text, "picture": picture})
+                cleaned.append({"heading": heading, "text": text})
             return {"title": title, "ending": ending, "scenes": cleaned}
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             last_problem = str(error)
@@ -239,6 +253,54 @@ def image_bytes(client, prompt):
     if not response.data or not response.data[0].b64_json:
         raise RuntimeError("OpenAI returned no illustration data.")
     return base64.b64decode(response.data[0].b64_json)
+
+
+def image_matches_page(client, raw, page_text, label):
+    encoded = base64.b64encode(raw).decode("ascii")
+    check_prompt = f"""
+You are checking one preschool storybook picture against its exact page words.
+Exact page words: {page_text}
+Return matches=true only if the picture clearly shows the same named characters, main action, setting,
+colours, number of important objects and outcome. Return false if it adds a different named character,
+changes the action, misses an important object, or shows Numberblocks, Alphablocks or Colourblocks.
+Small background details do not matter. Do not require written words in the picture.
+"""
+    response = request_with_retry(
+        f"{label} check",
+        lambda: client.responses.create(
+            model=VISION_MODEL,
+            input=[{
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": check_prompt},
+                    {"type": "input_image", "image_url": f"data:image/png;base64,{encoded}", "detail": "low"},
+                ],
+            }],
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "storybook_picture_check",
+                    "strict": True,
+                    "schema": IMAGE_CHECK_SCHEMA,
+                }
+            },
+        ),
+    )
+    result = json.loads(response.output_text)
+    return bool(result.get("matches")), str(result.get("reason", "Picture did not match the page."))
+
+
+def matching_image_bytes(client, label, prompt, page_text):
+    last_reason = ""
+    for attempt in range(1, IMAGE_ATTEMPTS + 1):
+        raw = image_bytes(client, prompt)
+        matches, reason = image_matches_page(client, raw, page_text, label)
+        if matches:
+            print(f"{label} passed its page-picture check.", flush=True)
+            return raw
+        last_reason = reason
+        print(f"{label} did not match on attempt {attempt}: {reason}", flush=True)
+    raise RuntimeError(f"{label} could not be matched to its words after {IMAGE_ATTEMPTS} attempts: {last_reason}")
 
 
 def save_webp(raw, destination):
@@ -269,19 +331,28 @@ def create_book(client, number):
     style = (
         "Friendly polished preschool picture-book illustration, bright clean colours, soft 3D cartoon look, "
         "landscape scene, clear happy faces, simple uncluttered background, no written words, no logos, no watermark. "
-        f"Faithful friendly crossover characters from {THEMES}. "
+        f"Faithful friendly characters only from these allowed worlds: {STORY_THEMES}. "
+        "Never show Numberblocks, Alphablocks or Colourblocks. Show only characters named in the exact page words. "
+        "Match every stated action, colour, count, object and setting. Do not add a different main action or extra hero. "
     )
     print(f"Creating cover for: {plan['title']}", flush=True)
-    cover_prompt = style + "Book-cover picture only, with the main friends together. " + plan["scenes"][0]["picture"]
-    save_webp(image_bytes(client, cover_prompt), directory / "cover.webp")
+    first_scene = plan["scenes"][0]
+    cover_words = f"Title: {plan['title']}. First page: {first_scene['text']}"
+    cover_prompt = style + "Create book-cover art for this exact title and first story moment. " + cover_words
+    save_webp(matching_image_bytes(client, "Cover", cover_prompt, cover_words), directory / "cover.webp")
     for index, scene in enumerate(plan["scenes"], 1):
         print(f"Creating picture {index} of 7 for: {plan['title']}", flush=True)
-        save_webp(image_bytes(client, style + scene["picture"]), directory / f"scene-{index}.webp")
+        page_words = f"{scene['heading']}. {scene['text']}"
+        scene_prompt = style + "Illustrate this exact page and nothing else. Exact page words: " + page_words
+        save_webp(
+            matching_image_bytes(client, f"Picture {index} of 7", scene_prompt, page_words),
+            directory / f"scene-{index}.webp",
+        )
     pages = [{"type": "image", "src": f"/generated-books/{slug}/cover.webp", "alt": f"Cover of {plan['title']}"}]
     for index, scene in enumerate(plan["scenes"], 1):
         page_type = "title" if index == 1 else "text"
         pages.append({"type": page_type, "title": plan["title"] if index == 1 else scene["heading"], "text": scene["text"]})
-        pages.append({"type": "image", "src": f"/generated-books/{slug}/scene-{index}.webp", "alt": scene["picture"]})
+        pages.append({"type": "image", "src": f"/generated-books/{slug}/scene-{index}.webp", "alt": f"Picture for: {scene['text']}"})
     pages.append({"type": "end", "title": "The End", "text": plan["ending"]})
     if len(pages) != 16:
         raise RuntimeError("Book page safety check failed.")
