@@ -36,6 +36,7 @@ echo "Token received: ${github_token:0:7}...${github_token:token_length-4:4} (${
 work_dir="$(mktemp -d /tmp/little-sounds-promote.XXXXXX)"
 trap 'rm -rf "$work_dir"; unset github_token' EXIT
 mkdir -p "$work_dir/site" "$work_dir/app"
+/opt/little-sounds-venv/bin/pip install --disable-pip-version-check -r "$test_app/requirements.txt" >/dev/null
 rsync -a --delete --exclude sticker-images --exclude sticker-generator "$live_site/" "$work_dir/site/"
 rsync -a "$live_app/" "$work_dir/app/"
 
@@ -49,7 +50,6 @@ rollback() {
 rsync -a --delete --exclude sticker-images --exclude sticker-generator "$test_site/" "$live_site/"
 install -m 0644 "$test_app/app.py" "$live_app/app.py"
 install -m 0644 "$test_app/requirements.txt" "$live_app/requirements.txt"
-/opt/little-sounds-venv/bin/pip install --disable-pip-version-check -r "$live_app/requirements.txt" >/dev/null
 chmod -R a+rX "$live_site"
 systemctl restart little-sounds.service
 
@@ -67,8 +67,7 @@ if ! curl -fSs -X PATCH   -H "Accept: application/vnd.github+json"   -H "Authori
   exit 1
 fi
 
-printf '%s
-' "$test_sha" > "$live_app/source-commit"
+printf '%s\n' "$test_sha" > "$live_app/source-commit"
 unset github_token
 refresh-test
 echo "Test build $test_sha is now live. Live albums and sticker usage were preserved."

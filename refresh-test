@@ -23,6 +23,7 @@ install -m 0644 "$live_app" "$test_app_dir/app.py"
 if [ -f /opt/little-sounds/requirements.txt ]; then
   install -m 0644 /opt/little-sounds/requirements.txt "$test_app_dir/requirements.txt"
 fi
+rm -f "$test_app_dir/source-commit" "$test_db"
 if [ -f /opt/little-sounds/source-commit ]; then
   install -m 0644 /opt/little-sounds/source-commit "$test_app_dir/source-commit"
 fi

@@ -21,10 +21,11 @@ if ! [[ "$test_sha" =~ ^[0-9a-f]{40}$ ]]; then
   echo "GitHub did not return a valid test commit."
   exit 1
 fi
-curl -fL "https://github.com/$repository/archive/refs/heads/test.tar.gz" -o "$archive"
+curl -fL "https://api.github.com/repos/$repository/tarball/$test_sha" -o "$archive"
 mkdir -p "$stage" "$backup/site" "$backup/app"
 tar -xzf "$archive" --strip-components=1 -C "$stage"
 python3 -m py_compile "$stage/server/app.py"
+/opt/little-sounds-test-venv/bin/pip install --disable-pip-version-check -r "$stage/server/requirements.txt" >/dev/null
 
 rsync -a --delete --exclude sticker-images "$test_site/" "$backup/site/"
 rsync -a "$test_app/" "$backup/app/"
@@ -33,9 +34,7 @@ rsync -a --delete --exclude sticker-images --exclude sticker-generator "$stage/s
 ln -sfn /var/www/little-sounds/sticker-images "$test_site/sticker-images"
 install -m 0644 "$stage/server/app.py" "$test_app/app.py"
 install -m 0644 "$stage/server/requirements.txt" "$test_app/requirements.txt"
-/opt/little-sounds-test-venv/bin/pip install --disable-pip-version-check -r "$test_app/requirements.txt" >/dev/null
-printf '%s
-' "$test_sha" > "$test_app/source-commit"
+printf '%s\n' "$test_sha" > "$test_app/source-commit"
 chmod -R a+rX "$test_site"
 systemctl restart little-sounds-test.service
 
