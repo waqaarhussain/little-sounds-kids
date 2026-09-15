@@ -21,6 +21,7 @@ MANIFEST = BOOK_ROOT / "books.json"
 TEXT_MODEL = os.environ.get("LITTLE_SOUNDS_TEXT_MODEL", "gpt-5-mini")
 IMAGE_MODEL = os.environ.get("LITTLE_SOUNDS_IMAGE_MODEL", "gpt-image-2")
 THEMES = "Bluey, PJ Masks, SuperKitties, Paw Patrol, Numberblocks, Alphablocks and Colourblocks"
+SOUND_EFFECT_WORDS = {"bang", "beep", "boom", "click", "crash", "ding", "pop", "pow", "splash", "whoosh", "zap"}
 
 
 def clean_slug(title):
@@ -47,6 +48,11 @@ def request_with_retry(label, action):
 
 def normalised(value):
     return re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
+
+
+def has_standalone_sound_effect(text):
+    words = re.findall(r"[a-z]+", str(text).lower())
+    return any(word in SOUND_EFFECT_WORDS for word in words)
 
 
 def previous_story_notes(books):
@@ -87,6 +93,8 @@ Use familiar character names, kindness, counting, letters and colours. Keep it s
 Reading level: like a very early school reader. Each scene must have two to four short sentences and
 24 to 34 words total. Use common words. Never use hard words such as beneath, suddenly,
 discovered, magnificent, enormous, exclaimed, journey or mysterious.
+Write complete spoken sentences only. Do not write sound effects or standalone sound words such as
+Bang!, Whoosh!, Pop!, Click!, Beep! or Crash!. Describe the action naturally in a proper sentence instead.
 Return JSON only with: title, ending, and scenes. ending must be a unique 12 to 22 word final message.
 scenes must contain exactly 7 objects with heading, text, and picture. picture is a clear visual description
 for one landscape illustration. Every picture must show a different moment, setting or group action.
@@ -126,6 +134,8 @@ Previous attempt problem to fix: {last_problem or "none"}
                     raise ValueError("complete every heading, text and picture field")
                 if not 24 <= words <= 34:
                     raise ValueError("write 24 to 34 simple words for every scene")
+                if has_standalone_sound_effect(text):
+                    raise ValueError("replace standalone sound effects with complete spoken sentences")
                 if text_key in used_texts or text_key in new_texts:
                     raise ValueError("do not repeat page wording from any book")
                 if picture_key in used_pictures or picture_key in new_pictures:
