@@ -300,17 +300,25 @@ Small background details do not matter. Never require story words to be printed 
     return bool(result.get("matches")), str(result.get("reason", "Picture did not match the page."))
 
 
-def matching_image_bytes(client, label, prompt, page_text):
+def matching_image_bytes(client, label, prompt, page_text, attempts=IMAGE_ATTEMPTS):
     last_reason = ""
-    for attempt in range(1, IMAGE_ATTEMPTS + 1):
-        raw = image_bytes(client, prompt)
+    retry_prompt = prompt
+    for attempt in range(1, attempts + 1):
+        raw = image_bytes(client, retry_prompt)
         matches, reason = image_matches_page(client, raw, page_text, label)
         if matches:
             print(f"{label} passed its page-picture check.", flush=True)
             return raw
         last_reason = reason
         print(f"{label} did not match on attempt {attempt}: {reason}", flush=True)
-    raise RuntimeError(f"{label} could not be matched to its words after {IMAGE_ATTEMPTS} attempts: {last_reason}")
+        retry_prompt = (
+            prompt
+            + " The previous picture was rejected for these exact reasons: "
+            + reason
+            + " Correct every listed problem in the next picture. Keep the required colours, characters, objects and action exact. "
+              "Do not add captions, story sentences, labels, signs, speech bubbles or thought bubbles."
+        )
+    raise RuntimeError(f"{label} could not be matched to its words after {attempts} attempts: {last_reason}")
 
 
 def visual_briefs(client, page_words):
@@ -519,7 +527,7 @@ def repair_book_pictures(client, book):
             label = "Cover" if index == 1 else f"Picture {index - 1} of 7"
             print(f"Repairing {book['title']}: {label.lower()}...", flush=True)
             prompt = style + "Draw this scene and nothing else: " + brief
-            save_webp(matching_image_bytes(client, label, prompt, words), temporary / filename)
+            save_webp(matching_image_bytes(client, label, prompt, words, attempts=6), temporary / filename)
         for filename in filenames:
             (temporary / filename).replace(directory / filename)
     version = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
@@ -555,7 +563,12 @@ def main():
     client = OpenAI(api_key=key, timeout=240.0, max_retries=0)
     request_with_retry("API key check", lambda: client.models.list())
     if repair_mode:
-        repair_generated_book(client, repair_slug)
+        try:
+            repair_generated_book(client, repair_slug)
+        except Exception as error:
+            print(f"Repair stopped safely: {error}", flush=True)
+            print("The book's original pictures, story and narration were not changed.", flush=True)
+            raise SystemExit(1)
         return
     completed = 0
     failures = []
