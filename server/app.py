@@ -307,25 +307,28 @@ def build_activity_plan(activity):
         plan = {"pairs": [{"round": f"round-{index}", "animal": animal, "icon": icon} for index, (animal, icon) in enumerate(animals, 1)], "deck": deck}
         signature_source = sorted(animal for animal, _ in animals)
     elif activity == "finish-the-pattern":
-        kinds = ("AB", "AAB", "ABB", "ABC")
+        kinds = ("ABC", "AABC", "ABBC", "ABCC", "ABAC", "ABCB")
         rounds = []
         used = set()
         while len(rounds) < 20:
             kind = random.choice(kinds)
             symbols = random.sample(GAME_SYMBOLS, 3)
             unit = {
-                "AB": [symbols[0], symbols[1]],
-                "AAB": [symbols[0], symbols[0], symbols[1]],
-                "ABB": [symbols[0], symbols[1], symbols[1]],
                 "ABC": [symbols[0], symbols[1], symbols[2]],
+                "AABC": [symbols[0], symbols[0], symbols[1], symbols[2]],
+                "ABBC": [symbols[0], symbols[1], symbols[1], symbols[2]],
+                "ABCC": [symbols[0], symbols[1], symbols[2], symbols[2]],
+                "ABAC": [symbols[0], symbols[1], symbols[0], symbols[2]],
+                "ABCB": [symbols[0], symbols[1], symbols[2], symbols[1]],
             }[kind]
-            sequence = (unit * 4)[:6]
-            answer = (unit * 4)[6]
+            repeated = unit * 4
+            sequence = repeated[:6]
+            answer = repeated[6]
             key = (kind, tuple(symbols), answer)
             if key in used:
                 continue
             used.add(key)
-            choices = list(dict.fromkeys(sequence))
+            choices = list(symbols)
             random.shuffle(choices)
             index = len(rounds) + 1
             rounds.append({"item": f"round-{index}", "sequence": sequence, "answer": answer, "choices": choices})

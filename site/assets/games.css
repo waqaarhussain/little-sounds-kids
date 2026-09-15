@@ -16,9 +16,11 @@
 .shape-star{clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 94%,50% 72%,21% 94%,32% 57%,2% 35%,39% 35%)}
 @media(max-width:600px){.shape-rectangle,.shape-oval{width:130px;height:88px}}
 
-.pattern-row{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:10px;font-size:clamp(2.3rem,7vw,4.5rem)}
-.pattern-row>span{width:clamp(58px,9vw,88px);aspect-ratio:1;display:grid;place-items:center;border:4px solid #e2eafd;border-radius:20px;background:#fff;box-shadow:0 6px 0 #cad7ec}
+.pattern-row{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:10px}
+.pattern-row>span{width:clamp(58px,9vw,88px);aspect-ratio:1;display:grid;place-items:center;border:4px solid #e2eafd;border-radius:20px;background:#fff;box-shadow:0 6px 0 #cad7ec;font-size:clamp(2.2rem,6vw,3.8rem);line-height:1;padding:4px;overflow:hidden}
 .pattern-row .pattern-gap{color:#6d50df;background:#f0ecff;border-style:dashed;font-weight:1000}
+.picture-choices{align-items:stretch}
+.picture-choice{display:grid;place-items:center;min-height:108px;padding:4px;font-size:clamp(3rem,6vw,4.4rem);line-height:1;overflow:hidden}
 .odd-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;max-width:720px;width:100%;margin:auto}
 .odd-choice,.more-choice{border:5px solid #dbe8f7;border-radius:24px;background:#fff;color:#18315f;box-shadow:0 7px 0 #bdd0e9;cursor:pointer}
 .odd-choice{aspect-ratio:1;font-size:clamp(3rem,8vw,5.5rem)}
@@ -26,5 +28,5 @@
 .more-choice{min-height:240px;padding:20px;font-size:clamp(2rem,5vw,3.4rem);line-height:1.25;letter-spacing:.05em}
 .odd-choice.correct,.more-choice.correct{background:#bff4d1;border-color:#35b86a}
 .odd-choice.wrong,.more-choice.wrong{animation:shake .35s;background:#ffe0e5;border-color:#f15b75}
-@media(max-width:600px){.pattern-row{gap:6px}.pattern-row>span{width:48px;border-width:3px;border-radius:15px}.odd-grid{grid-template-columns:repeat(2,1fr);gap:10px}.more-choice{min-height:190px;padding:10px}}
+@media(max-width:600px){.pattern-row{gap:6px}.pattern-row>span{width:48px;border-width:3px;border-radius:15px;font-size:2rem;padding:2px}.picture-choice{min-height:82px;font-size:2.8rem}.odd-grid{grid-template-columns:repeat(2,1fr);gap:10px}.more-choice{min-height:190px;padding:10px}}
 .hunt-target{font-size:clamp(5rem,18vw,10rem);font-weight:1000;line-height:1;color:#5a42ce;text-shadow:0 7px 0 #d9d2ff}
