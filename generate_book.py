@@ -146,7 +146,10 @@ Previous attempt problem to fix: {last_problem or "none"}
             return {"title": title, "ending": ending, "scenes": cleaned}
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             last_problem = str(error)
-            print(f"Story plan attempt {attempt} needs another try: {last_problem}", flush=True)
+            if attempt < 4:
+                print(f"Story plan attempt {attempt} was incomplete. Retrying automatically: {last_problem}", flush=True)
+            else:
+                print(f"Story plan attempt {attempt} was still incomplete: {last_problem}", flush=True)
     raise RuntimeError(f"The story model could not make a unique valid plan: {last_problem}")
 
 

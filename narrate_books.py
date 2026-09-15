@@ -73,6 +73,8 @@ def spoken_text(page):
     text = " ".join(str(page.get("text", "")).split())
     if page.get("type") in {"text", "end"}:
         return text
+    if page.get("type") == "title" and title and title[-1] not in ".!?":
+        title += "."
     return " ".join(part for part in (title, text) if part)
 
 
