@@ -41,7 +41,7 @@ trap 'rm -rf "$work_dir"' EXIT
 
 echo "[1/4] Installing the web server..."
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y nginx curl ca-certificates python3-venv fonts-dejavu-core rsync
+DEBIAN_FRONTEND=noninteractive apt-get install -y nginx curl ca-certificates python3-venv fonts-dejavu-core rsync ffmpeg
 
 site_stage="$work_dir/site"
 cp -a "$installer_dir/site/." "$site_stage/"

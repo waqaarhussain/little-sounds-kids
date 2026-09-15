@@ -5,6 +5,7 @@ import json
 import os
 import random
 import re
+import subprocess
 import time
 from pathlib import Path
 
@@ -16,9 +17,11 @@ MANIFEST = BOOK_ROOT / "books.json"
 NARRATION_ROOT = BOOK_ROOT / "narration"
 TTS_MODEL = os.environ.get("LITTLE_SOUNDS_TTS_MODEL", "gpt-4o-mini-tts")
 TTS_VOICE = os.environ.get("LITTLE_SOUNDS_TTS_VOICE", "marin")
+NORMALISATION_VERSION = "loudnorm-i18-tp2-lra7-v1"
 TTS_INSTRUCTIONS = (
     "Read this children's story in a warm, friendly, feminine-sounding British English voice. "
     "Speak slowly and clearly for children aged three to five. Use gentle expression and natural pauses. "
+    "Keep exactly the same voice character, speaking pace, energy, microphone distance and volume on every page. "
     "Read every supplied word exactly once, in order. Do not add, remove, explain, or change any words."
 )
 
@@ -86,7 +89,7 @@ def valid_book(book):
 
 
 def audio_signature(text):
-    source = "\n".join((TTS_MODEL, TTS_VOICE, TTS_INSTRUCTIONS, text))
+    source = "\n".join((TTS_MODEL, TTS_VOICE, TTS_INSTRUCTIONS, NORMALISATION_VERSION, text))
     return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
 
@@ -98,8 +101,10 @@ def create_cached_audio(client, destination, filename, text, label):
     if audio_path.is_file() and audio_path.stat().st_size > 1024 and existing_hash == signature:
         print(f"{label} is already cached.", flush=True)
         return 0
-    temporary = destination / f".{filename}.mp3.tmp"
-    temporary.unlink(missing_ok=True)
+    raw_audio = destination / f".{filename}.raw.mp3"
+    normalised_audio = destination / f".{filename}.normalised.mp3"
+    raw_audio.unlink(missing_ok=True)
+    normalised_audio.unlink(missing_ok=True)
     print(f"Creating {label}...", flush=True)
 
     def create_audio():
@@ -110,19 +115,40 @@ def create_cached_audio(client, destination, filename, text, label):
             instructions=TTS_INSTRUCTIONS,
             response_format="mp3",
         ) as response:
-            response.stream_to_file(temporary)
+            response.stream_to_file(raw_audio)
 
     try:
         request_with_retry(label, create_audio)
-        if not temporary.is_file() or temporary.stat().st_size <= 1024:
+        if not raw_audio.is_file() or raw_audio.stat().st_size <= 1024:
             raise RuntimeError("OpenAI returned an empty narration file.")
-        temporary.replace(audio_path)
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                    "-i", str(raw_audio),
+                    "-af", "loudnorm=I=-18:TP=-2:LRA=7",
+                    "-ar", "44100", "-codec:a", "libmp3lame", "-b:a", "128k",
+                    str(normalised_audio),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except FileNotFoundError as error:
+            raise RuntimeError("ffmpeg is missing, so narration could not be normalised.") from error
+        except subprocess.CalledProcessError as error:
+            detail = (error.stderr or "unknown ffmpeg error").strip()[-600:]
+            raise RuntimeError(f"Narration normalisation failed: {detail}") from error
+        if not normalised_audio.is_file() or normalised_audio.stat().st_size <= 1024:
+            raise RuntimeError("Narration normalisation returned an empty audio file.")
+        normalised_audio.replace(audio_path)
         audio_path.chmod(0o644)
         hash_path.write_text(signature + "\n", encoding="utf-8")
         hash_path.chmod(0o644)
         return 1
     finally:
-        temporary.unlink(missing_ok=True)
+        raw_audio.unlink(missing_ok=True)
+        normalised_audio.unlink(missing_ok=True)
 
 
 def narrate_book(client, book):

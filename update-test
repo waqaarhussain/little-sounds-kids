@@ -6,6 +6,11 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg
+fi
+
 repository="waqaarhussain/little-sounds-kids"
 work_dir="$(mktemp -d /tmp/little-sounds-test-update.XXXXXX)"
 trap 'rm -rf "$work_dir"' EXIT
