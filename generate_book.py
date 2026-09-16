@@ -108,6 +108,15 @@ COVER_DIVERSITY_SCHEMA = {
     "required": ["distinct", "reason"],
     "additionalProperties": False,
 }
+STORY_COHERENCE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "coherent": {"type": "boolean"},
+        "reason": {"type": "string"},
+    },
+    "required": ["coherent", "reason"],
+    "additionalProperties": False,
+}
 ADAPTED_PAGE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -219,6 +228,14 @@ def complete_character_roster():
     )
 
 
+def named_characters(text):
+    return {
+        name
+        for name in CHARACTER_APPEARANCES
+        if text_names_character(text, name)
+    }
+
+
 def clean_slug(title):
     value = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:48]
     return value or "little-learners-story"
@@ -292,6 +309,46 @@ def existing_values(books, field):
     return values
 
 
+def story_is_coherent(client, plan, label="Story sequence"):
+    ordered_pages = [
+        f"Opening — {plan['title']}: {plan['intro']}",
+        *(
+            f"Page {index} — {scene['heading']}: {scene['text']}"
+            for index, scene in enumerate(plan["scenes"], 1)
+        ),
+        f"Ending — {plan['ending']}",
+    ]
+    prompt = f"""
+Check this eight-part preschool story in order:
+{chr(10).join(ordered_pages)}
+
+Return coherent=true only if it is one clear continuous story rather than eight random activities. The opening
+must introduce the main cast, place and one goal or problem. Each page must follow naturally from the page
+before it and move that same goal forward. The ending must solve that goal. A character cannot vanish for most
+of the story and then suddenly win, solve the problem or become the main hero. A race winner must be shown
+joining or running the race earlier. Letters, counting, colours, games and objects must help the same plot, not
+appear as unrelated lessons. Small changes of place are fine only when the story clearly moves there. Reject
+abrupt jumps in activity, unexplained new goals, disconnected page pairs, or an ending that was not prepared.
+"""
+    response = request_with_retry(
+        label,
+        lambda: client.responses.create(
+            model=TEXT_MODEL,
+            input=prompt,
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "preschool_story_coherence",
+                    "strict": True,
+                    "schema": STORY_COHERENCE_SCHEMA,
+                }
+            },
+        ),
+    )
+    result = json.loads(response.output_text)
+    return bool(result.get("coherent")), str(result.get("reason", "The pages do not form one story."))
+
+
 def story_plan(client, number, previous_books, selected_themes, cover_background, cover_action):
     used_titles = {normalised(book.get("title", "")) for book in previous_books if isinstance(book, dict)}
     used_texts = existing_values(previous_books, "text")
@@ -316,7 +373,8 @@ avoid repeating the exact named character group used by the recent books below.
 Use character names only from this exact roster: {roster_rules}. Never invent, shorten or rename a character.
 For SuperKitties, the only hero names are Ginny, Sparks, Buddy and Bitsy. There is no character named Kitty.
 Never use, name or show Numberblocks, Alphablocks or Colourblocks. They are not allowed in these books.
-Use familiar character names, kindness, counting, letters and colours. Keep it safe, warm and funny.
+Keep it safe, warm and funny. Choose only one simple learning idea from kindness, counting, letters or
+colours, and make it help the story's single goal. Do not insert unrelated learning games on later pages.
 Reading level: for a four-year-old who is just starting school. Each scene must have four or five very
 short sentences and 24 to 34 words total. No sentence may have more than 11 words. Use only words a
 four-year-old hears often, such as look, find, help, play, happy, big, small, red, run and jump.
@@ -331,14 +389,17 @@ Return JSON only with: title, intro, ending, and scenes. intro and ending must e
 made from four or five very short sentences. The intro must begin the story. The ending must finish it.
 Name every character shown in the intro and ending so their matching pictures can be made from those words.
 The intro and cover must take place in {cover_background}. Centre that opening moment on {cover_action}.
-scenes must contain exactly 6 objects with heading and text. Every scene must work on its own. Name every
-character who appears in that scene so its picture can be made from those exact words. Do not rely on a
-previous page to identify a character. Make every page easy to draw as one still picture. Give each page one
+The intro must introduce the whole main cast and one clear goal or small problem. Use one named character
+from each selected theme and at most one extra character. Keep that same small cast through the whole book.
+No new named character may appear after the intro. Every main character must take part throughout the story.
+scenes must contain exactly 6 objects with heading and text. Each scene must continue directly from the prior
+scene and move the same goal forward. Name every character shown so the picture can match the exact words.
+Make every page easy to draw as one still picture. Give each page one
 clear main moment, not a chain of actions. Do not make several characters each do a different action on the
 same page. Small gestures such as waving, hugging, pointing or clapping may support the moment, but must
-never be the only detail that makes the picture match the words. Every scene must show a different moment,
-setting or group action.
-Scene 6 must lead clearly into the ending. Do not copy any title, plot, page wording or picture from earlier books.
+never be the only detail that makes the picture match the words. Do not jump to a new game, lesson, goal or
+place without explaining why it is the next step. Scene 6 must lead clearly into the ending, and the ending must
+solve the exact goal from the intro. Do not copy any title, plot, page wording or picture from earlier books.
 Use a new problem, setting, action order and ending. This is generated book number {number}.
 Earlier books to avoid repeating: {previous_notes}
 Previous attempt problem to fix: {last_problem or "none"}
@@ -409,7 +470,25 @@ Previous attempt problem to fix: {last_problem or "none"}
                     raise ValueError("do not repeat page wording from any book")
                 new_texts.add(text_key)
                 cleaned.append({"heading": heading, "text": text})
-            return {"title": title, "intro": intro, "ending": ending, "scenes": cleaned}
+            intro_cast = named_characters(intro)
+            later_pages = [(f"scene {index}", scene["text"]) for index, scene in enumerate(cleaned, 1)]
+            later_pages.append(("ending", ending))
+            for page_label, page_text in later_pages:
+                unexpected = named_characters(page_text) - intro_cast
+                if unexpected:
+                    raise ValueError(
+                        f"introduce {', '.join(sorted(unexpected))} in the opening before using them in {page_label}"
+                    )
+            all_pages = [intro, *(scene["text"] for scene in cleaned), ending]
+            for character in intro_cast:
+                appearances = sum(text_names_character(page, character) for page in all_pages)
+                if appearances < 4:
+                    raise ValueError(f"keep {character} involved throughout at least four story pages")
+            candidate = {"title": title, "intro": intro, "ending": ending, "scenes": cleaned}
+            coherent, coherence_reason = story_is_coherent(client, candidate, "Story plan coherence check")
+            if not coherent:
+                raise ValueError(f"make all pages one continuous story: {coherence_reason}")
+            return candidate
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             last_problem = str(error)
             if attempt < STORY_PLAN_ATTEMPTS:
@@ -617,13 +696,15 @@ Story context to preserve where the picture allows it: {story_context}
 The last mismatch was: {last_problem}
 {heading_rule}
 Return usable=false if the picture contains a caption, story sentence, speech bubble, logo, watermark,
-Numberblocks, Alphablocks or Colourblocks. Also return usable=false when the picture replaces a named original
-character with another character, even from the same show; that picture must be regenerated. Official character
-names are: {official_roster}. Never invent, shorten or guess a character name. Otherwise return usable=true and write four or five complete,
+Numberblocks, Alphablocks or Colourblocks. Also return usable=false when the picture replaces or omits a named
+original character, changes the central action, changes the setting, or shows a different story event; that picture
+must be regenerated. Official character names are: {official_roster}. Never invent, shorten or guess a character
+name. Keep every original named character, the central goal, action and setting exactly the same. You may only
+adjust a small visible detail, pose, gesture, non-key colour or non-key count that does not change the plot.
+Otherwise return usable=true and write four or five complete,
 very short UK-English sentences totalling 24 to 34 words. Describe only characters, actions, colours,
-counts, objects and settings clearly visible in the picture. You may change the original character names,
-action, colour or count to what the picture actually shows, while keeping the page kind, safe tone and
-nearby story flow. Use words a four-year-old knows. No sentence may exceed 11 words. Do not use sound
+counts, objects and settings clearly visible in the picture. Keep the page kind, safe tone and nearby story flow.
+Use words a four-year-old knows. No sentence may exceed 11 words. Do not use sound
 effects. Apart from character names, avoid words longer than eight letters. Do not copy another page's
 wording from the story context. Do not mention the picture.
 """
@@ -953,6 +1034,9 @@ def create_book(client, number):
     )
     final_page_texts.add(normalised(plan["ending"]))
     save_webp(final_raw, directory / "scene-7.webp")
+    coherent, coherence_reason = story_is_coherent(client, plan, "Final story coherence check")
+    if not coherent:
+        raise RuntimeError(f"Final page sequence was rejected before publishing: {coherence_reason}")
     pages = [
         {"type": "image", "src": f"/generated-books/{slug}/cover.webp", "alt": f"Cover of {plan['title']}"},
         {"type": "title", "title": plan["title"], "text": plan["intro"]},
