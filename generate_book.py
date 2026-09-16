@@ -6,6 +6,7 @@ import json
 import os
 import random
 import re
+import shutil
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -168,7 +169,11 @@ made from four or five very short sentences. The intro must begin the story. The
 Name every character shown in the intro and ending so their matching pictures can be made from those words.
 scenes must contain exactly 6 objects with heading and text. Every scene must work on its own. Name every
 character who appears in that scene so its picture can be made from those exact words. Do not rely on a
-previous page to identify a character. Every scene must show a different moment, setting or group action.
+previous page to identify a character. Make every page easy to draw as one still picture. Give each page one
+clear main moment, not a chain of actions. Do not make several characters each do a different action on the
+same page. Small gestures such as waving, hugging, pointing or clapping may support the moment, but must
+never be the only detail that makes the picture match the words. Every scene must show a different moment,
+setting or group action.
 Scene 6 must lead clearly into the ending. Do not copy any title, plot, page wording or picture from earlier books.
 Use a new problem, setting, action order and ending. This is generated book number {number}.
 Earlier books to avoid repeating: {previous_notes}
@@ -266,11 +271,16 @@ def image_bytes(client, prompt):
 def image_matches_page(client, raw, page_text, label):
     encoded = base64.b64encode(raw).decode("ascii")
     check_prompt = f"""
-You are checking one preschool storybook picture against its exact page words.
+You are checking whether one preschool storybook picture is a sensible illustration for its page words.
 Exact page words: {page_text}
-Return matches=true only if the picture clearly shows the same named characters, main action, setting,
-colours, number of important objects and outcome. Return false if it adds a different named character,
-changes the action, misses an important object, or shows Numberblocks, Alphablocks or Colourblocks.
+One still picture is not expected to show every sentence or every step that happens across the page. Return
+matches=true when it clearly shows the same central story moment, named main characters, setting and key
+objects, without contradicting the page. Do not reject it merely because a small gesture, pose, facial
+expression or later action is not visible, such as waving, hugging, pointing, smiling, clapping or holding
+hands. Exact colour or object count matters only when that colour or count is central to the page.
+Return false if it shows a different central event, misses a key object, replaces a named main character with
+a character from another world, gets a central learning colour or count wrong, or shows Numberblocks,
+Alphablocks or Colourblocks.
 Return false if the picture contains a story heading, caption, sentence, paragraph, speech bubble or page
 wording. A single learning symbol such as A or 3 is allowed only when the page itself needs that object.
 Small background details do not matter. Never require story words to be printed inside the picture.
@@ -339,7 +349,9 @@ def visual_briefs(client, page_words):
     numbered = "\n".join(f"{index + 1}. {words}" for index, words in enumerate(page_words))
     prompt = f"""
 Turn these {count} preschool story pages into {count} visual-only illustration briefs in the same order.
-Each brief must name the visible characters, setting, main action, colours, count and important objects.
+Each brief must choose one clear still moment that best represents that whole page. Name the visible main
+characters, setting, one main action, and only the colours, counts and objects that matter to that moment.
+Do not try to show every sentence or several actions happening at once.
 Use one short sentence. Do not copy a title, heading or full story sentence. Do not include dialogue, quotes,
 speech bubbles, signs, labels, captions, page text or instructions to print words. A learning object such as a
 single letter A or number 3 may appear only when the page explicitly needs it as an object.
@@ -375,7 +387,7 @@ def illustration_style():
         "Absolutely no title, heading, caption, sentence, paragraph, speech bubble, page wording, logo or watermark. "
         f"Faithful friendly characters only from these allowed worlds: {STORY_THEMES}. "
         "Never show Numberblocks, Alphablocks or Colourblocks. Show only characters named in the visual brief. "
-        "Match every stated action, colour, count, object and setting. Do not add a different main action or extra hero. "
+        "Match the brief's central moment, key objects and setting. Do not add a different main action or extra hero. "
     )
 
 
@@ -431,6 +443,19 @@ def merge_history(history, books):
             known.add(title)
             changed = True
     return changed
+
+
+def remove_unpublished_directories(before):
+    published = {
+        str(book.get("slug", ""))
+        for book in read_manifest().get("books", [])
+        if isinstance(book, dict)
+    }
+    for child in BOOK_ROOT.iterdir():
+        if child in before or not child.is_dir() or child.name in published:
+            continue
+        if re.fullmatch(r"[a-z0-9][a-z0-9-]{0,95}", child.name):
+            shutil.rmtree(child)
 
 
 def create_book(client, number):
@@ -573,10 +598,12 @@ def main():
     completed = 0
     failures = []
     for number in range(1, count + 1):
+        directories_before = {child for child in BOOK_ROOT.iterdir() if child.is_dir()}
         try:
             create_book(client, number)
             completed += 1
         except Exception as error:
+            remove_unpublished_directories(directories_before)
             print(f"Book {number} failed safely: {error}", flush=True)
             failures.append(number)
     print(f"Book generation finished: {completed} of {count} completed.", flush=True)
