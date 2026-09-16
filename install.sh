@@ -110,7 +110,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=/root/.config/little-sounds/openai.env
-EnvironmentFile=/run/little-sounds-book.env
+EnvironmentFile=/root/.config/little-sounds/book-job.env
 WorkingDirectory=/opt/little-sounds
 ExecStart=/opt/little-sounds-ai-venv/bin/python /opt/little-sounds/generate_book.py
 User=root
