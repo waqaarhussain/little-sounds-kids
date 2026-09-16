@@ -62,8 +62,14 @@ except (OSError, ValueError, TypeError):
     print(0)
 PY
 )"
+recipe_seed="$(python3 - <<'PY'
+import secrets
+print(secrets.token_hex(16))
+PY
+)"
 umask 077
-printf 'BOOK_COUNT=%s\nBOOK_START_COUNT=%s\nPYTHONUNBUFFERED=1\n' "$book_count" "$current_book_count" > "$run_file"
+printf 'BOOK_COUNT=%s\nBOOK_START_COUNT=%s\nBOOK_RECIPE_SEED=%s\nPYTHONUNBUFFERED=1\n' \
+  "$book_count" "$current_book_count" "$recipe_seed" > "$run_file"
 chmod 0600 "$run_file"
 systemctl reset-failed "$service_name" 2>/dev/null || true
 if ! systemctl start "$service_name"; then
