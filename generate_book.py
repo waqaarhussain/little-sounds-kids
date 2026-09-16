@@ -56,6 +56,11 @@ CHARACTER_APPEARANCES = {
     "Zuma": "a chocolate-brown Labrador pup in orange water-rescue gear",
 }
 SOUND_EFFECT_WORDS = {"bang", "beep", "boom", "click", "crash", "ding", "pop", "pow", "splash", "whoosh", "zap"}
+PROTECTED_PAGE_TERMS = {
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+    "red", "blue", "green", "yellow", "orange", "pink", "purple", "brown", "black", "white", "grey", "gray",
+}
 HARD_STORY_WORDS = {
     "adventure", "amazed", "astonished", "beautiful", "beneath", "carefully", "celebrated",
     "discovered", "enormous", "exclaimed", "excitedly", "gathered", "journey", "magnificent",
@@ -112,9 +117,19 @@ STORY_COHERENCE_SCHEMA = {
     "type": "object",
     "properties": {
         "coherent": {"type": "boolean"},
+        "natural": {"type": "boolean"},
         "reason": {"type": "string"},
     },
-    "required": ["coherent", "reason"],
+    "required": ["coherent", "natural", "reason"],
+    "additionalProperties": False,
+}
+VISUAL_CONTINUITY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "consistent": {"type": "boolean"},
+        "reason": {"type": "string"},
+    },
+    "required": ["consistent", "reason"],
     "additionalProperties": False,
 }
 ADAPTED_PAGE_SCHEMA = {
@@ -280,9 +295,25 @@ def banned_story_names(text):
     return sorted(words & BANNED_STORY_NAMES)
 
 
+def protected_page_terms(text):
+    words = set(re.findall(r"[a-z]+|[0-9]+", str(text).lower()))
+    return words & PROTECTED_PAGE_TERMS
+
+
 def has_long_sentence(text):
     sentences = [part.strip() for part in re.split(r"[.!?]+", str(text)) if part.strip()]
     return any(len(re.findall(r"[A-Za-z]+", sentence)) > 11 for sentence in sentences)
+
+
+def has_unpunctuated_character_list(text):
+    names = sorted(CHARACTER_APPEARANCES, key=len, reverse=True)
+    pattern = re.compile(r"\b(" + "|".join(map(re.escape, names)) + r")\b", re.I)
+    matches = list(pattern.finditer(str(text)))
+    for first, second in zip(matches, matches[1:]):
+        separator = str(text)[first.end():second.start()]
+        if not separator.strip():
+            return True
+    return False
 
 
 def previous_story_notes(books):
@@ -329,6 +360,11 @@ of the story and then suddenly win, solve the problem or become the main hero. A
 joining or running the race earlier. Letters, counting, colours, games and objects must help the same plot, not
 appear as unrelated lessons. Small changes of place are fine only when the story clearly moves there. Reject
 abrupt jumps in activity, unexplained new goals, disconnected page pairs, or an ending that was not prepared.
+Return natural=true only when every page sounds like a warm human-written story for a four-year-old. Require
+correct basic grammar and punctuation. Lists of names or items must use commas, such as “Bingo, Bandit,
+Owlette and Sparks.” Reject missing small words, stiff template phrases, odd word order, unclear pronouns,
+unnatural lines such as “The shops are bright as they come in,” and repeated filler that does not move the story.
+Keep the wording simple, but never make it broken or robotic.
 """
     response = request_with_retry(
         label,
@@ -346,7 +382,8 @@ abrupt jumps in activity, unexplained new goals, disconnected page pairs, or an 
         ),
     )
     result = json.loads(response.output_text)
-    return bool(result.get("coherent")), str(result.get("reason", "The pages do not form one story."))
+    approved = bool(result.get("coherent")) and bool(result.get("natural"))
+    return approved, str(result.get("reason", "The pages do not form one natural story."))
 
 
 def story_plan(client, number, previous_books, selected_themes, cover_background, cover_action):
@@ -378,6 +415,9 @@ colours, and make it help the story's single goal. Do not insert unrelated learn
 Reading level: for a four-year-old who is just starting school. Each scene must have four or five very
 short sentences and 24 to 34 words total. No sentence may have more than 11 words. Use only words a
 four-year-old hears often, such as look, find, help, play, happy, big, small, red, run and jump.
+Write natural, warm sentences that a parent would happily read aloud. Use correct grammar, articles and
+prepositions. Put commas between names and items in every list, with “and” before the last item. Never remove
+punctuation merely to make the words simpler. Avoid stiff, repetitive or computer-like phrases.
 Use a simple title of two to five words and simple headings of one to four words. Apart from character
 and theme names, avoid words longer than eight letters. Never use hard words such as adventure,
 amazed, astonished, beautiful, beneath, carefully, celebrated, discovered, enormous, exclaimed,
@@ -443,6 +483,8 @@ Previous attempt problem to fix: {last_problem or "none"}
                     raise ValueError(f"make the {label} much easier for a four-year-old")
                 if has_standalone_sound_effect(text):
                     raise ValueError(f"replace sound effects in the {label} with complete spoken sentences")
+                if has_unpunctuated_character_list(text):
+                    raise ValueError(f"use commas between character names in the {label}")
             cleaned = []
             new_texts = {normalised(intro), normalised(ending)}
             for scene in scenes:
@@ -466,6 +508,8 @@ Previous attempt problem to fix: {last_problem or "none"}
                     raise ValueError("keep every spoken sentence to 11 words or fewer")
                 if has_standalone_sound_effect(text):
                     raise ValueError("replace standalone sound effects with complete spoken sentences")
+                if has_unpunctuated_character_list(text):
+                    raise ValueError("use commas between character names in every list")
                 if text_key in used_texts or text_key in new_texts:
                     raise ValueError("do not repeat page wording from any book")
                 new_texts.add(text_key)
@@ -559,6 +603,49 @@ Small background details do not matter. Never require story words to be printed 
     )
     result = json.loads(response.output_text)
     return bool(result.get("matches")), str(result.get("reason", "Picture did not match the page."))
+
+
+def image_continues_previous_page(client, previous_raw, current_raw, previous_words, current_words, label):
+    previous_encoded = base64.b64encode(previous_raw).decode("ascii")
+    current_encoded = base64.b64encode(current_raw).decode("ascii")
+    prompt = f"""
+Check visual continuity between two consecutive preschool storybook pictures. The first supplied image is the
+previous page and the second supplied image is the new page.
+Previous page words: {previous_words}
+New page words: {current_words}
+
+Return consistent=true when recurring characters and important story objects keep the same identity and visible
+features. An object may move, turn, fold, open, close or gain something only when the page words explain that
+change. Return false when a continuing object silently changes its base colour, shape, pattern or key parts. For
+example, a blue blanket with red, blue and green square patches cannot become a blanket with a pink star and a
+yellow circle on the next page. Also reject a named character changing into a different character. Different
+camera views, poses, lighting, backgrounds and non-recurring small props are fine. If no important object carries
+between the pages, return true. Explain only the key continuity reason.
+"""
+    response = request_with_retry(
+        f"{label} continuity check",
+        lambda: client.responses.create(
+            model=VISION_MODEL,
+            input=[{
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": prompt},
+                    {"type": "input_image", "image_url": f"data:image/png;base64,{previous_encoded}", "detail": "high"},
+                    {"type": "input_image", "image_url": f"data:image/png;base64,{current_encoded}", "detail": "high"},
+                ],
+            }],
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "storybook_visual_continuity",
+                    "strict": True,
+                    "schema": VISUAL_CONTINUITY_SCHEMA,
+                }
+            },
+        ),
+    )
+    result = json.loads(response.output_text)
+    return bool(result.get("consistent")), str(result.get("reason", "The recurring story object changed."))
 
 
 def existing_cover_bytes(manifest, limit=10):
@@ -699,8 +786,8 @@ Return usable=false if the picture contains a caption, story sentence, speech bu
 Numberblocks, Alphablocks or Colourblocks. Also return usable=false when the picture replaces or omits a named
 original character, changes the central action, changes the setting, or shows a different story event; that picture
 must be regenerated. Official character names are: {official_roster}. Never invent, shorten or guess a character
-name. Keep every original named character, the central goal, action and setting exactly the same. You may only
-adjust a small visible detail, pose, gesture, non-key colour or non-key count that does not change the plot.
+name. Keep every original named character, the central goal, action and setting exactly the same. Never change,
+add or remove a number, count or colour. You may only adjust a small visible pose or gesture that does not change the plot.
 Otherwise return usable=true and write four or five complete,
 very short UK-English sentences totalling 24 to 34 words. Describe only characters, actions, colours,
 counts, objects and settings clearly visible in the picture. Keep the page kind, safe tone and nearby story flow.
@@ -746,6 +833,11 @@ wording from the story context. Do not mention the picture.
         if hard_words or blocked_names or has_long_sentence(adapted_text) or has_standalone_sound_effect(adapted_text):
             last_problem = "use only easy short sentences, with no blocked characters or sound effects"
             continue
+        original_details = protected_page_terms(f"{heading} {text}")
+        adapted_details = protected_page_terms(f"{adapted_heading} {adapted_text}")
+        if adapted_details != original_details:
+            last_problem = "keep every original number, count and colour exactly unchanged"
+            continue
         if normalised(adapted_text) in forbidden_texts:
             last_problem = "write new words that are not the same as another page or older book"
             continue
@@ -759,7 +851,17 @@ wording from the story context. Do not mention the picture.
 
 
 def adaptive_story_image(
-    client, label, prompt, page_type, heading, text, story_context, forbidden_texts, earlier_covers=()
+    client,
+    label,
+    prompt,
+    page_type,
+    heading,
+    text,
+    story_context,
+    forbidden_texts,
+    earlier_covers=(),
+    previous_raw=None,
+    previous_words="",
 ):
     original_words = page_match_words(page_type, heading, text)
     retry_prompt = prompt
@@ -780,6 +882,20 @@ def adaptive_story_image(
                 continue
         matches, reason = image_matches_page(client, raw, original_words, label)
         if matches:
+            if previous_raw is not None:
+                consistent, continuity_reason = image_continues_previous_page(
+                    client, previous_raw, raw, previous_words, original_words, label
+                )
+                if not consistent:
+                    last_problem = continuity_reason
+                    print(f"{label} broke visual continuity: {continuity_reason}", flush=True)
+                    retry_prompt = (
+                        prompt
+                        + " Keep every recurring character and important story object visually consistent with "
+                          "the prior page. Fix this continuity problem: "
+                        + continuity_reason
+                    )
+                    continue
             print(f"{label} passed its page-picture check.", flush=True)
             return raw, heading, text
         print(f"{label} did not match its first words: {reason}", flush=True)
@@ -787,6 +903,21 @@ def adaptive_story_image(
             adapted_heading, adapted_text = adapted_page_from_image(
                 client, raw, label, page_type, heading, text, story_context, reason, forbidden_texts
             )
+            adapted_words = page_match_words(page_type, adapted_heading, adapted_text)
+            if previous_raw is not None:
+                consistent, continuity_reason = image_continues_previous_page(
+                    client, previous_raw, raw, previous_words, adapted_words, label
+                )
+                if not consistent:
+                    last_problem = continuity_reason
+                    print(f"{label} broke visual continuity: {continuity_reason}", flush=True)
+                    retry_prompt = (
+                        prompt
+                        + " Keep every recurring character and important story object visually consistent with "
+                          "the prior page. Fix this continuity problem: "
+                        + continuity_reason
+                    )
+                    continue
             return raw, adapted_heading, adapted_text
         except RuntimeError as error:
             last_problem = str(error)
@@ -991,6 +1122,8 @@ def create_book(client, number):
     )
     final_page_texts.add(normalised(plan["intro"]))
     save_webp(cover_raw, directory / "cover.webp")
+    previous_raw = cover_raw
+    previous_words = page_match_words("title", plan["title"], plan["intro"])
     for index, scene in enumerate(plan["scenes"], 1):
         print(f"Creating picture {index} of 7 for: {plan['title']}", flush=True)
         scene_prompt = (
@@ -1010,9 +1143,13 @@ def create_book(client, number):
             scene["text"],
             story_context,
             final_page_texts,
+            previous_raw=previous_raw,
+            previous_words=previous_words,
         )
         final_page_texts.add(normalised(scene["text"]))
         save_webp(scene_raw, directory / f"scene-{index}.webp")
+        previous_raw = scene_raw
+        previous_words = page_match_words("text", scene["heading"], scene["text"])
     final_prompt = (
         style
         + "Draw this happy ending and nothing else: "
@@ -1031,6 +1168,8 @@ def create_book(client, number):
         plan["ending"],
         story_context,
         final_page_texts,
+        previous_raw=previous_raw,
+        previous_words=previous_words,
     )
     final_page_texts.add(normalised(plan["ending"]))
     save_webp(final_raw, directory / "scene-7.webp")
