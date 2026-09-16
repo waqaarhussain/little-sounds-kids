@@ -35,6 +35,8 @@ HARD_STORY_WORDS = {
 LONG_NAME_WORDS = {"superkitties"}
 IMAGE_ATTEMPTS = 3
 STORY_PLAN_ATTEMPTS = 8
+PAGE_TEXT_ATTEMPTS = 3
+MAX_CONSECUTIVE_BOOK_FAILURES = 3
 STORY_PLAN_SCHEMA = {
     "type": "object",
     "properties": {
@@ -66,6 +68,17 @@ IMAGE_CHECK_SCHEMA = {
         "reason": {"type": "string"},
     },
     "required": ["matches", "reason"],
+    "additionalProperties": False,
+}
+ADAPTED_PAGE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "usable": {"type": "boolean"},
+        "heading": {"type": "string"},
+        "text": {"type": "string"},
+        "reason": {"type": "string"},
+    },
+    "required": ["usable", "heading", "text", "reason"],
     "additionalProperties": False,
 }
 
@@ -310,15 +323,17 @@ Small background details do not matter. Never require story words to be printed 
     return bool(result.get("matches")), str(result.get("reason", "Picture did not match the page."))
 
 
-def matching_image_bytes(client, label, prompt, page_text, attempts=IMAGE_ATTEMPTS):
+def try_matching_image_bytes(client, label, prompt, page_text, attempts=IMAGE_ATTEMPTS):
     last_reason = ""
+    last_raw = None
     retry_prompt = prompt
     for attempt in range(1, attempts + 1):
         raw = image_bytes(client, retry_prompt)
+        last_raw = raw
         matches, reason = image_matches_page(client, raw, page_text, label)
         if matches:
             print(f"{label} passed its page-picture check.", flush=True)
-            return raw
+            return raw, ""
         last_reason = reason
         print(f"{label} did not match on attempt {attempt}: {reason}", flush=True)
         retry_prompt = (
@@ -328,7 +343,130 @@ def matching_image_bytes(client, label, prompt, page_text, attempts=IMAGE_ATTEMP
             + " Correct every listed problem in the next picture. Keep the required colours, characters, objects and action exact. "
               "Do not add captions, story sentences, labels, signs, speech bubbles or thought bubbles."
         )
+    return last_raw, last_reason
+
+
+def matching_image_bytes(client, label, prompt, page_text, attempts=IMAGE_ATTEMPTS):
+    raw, last_reason = try_matching_image_bytes(client, label, prompt, page_text, attempts)
+    if raw is not None and not last_reason:
+        return raw
     raise RuntimeError(f"{label} could not be matched to its words after {attempts} attempts: {last_reason}")
+
+
+def page_match_words(page_type, heading, text):
+    if page_type == "end":
+        return f"The final story page. {text}".strip()
+    return f"{heading}. {text}".strip()
+
+
+def adapted_page_from_image(
+    client, raw, label, page_type, heading, text, story_context, first_problem, forbidden_texts
+):
+    encoded = base64.b64encode(raw).decode("ascii")
+    fixed_heading = heading if page_type in {"title", "end"} else ""
+    last_problem = first_problem
+    for attempt in range(1, PAGE_TEXT_ATTEMPTS + 1):
+        heading_rule = (
+            f"Keep the heading exactly as {json.dumps(fixed_heading)}."
+            if fixed_heading
+            else "Write a new easy heading of one to four words that matches the picture."
+        )
+        prompt = f"""
+Rewrite one page of a picture book for children aged 3 to 5 so its words truthfully match the supplied picture.
+The picture was made for this original page: {heading}. {text}
+Story context to preserve where the picture allows it: {story_context}
+The last mismatch was: {last_problem}
+{heading_rule}
+Return usable=false if the picture contains a caption, story sentence, speech bubble, logo, watermark,
+Numberblocks, Alphablocks or Colourblocks. Otherwise return usable=true and write four or five complete,
+very short UK-English sentences totalling 24 to 34 words. Describe only characters, actions, colours,
+counts, objects and settings clearly visible in the picture. You may change the original character names,
+action, colour or count to what the picture actually shows, while keeping the page kind, safe tone and
+nearby story flow. Use words a four-year-old knows. No sentence may exceed 11 words. Do not use sound
+effects. Apart from character names, avoid words longer than eight letters. Do not copy another page's
+wording from the story context. Do not mention the picture.
+"""
+        response = request_with_retry(
+            f"{label} word match attempt {attempt}",
+            lambda: client.responses.create(
+                model=VISION_MODEL,
+                input=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": prompt},
+                        {"type": "input_image", "image_url": f"data:image/png;base64,{encoded}", "detail": "low"},
+                    ],
+                }],
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": "adapted_storybook_page",
+                        "strict": True,
+                        "schema": ADAPTED_PAGE_SCHEMA,
+                    }
+                },
+            ),
+        )
+        data = json.loads(response.output_text)
+        if not data.get("usable"):
+            raise RuntimeError(f"{label} cannot safely be matched by changing its words: {data.get('reason', last_problem)}")
+        adapted_heading = fixed_heading or " ".join(str(data.get("heading", "")).split())[:60]
+        adapted_text = " ".join(str(data.get("text", "")).split())
+        words = len(adapted_text.split())
+        if not adapted_heading or not 24 <= words <= 34:
+            last_problem = "use a valid heading and exactly 24 to 34 words"
+            continue
+        if len(adapted_heading.split()) > 4 or difficult_story_words(adapted_heading) or banned_story_names(adapted_heading):
+            last_problem = "make the heading short, easy and free of blocked characters"
+            continue
+        hard_words = difficult_story_words(adapted_text)
+        blocked_names = banned_story_names(adapted_text)
+        if hard_words or blocked_names or has_long_sentence(adapted_text) or has_standalone_sound_effect(adapted_text):
+            last_problem = "use only easy short sentences, with no blocked characters or sound effects"
+            continue
+        if normalised(adapted_text) in forbidden_texts:
+            last_problem = "write new words that are not the same as another page or older book"
+            continue
+        adapted_words = page_match_words(page_type, adapted_heading, adapted_text)
+        matches, reason = image_matches_page(client, raw, adapted_words, f"{label} adapted words")
+        if matches:
+            print(f"{label} kept its picture and adjusted its page words to match.", flush=True)
+            return adapted_heading, adapted_text
+        last_problem = reason
+    raise RuntimeError(f"{label} picture and adjusted words still did not agree: {last_problem}")
+
+
+def adaptive_story_image(client, label, prompt, page_type, heading, text, story_context, forbidden_texts):
+    original_words = page_match_words(page_type, heading, text)
+    retry_prompt = prompt
+    last_problem = ""
+    for image_attempt in range(1, IMAGE_ATTEMPTS + 1):
+        raw = image_bytes(client, retry_prompt)
+        matches, reason = image_matches_page(client, raw, original_words, label)
+        if matches:
+            print(f"{label} passed its page-picture check.", flush=True)
+            return raw, heading, text
+        print(f"{label} did not match its first words: {reason}", flush=True)
+        try:
+            adapted_heading, adapted_text = adapted_page_from_image(
+                client, raw, label, page_type, heading, text, story_context, reason, forbidden_texts
+            )
+            return raw, adapted_heading, adapted_text
+        except RuntimeError as error:
+            last_problem = str(error)
+            print(
+                f"{label} could not safely change its words on picture attempt {image_attempt}: {error}",
+                flush=True,
+            )
+        retry_prompt = (
+            prompt
+            + " The previous picture could not be paired safely with simple page words because: "
+            + last_problem
+            + " Make a clean, caption-free replacement with the named characters and one very clear action."
+        )
+    raise RuntimeError(
+        f"{label} could not produce one safe picture-and-words pair after {IMAGE_ATTEMPTS} picture attempts: {last_problem}"
+    )
 
 
 def visual_briefs(client, page_words):
@@ -473,27 +611,46 @@ def create_book(client, number):
         *(f"{scene['heading']}. {scene['text']}" for scene in plan["scenes"]),
         f"The final story page. {plan['ending']}",
     ]
+    story_context = " ".join(page_words)
+    final_page_texts = existing_values([BASE_BOOK, *history["books"], *manifest["books"]], "text")
     briefs = visual_briefs(client, page_words)
     style = illustration_style()
     print(f"Creating cover for: {plan['title']}", flush=True)
-    cover_words = page_words[0]
     cover_prompt = style + "Draw this opening scene without any printed book title or story text: " + briefs[0]
-    save_webp(matching_image_bytes(client, "Cover", cover_prompt, cover_words), directory / "cover.webp")
+    cover_raw, _, plan["intro"] = adaptive_story_image(
+        client, "Cover", cover_prompt, "title", plan["title"], plan["intro"], story_context, final_page_texts
+    )
+    final_page_texts.add(normalised(plan["intro"]))
+    save_webp(cover_raw, directory / "cover.webp")
     for index, scene in enumerate(plan["scenes"], 1):
         print(f"Creating picture {index} of 7 for: {plan['title']}", flush=True)
-        scene_words = page_words[index]
         scene_prompt = style + "Draw this scene and nothing else: " + briefs[index]
-        save_webp(
-            matching_image_bytes(client, f"Picture {index} of 7", scene_prompt, scene_words),
-            directory / f"scene-{index}.webp",
+        scene_raw, scene["heading"], scene["text"] = adaptive_story_image(
+            client,
+            f"Picture {index} of 7",
+            scene_prompt,
+            "text",
+            scene["heading"],
+            scene["text"],
+            story_context,
+            final_page_texts,
         )
-    final_words = page_words[-1]
+        final_page_texts.add(normalised(scene["text"]))
+        save_webp(scene_raw, directory / f"scene-{index}.webp")
     final_prompt = style + "Draw this happy ending and nothing else: " + briefs[-1]
     print(f"Creating picture 7 of 7 for: {plan['title']}", flush=True)
-    save_webp(
-        matching_image_bytes(client, "Picture 7 of 7", final_prompt, final_words),
-        directory / "scene-7.webp",
+    final_raw, _, plan["ending"] = adaptive_story_image(
+        client,
+        "Picture 7 of 7",
+        final_prompt,
+        "end",
+        "The End",
+        plan["ending"],
+        story_context,
+        final_page_texts,
     )
+    final_page_texts.add(normalised(plan["ending"]))
+    save_webp(final_raw, directory / "scene-7.webp")
     pages = [
         {"type": "image", "src": f"/generated-books/{slug}/cover.webp", "alt": f"Cover of {plan['title']}"},
         {"type": "title", "title": plan["title"], "text": plan["intro"]},
@@ -578,6 +735,7 @@ def repair_generated_book(client, selected_slug):
 def main():
     key = os.environ.get("OPENAI_API_KEY", "")
     count = int(os.environ.get("BOOK_COUNT", "0"))
+    start_count = int(os.environ.get("BOOK_START_COUNT", "0"))
     repair_slug = os.environ.get("REPAIR_SLUG", "").strip()
     repair_mode = bool(repair_slug)
     if not key:
@@ -595,21 +753,41 @@ def main():
             print("The book's original pictures, story and narration were not changed.", flush=True)
             raise SystemExit(1)
         return
-    completed = 0
-    failures = []
-    for number in range(1, count + 1):
+    current_count = len([
+        book for book in read_manifest().get("books", [])
+        if isinstance(book, dict)
+    ])
+    completed = max(0, min(count, current_count - start_count))
+    if completed:
+        print(f"Resuming this job: {completed} of {count} requested books are already complete.", flush=True)
+    consecutive_failures = 0
+    total_failures = 0
+    while completed < count:
+        number = completed + 1
         directories_before = {child for child in BOOK_ROOT.iterdir() if child.is_dir()}
         try:
             create_book(client, number)
             completed += 1
+            consecutive_failures = 0
         except Exception as error:
             remove_unpublished_directories(directories_before)
-            print(f"Book {number} failed safely: {error}", flush=True)
-            failures.append(number)
+            consecutive_failures += 1
+            total_failures += 1
+            print(f"Book slot {number} attempt failed safely: {error}", flush=True)
+            if consecutive_failures < MAX_CONSECUTIVE_BOOK_FAILURES:
+                print(f"Creating a fresh replacement plan for book slot {number} automatically.", flush=True)
+            else:
+                print(
+                    f"Stopped after {MAX_CONSECUTIVE_BOOK_FAILURES} consecutive full-book failures to limit cost.",
+                    flush=True,
+                )
+                break
     print(f"Book generation finished: {completed} of {count} completed.", flush=True)
-    if failures:
-        failed_numbers = ", ".join(str(number) for number in failures)
-        print(f"FAILED book number(s): {failed_numbers}. Nothing incomplete was published.", flush=True)
+    if completed < count:
+        print(
+            f"FAILED: {count - completed} requested book(s) are still missing after {total_failures} safe replacement attempt(s).",
+            flush=True,
+        )
         raise SystemExit(1)
     print("SUCCESS: every requested book is ready. Open /books/ to see them.", flush=True)
 
