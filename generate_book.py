@@ -36,6 +36,25 @@ CHARACTER_ROSTERS = {
     "superkitties": ("Ginny", "Sparks", "Buddy", "Bitsy"),
     "paw patrol": ("Chase", "Marshall", "Skye", "Rubble", "Rocky", "Zuma"),
 }
+CHARACTER_APPEARANCES = {
+    "Bluey": "a small blue heeler puppy with blue and dark-blue fur",
+    "Bingo": "a small orange heeler puppy with cream patches",
+    "Chilli": "an adult red-orange heeler dog with cream patches",
+    "Bandit": "an adult blue heeler dog with blue and dark-blue fur",
+    "Catboy": "a child hero in a blue cat suit and blue cat-ear mask",
+    "Owlette": "a child hero in a red owl suit, red mask and wing-shaped cape",
+    "Gekko": "a child hero in a green lizard suit and green mask",
+    "Ginny": "an orange ginger tabby cat in a pink hero suit and pink mask",
+    "Sparks": "a yellow Bengal cat in a purple hero suit and purple mask",
+    "Buddy": "a large calico cat in an orange hero suit and orange mask",
+    "Bitsy": "a very small white kitten in a sky-blue hero suit and blue mask",
+    "Chase": "a brown and tan German shepherd pup in blue police gear",
+    "Marshall": "a white Dalmatian pup with black spots in red fire gear",
+    "Skye": "a small tan cockapoo pup in pink flight gear",
+    "Rubble": "a tan and brown bulldog pup in yellow builder gear",
+    "Rocky": "a grey and white mixed-breed pup in green recycling gear",
+    "Zuma": "a chocolate-brown Labrador pup in orange water-rescue gear",
+}
 SOUND_EFFECT_WORDS = {"bang", "beep", "boom", "click", "crash", "ding", "pop", "pow", "splash", "whoosh", "zap"}
 HARD_STORY_WORDS = {
     "adventure", "amazed", "astonished", "beautiful", "beneath", "carefully", "celebrated",
@@ -182,6 +201,22 @@ def roster_for_theme(theme):
 
 def text_names_character(text, character):
     return f" {normalised(character)} " in f" {normalised(text)} "
+
+
+def character_appearance_guide(text):
+    details = [
+        f"{name}: {appearance}"
+        for name, appearance in CHARACTER_APPEARANCES.items()
+        if text_names_character(text, name)
+    ]
+    return "; ".join(details)
+
+
+def complete_character_roster():
+    return "; ".join(
+        f"{theme}: {', '.join(names)}"
+        for theme, names in CHARACTER_ROSTERS.items()
+    )
 
 
 def clean_slug(title):
@@ -402,9 +437,11 @@ def image_bytes(client, prompt):
 
 def image_matches_page(client, raw, page_text, label):
     encoded = base64.b64encode(raw).decode("ascii")
+    identity_guide = character_appearance_guide(page_text)
     check_prompt = f"""
 You are checking whether one preschool storybook picture is a sensible illustration for its page words.
 Exact page words: {page_text}
+Exact appearance guide for every named character on this page: {identity_guide or "no named character guide"}
 One still picture is not expected to show every sentence or every step that happens across the page. Return
 matches=true when it clearly shows the same central story moment, named main characters, setting and key
 objects, without contradicting the page. Do not reject it merely because a small gesture, pose, facial
@@ -413,6 +450,9 @@ hands. Exact colour or object count matters only when that colour or count is ce
 Return false if it shows a different central event, misses a key object, replaces a named main character with
 a character from another world, gets a central learning colour or count wrong, or shows Numberblocks,
 Alphablocks or Colourblocks.
+Return false if a named character has the wrong fur colour, species, mask, suit or uniform from the appearance
+guide. A different character from the same programme does not count as the named character. For example, a
+small white SuperKitties cat in blue is Bitsy, never Ginny; Ginny must be an orange tabby in pink.
 Return false if the picture contains a story heading, caption, sentence, paragraph, speech bubble or page
 wording. A single learning symbol such as A or 3 is allowed only when the page itself needs that object.
 Small background details do not matter. Never require story words to be printed inside the picture.
@@ -563,6 +603,7 @@ def adapted_page_from_image(
     encoded = base64.b64encode(raw).decode("ascii")
     fixed_heading = heading if page_type in {"title", "end"} else ""
     last_problem = first_problem
+    official_roster = complete_character_roster()
     for attempt in range(1, PAGE_TEXT_ATTEMPTS + 1):
         heading_rule = (
             f"Keep the heading exactly as {json.dumps(fixed_heading)}."
@@ -576,7 +617,9 @@ Story context to preserve where the picture allows it: {story_context}
 The last mismatch was: {last_problem}
 {heading_rule}
 Return usable=false if the picture contains a caption, story sentence, speech bubble, logo, watermark,
-Numberblocks, Alphablocks or Colourblocks. Otherwise return usable=true and write four or five complete,
+Numberblocks, Alphablocks or Colourblocks. Also return usable=false when the picture replaces a named original
+character with another character, even from the same show; that picture must be regenerated. Official character
+names are: {official_roster}. Never invent, shorten or guess a character name. Otherwise return usable=true and write four or five complete,
 very short UK-English sentences totalling 24 to 34 words. Describe only characters, actions, colours,
 counts, objects and settings clearly visible in the picture. You may change the original character names,
 action, colour or count to what the picture actually shows, while keeping the page kind, safe tone and
@@ -848,6 +891,9 @@ def create_book(client, number):
         + ". Use only characters from these selected themes: "
         + ", ".join(selected_themes)
         + "."
+        + " Exact named character appearance guide: "
+        + character_appearance_guide(page_words[0])
+        + ". Do not swap one named character for another from the same show."
         + " For this cover only: "
         + composition
     )
@@ -866,7 +912,14 @@ def create_book(client, number):
     save_webp(cover_raw, directory / "cover.webp")
     for index, scene in enumerate(plan["scenes"], 1):
         print(f"Creating picture {index} of 7 for: {plan['title']}", flush=True)
-        scene_prompt = style + "Draw this scene and nothing else: " + briefs[index]
+        scene_prompt = (
+            style
+            + "Draw this scene and nothing else: "
+            + briefs[index]
+            + " Exact named character appearance guide: "
+            + character_appearance_guide(page_words[index])
+            + ". Do not swap one named character for another from the same show."
+        )
         scene_raw, scene["heading"], scene["text"] = adaptive_story_image(
             client,
             f"Picture {index} of 7",
@@ -879,7 +932,14 @@ def create_book(client, number):
         )
         final_page_texts.add(normalised(scene["text"]))
         save_webp(scene_raw, directory / f"scene-{index}.webp")
-    final_prompt = style + "Draw this happy ending and nothing else: " + briefs[-1]
+    final_prompt = (
+        style
+        + "Draw this happy ending and nothing else: "
+        + briefs[-1]
+        + " Exact named character appearance guide: "
+        + character_appearance_guide(page_words[-1])
+        + ". Do not swap one named character for another from the same show."
+    )
     print(f"Creating picture 7 of 7 for: {plan['title']}", flush=True)
     final_raw, _, plan["ending"] = adaptive_story_image(
         client,
