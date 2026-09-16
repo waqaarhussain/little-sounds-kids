@@ -344,7 +344,7 @@ Small background details do not matter. Never require story words to be printed 
     return bool(result.get("matches")), str(result.get("reason", "Picture did not match the page."))
 
 
-def existing_cover_bytes(manifest, limit=6):
+def existing_cover_bytes(manifest, limit=10):
     covers = []
     books = [book for book in manifest.get("books", []) if isinstance(book, dict)]
     for book in reversed(books):
@@ -406,7 +406,7 @@ different composition, viewpoint, key action, main object or setting. Explain th
                 "content": [
                     {"type": "input_text", "text": prompt},
                     {"type": "input_image", "image_url": f"data:image/png;base64,{current_encoded}", "detail": "low"},
-                    {"type": "input_image", "image_url": f"data:image/jpeg;base64,{sheet_encoded}", "detail": "low"},
+                    {"type": "input_image", "image_url": f"data:image/jpeg;base64,{sheet_encoded}", "detail": "high"},
                 ],
             }],
             text={
