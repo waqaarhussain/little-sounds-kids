@@ -4,7 +4,8 @@ set -euo pipefail
 service_name="little-sounds-book-generator.service"
 key_dir="/root/.config/little-sounds"
 key_file="$key_dir/openai.env"
-run_file="/run/little-sounds-book.env"
+run_file="$key_dir/book-job.env"
+manifest="/var/www/little-sounds/generated-books/books.json"
 
 if [ "$(id -u)" -ne 0 ]; then echo "Run generate-book as root."; exit 1; fi
 case "${1:-start}" in
@@ -42,18 +43,31 @@ while true; do
 done
 minimum_images=$((book_count * 8))
 maximum_images=$((book_count * 24))
-echo "This creates $book_count book(s), checks every picture against its page and retries mismatches."
+echo "This creates $book_count book(s) and checks every picture with its page."
+echo "If they differ, it changes the page words to the picture or replaces an unusable picture."
 echo "It normally needs at least $minimum_images low-quality illustrations; the safety limit is $maximum_images."
 echo "Estimated image-output range: about \$$(awk -v n="$minimum_images" 'BEGIN { printf "%.2f", n * 0.005 }') to \$$(awk -v n="$maximum_images" 'BEGIN { printf "%.2f", n * 0.005 }'), plus text, image-check and narration costs."
+echo "If a whole book is unusable, it creates a fresh replacement automatically; that can add extra cost."
 read -r -p "Start the background book generator? [Y/n]: " confirmation
 if [[ "$confirmation" =~ ^[Nn]$ ]]; then echo "Cancelled."; exit 0; fi
+current_book_count="$(python3 - "$manifest" <<'PY'
+import json
+import sys
+from pathlib import Path
+try:
+    data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    books = data.get("books", [])
+    print(sum(1 for book in books if isinstance(book, dict)))
+except (OSError, ValueError, TypeError):
+    print(0)
+PY
+)"
 umask 077
-printf 'BOOK_COUNT=%s\nPYTHONUNBUFFERED=1\n' "$book_count" > "$run_file"
+printf 'BOOK_COUNT=%s\nBOOK_START_COUNT=%s\nPYTHONUNBUFFERED=1\n' "$book_count" "$current_book_count" > "$run_file"
 chmod 0600 "$run_file"
 systemctl reset-failed "$service_name" 2>/dev/null || true
 systemctl start "$service_name"
 sleep 2
-rm -f "$run_file"
 if systemctl is-failed --quiet "$service_name"; then journalctl -u "$service_name" -n 40 --no-pager; exit 1; fi
 echo "Book creation is running in the background; you can close Termius."
 echo "Watch it with: generate-book watch"
