@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import time
 from datetime import datetime, timezone
+from itertools import combinations
 from pathlib import Path
 
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, RateLimitError
@@ -102,6 +103,68 @@ COVER_COMPOSITIONS = (
     "Use a broad scene with the characters spread across clear left, middle and right areas.",
     "Place the characters in a loose circle around the main action, seen at a slight angle.",
 )
+COVER_BACKGROUNDS = (
+    "a sunny beach with rock pools",
+    "a green woodland path with tall trees",
+    "a bright farm yard with a red barn",
+    "a cosy playroom with shelves and cushions",
+    "a snowy hill with small pine trees",
+    "a colourful town square with little shops",
+    "a flower garden with a small pond",
+    "a hilltop picnic place under a wide sky",
+    "a fun fair with flags and a gentle ride",
+    "a riverside path with a little bridge",
+)
+COVER_ACTIONS = (
+    "finding one surprising object together",
+    "helping with one simple game",
+    "carrying one special item as a team",
+    "following a short trail of clues",
+    "building one small thing together",
+    "sorting a few bright objects",
+    "getting ready for a friendly race",
+    "sharing one useful item",
+    "looking for one missing item",
+    "celebrating one kind deed",
+)
+
+
+def theme_names():
+    names = [part.strip() for part in re.split(r"\s*,\s*|\s+and\s+", STORY_THEMES) if part.strip()]
+    return names or [STORY_THEMES]
+
+
+def shuffled_cover_recipes():
+    names = theme_names()
+    groups = []
+    if len(names) >= 2:
+        groups.extend(combinations(names, 2))
+    if len(names) >= 3:
+        groups.extend(combinations(names, 3))
+    if not groups:
+        groups = [tuple(names)]
+    groups = list(groups)
+    backgrounds = list(COVER_BACKGROUNDS)
+    actions = list(COVER_ACTIONS)
+    seed = os.environ.get("BOOK_RECIPE_SEED", "") or str(random.SystemRandom().getrandbits(128))
+    recipe_random = random.Random(seed)
+    recipe_random.shuffle(groups)
+    recipe_random.shuffle(backgrounds)
+    recipe_random.shuffle(actions)
+    return groups, backgrounds, actions
+
+
+THEME_GROUPS, SHUFFLED_COVER_BACKGROUNDS, SHUFFLED_COVER_ACTIONS = shuffled_cover_recipes()
+
+
+def book_cover_recipe(number):
+    index = max(0, number - 1)
+    return (
+        THEME_GROUPS[index % len(THEME_GROUPS)],
+        SHUFFLED_COVER_BACKGROUNDS[index % len(SHUFFLED_COVER_BACKGROUNDS)],
+        SHUFFLED_COVER_ACTIONS[index % len(SHUFFLED_COVER_ACTIONS)],
+        COVER_COMPOSITIONS[index % len(COVER_COMPOSITIONS)],
+    )
 
 
 def clean_slug(title):
@@ -177,7 +240,7 @@ def existing_values(books, field):
     return values
 
 
-def story_plan(client, number, previous_books):
+def story_plan(client, number, previous_books, selected_themes, cover_background, cover_action):
     used_titles = {normalised(book.get("title", "")) for book in previous_books if isinstance(book, dict)}
     used_texts = existing_values(previous_books, "text")
     previous_notes = previous_story_notes(previous_books)
@@ -185,7 +248,10 @@ def story_plan(client, number, previous_books):
     for attempt in range(1, STORY_PLAN_ATTEMPTS + 1):
         prompt = f"""
 Create one original 16-page picture-book plan for children aged 3 to 5 in UK English.
-It must be a playful crossover using friendly characters from two or more of these themes: {STORY_THEMES}.
+It must be a playful crossover using friendly characters from every one of these selected themes:
+{", ".join(selected_themes)}. Do not use characters from the other available themes in this book.
+Use at least one named character from each selected theme. Where that theme has other friendly characters,
+avoid repeating the exact named character group used by the recent books below.
 Never use, name or show Numberblocks, Alphablocks or Colourblocks. They are not allowed in these books.
 Use familiar character names, kindness, counting, letters and colours. Keep it safe, warm and funny.
 Reading level: for a four-year-old who is just starting school. Each scene must have four or five very
@@ -201,6 +267,7 @@ Bang!, Whoosh!, Pop!, Click!, Beep! or Crash!. Describe the action naturally in 
 Return JSON only with: title, intro, ending, and scenes. intro and ending must each use 24 to 34 words
 made from four or five very short sentences. The intro must begin the story. The ending must finish it.
 Name every character shown in the intro and ending so their matching pictures can be made from those words.
+The intro and cover must take place in {cover_background}. Centre that opening moment on {cover_action}.
 scenes must contain exactly 6 objects with heading and text. Every scene must work on its own. Name every
 character who appears in that scene so its picture can be made from those exact words. Do not rely on a
 previous page to identify a character. Make every page easy to draw as one still picture. Give each page one
@@ -715,7 +782,15 @@ def create_book(client, number):
     history = read_history()
     if merge_history(history, manifest["books"]):
         write_json_atomic(HISTORY, history)
-    plan = story_plan(client, number, [BASE_BOOK, *history["books"], *manifest["books"]])
+    selected_themes, cover_background, cover_action, composition = book_cover_recipe(number)
+    plan = story_plan(
+        client,
+        number,
+        [BASE_BOOK, *history["books"], *manifest["books"]],
+        selected_themes,
+        cover_background,
+        cover_action,
+    )
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     slug = f"{clean_slug(plan['title'])}-{stamp}-{random.randrange(1000, 9999)}"
     directory = BOOK_ROOT / slug
@@ -730,12 +805,18 @@ def create_book(client, number):
     briefs = visual_briefs(client, page_words)
     style = illustration_style()
     print(f"Creating cover for: {plan['title']}", flush=True)
-    composition = COVER_COMPOSITIONS[(number - 1) % len(COVER_COMPOSITIONS)]
     earlier_covers = existing_cover_bytes(manifest)
     cover_prompt = (
         style
         + "Draw this opening scene without any printed book title or story text: "
         + briefs[0]
+        + " Required cover setting: "
+        + cover_background
+        + ". Required main cover activity: "
+        + cover_action
+        + ". Use only characters from these selected themes: "
+        + ", ".join(selected_themes)
+        + "."
         + " For this cover only: "
         + composition
     )
