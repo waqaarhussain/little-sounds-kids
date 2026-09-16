@@ -70,6 +70,15 @@ IMAGE_CHECK_SCHEMA = {
     "required": ["matches", "reason"],
     "additionalProperties": False,
 }
+COVER_DIVERSITY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "distinct": {"type": "boolean"},
+        "reason": {"type": "string"},
+    },
+    "required": ["distinct", "reason"],
+    "additionalProperties": False,
+}
 ADAPTED_PAGE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -81,6 +90,18 @@ ADAPTED_PAGE_SCHEMA = {
     "required": ["usable", "heading", "text", "reason"],
     "additionalProperties": False,
 }
+COVER_COMPOSITIONS = (
+    "Use a wide side view with the characters moving across the scene.",
+    "Use a gentle top-down view with the characters gathered around the key object.",
+    "Place the key object large in the foreground and the characters farther back.",
+    "Arrange the characters on a clear diagonal from near to far.",
+    "Show the characters from behind as they look towards the main place or object.",
+    "Use a low camera view with the characters doing the main action above it.",
+    "Frame the scene through a gate, doorway, tree branches or another natural opening.",
+    "Put one main character to one side in front, with the other named characters behind.",
+    "Use a broad scene with the characters spread across clear left, middle and right areas.",
+    "Place the characters in a loose circle around the main action, seen at a slight angle.",
+)
 
 
 def clean_slug(title):
@@ -323,6 +344,85 @@ Small background details do not matter. Never require story words to be printed 
     return bool(result.get("matches")), str(result.get("reason", "Picture did not match the page."))
 
 
+def existing_cover_bytes(manifest, limit=6):
+    covers = []
+    books = [book for book in manifest.get("books", []) if isinstance(book, dict)]
+    for book in reversed(books):
+        slug = str(book.get("slug", ""))
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,95}", slug):
+            continue
+        path = BOOK_ROOT / slug / "cover.webp"
+        try:
+            covers.append(path.read_bytes())
+        except OSError:
+            continue
+        if len(covers) >= limit:
+            break
+    return covers
+
+
+def cover_reference_sheet(covers):
+    tiles = []
+    for raw in covers:
+        try:
+            tile = Image.open(io.BytesIO(raw)).convert("RGB")
+            tile.thumbnail((320, 214), Image.Resampling.LANCZOS)
+            tiles.append(tile.copy())
+        except (OSError, ValueError):
+            continue
+    if not tiles:
+        return b""
+    columns = 2
+    rows = (len(tiles) + columns - 1) // columns
+    sheet = Image.new("RGB", (columns * 320, rows * 214), "white")
+    for index, tile in enumerate(tiles):
+        x = (index % columns) * 320 + (320 - tile.width) // 2
+        y = (index // columns) * 214 + (214 - tile.height) // 2
+        sheet.paste(tile, (x, y))
+    output = io.BytesIO()
+    sheet.save(output, "JPEG", quality=78, optimize=True)
+    return output.getvalue()
+
+
+def cover_is_distinct(client, raw, earlier_covers):
+    sheet = cover_reference_sheet(earlier_covers)
+    if not sheet:
+        return True, ""
+    current_encoded = base64.b64encode(raw).decode("ascii")
+    sheet_encoded = base64.b64encode(sheet).decode("ascii")
+    prompt = """
+The first image is a proposed new preschool book cover. The second image is a sheet of earlier covers.
+Return distinct=false when the new cover repeats an earlier cover's main camera view, character arrangement,
+pose, action and background so closely that the shelf would look like copies with different titles. Using the
+same familiar characters or the same art style is fine. Return distinct=true when the new cover has a clearly
+different composition, viewpoint, key action, main object or setting. Explain the most important reason briefly.
+"""
+    response = request_with_retry(
+        "Cover diversity check",
+        lambda: client.responses.create(
+            model=VISION_MODEL,
+            input=[{
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": prompt},
+                    {"type": "input_image", "image_url": f"data:image/png;base64,{current_encoded}", "detail": "low"},
+                    {"type": "input_image", "image_url": f"data:image/jpeg;base64,{sheet_encoded}", "detail": "low"},
+                ],
+            }],
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "storybook_cover_diversity",
+                    "strict": True,
+                    "schema": COVER_DIVERSITY_SCHEMA,
+                }
+            },
+        ),
+    )
+    result = json.loads(response.output_text)
+    return bool(result.get("distinct")), str(result.get("reason", "Cover looks too similar."))
+
+
 def try_matching_image_bytes(client, label, prompt, page_text, attempts=IMAGE_ATTEMPTS):
     last_reason = ""
     last_raw = None
@@ -436,12 +536,26 @@ wording from the story context. Do not mention the picture.
     raise RuntimeError(f"{label} picture and adjusted words still did not agree: {last_problem}")
 
 
-def adaptive_story_image(client, label, prompt, page_type, heading, text, story_context, forbidden_texts):
+def adaptive_story_image(
+    client, label, prompt, page_type, heading, text, story_context, forbidden_texts, earlier_covers=()
+):
     original_words = page_match_words(page_type, heading, text)
     retry_prompt = prompt
     last_problem = ""
     for image_attempt in range(1, IMAGE_ATTEMPTS + 1):
         raw = image_bytes(client, retry_prompt)
+        if earlier_covers:
+            distinct, diversity_reason = cover_is_distinct(client, raw, earlier_covers)
+            if not distinct:
+                last_problem = diversity_reason
+                print(f"{label} looked too much like an earlier cover: {diversity_reason}", flush=True)
+                retry_prompt = (
+                    prompt
+                    + " Make this cover visibly different from the earlier shelf covers. Change its camera view, "
+                      "character layout, key action and background while keeping the story moment correct. "
+                    + diversity_reason
+                )
+                continue
         matches, reason = image_matches_page(client, raw, original_words, label)
         if matches:
             print(f"{label} passed its page-picture check.", flush=True)
@@ -616,9 +730,25 @@ def create_book(client, number):
     briefs = visual_briefs(client, page_words)
     style = illustration_style()
     print(f"Creating cover for: {plan['title']}", flush=True)
-    cover_prompt = style + "Draw this opening scene without any printed book title or story text: " + briefs[0]
+    composition = COVER_COMPOSITIONS[(number - 1) % len(COVER_COMPOSITIONS)]
+    earlier_covers = existing_cover_bytes(manifest)
+    cover_prompt = (
+        style
+        + "Draw this opening scene without any printed book title or story text: "
+        + briefs[0]
+        + " For this cover only: "
+        + composition
+    )
     cover_raw, _, plan["intro"] = adaptive_story_image(
-        client, "Cover", cover_prompt, "title", plan["title"], plan["intro"], story_context, final_page_texts
+        client,
+        "Cover",
+        cover_prompt,
+        "title",
+        plan["title"],
+        plan["intro"],
+        story_context,
+        final_page_texts,
+        earlier_covers,
     )
     final_page_texts.add(normalised(plan["intro"]))
     save_webp(cover_raw, directory / "cover.webp")
