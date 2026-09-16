@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$(id -u)" -ne 0 ]; then echo "Run rollback-live as root."; exit 1; fi
+snapshot_root="/root/little-sounds-snapshots"
+live_site="/var/www/little-sounds"
+live_app="/opt/little-sounds"
+
+if [ -n "${1:-}" ]; then
+  snapshot="$snapshot_root/$1"
+else
+  snapshot="$(find "$snapshot_root" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n 1 | cut -d' ' -f2-)"
+fi
+if [ -z "$snapshot" ] || [ ! -f "$snapshot/site/index.html" ] || [ ! -f "$snapshot/app/app.py" ]; then
+  echo "No valid live rollback snapshot was found."
+  exit 1
+fi
+
+echo "Selected snapshot: $(basename "$snapshot")"
+read -r -p "Restore this code to live while keeping albums, books and phonics audio? [y/N]: " confirmation
+[[ "$confirmation" =~ ^[Yy]$ ]] || { echo "Cancelled."; exit 0; }
+
+systemctl stop little-sounds.service
+rsync -a --delete --exclude sticker-images --exclude sticker-generator --exclude generated-books --exclude phonics-audio "$snapshot/site/" "$live_site/"
+rsync -a --delete "$snapshot/app/" "$live_app/"
+for path in "$snapshot/bin"/*; do [ -f "$path" ] && install -m 0755 "$path" "/usr/local/bin/$(basename "$path")"; done
+chmod -R a+rX "$live_site"
+systemctl restart little-sounds.service
+
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -fsS http://127.0.0.1:8787/api/health >/dev/null; then
+    echo "Rollback complete. Albums, books and phonics audio were preserved."
+    exit 0
+  fi
+  sleep 1
+done
+echo "The restored service did not pass its health check. Run: journalctl -u little-sounds -n 80"
+exit 1

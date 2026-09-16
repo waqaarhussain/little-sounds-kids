@@ -43,6 +43,11 @@ echo "[1/4] Installing the web server..."
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y nginx curl ca-certificates python3-venv fonts-dejavu-core rsync ffmpeg
 
+# The project now deploys directly to live. Remove the retired isolated test stack.
+systemctl disable --now little-sounds-test.service 2>/dev/null || true
+rm -f /etc/systemd/system/little-sounds-test.service /etc/little-sounds-test.env
+rm -rf /opt/little-sounds-test /opt/little-sounds-test-venv /var/www/little-sounds-test /var/lib/little-sounds-test
+
 site_stage="$work_dir/site"
 cp -a "$installer_dir/site/." "$site_stage/"
 
@@ -54,21 +59,25 @@ install -d -m 0755 /opt/little-sounds
 install -m 0755 "$installer_dir/generate_stickers.py" /opt/little-sounds/generate_stickers.py
 install -m 0755 "$installer_dir/generate_book.py" /opt/little-sounds/generate_book.py
 install -m 0755 "$installer_dir/narrate_books.py" /opt/little-sounds/narrate_books.py
+install -m 0755 "$installer_dir/cache_phonics_audio.py" /opt/little-sounds/cache_phonics_audio.py
 rm -f /usr/local/bin/generate /usr/local/bin/backup-stickers
 install -m 0755 "$installer_dir/generate-stickers" /usr/local/bin/generate-stickers
 install -m 0755 "$installer_dir/generate-book" /usr/local/bin/generate-book
 install -m 0755 "$installer_dir/narrate-books" /usr/local/bin/narrate-books
 install -m 0755 "$installer_dir/repair-book" /usr/local/bin/repair-book
 install -m 0755 "$installer_dir/clean" /usr/local/bin/clean
+install -m 0755 "$installer_dir/cache-phonics" /usr/local/bin/cache-phonics
 install -m 0755 "$installer_dir/sticker_pack.py" /opt/little-sounds/sticker_pack.py
 install -m 0755 "$installer_dir/backup" /usr/local/bin/backup
-install -m 0755 "$installer_dir/refresh-test" /usr/local/bin/refresh-test
-install -m 0755 "$installer_dir/update-test" /usr/local/bin/update-test
-install -m 0755 "$installer_dir/live" /usr/local/bin/live
+install -m 0755 "$installer_dir/update-live" /usr/local/bin/update-live
+install -m 0755 "$installer_dir/rollback-live" /usr/local/bin/rollback-live
+rm -f /usr/local/bin/refresh-test /usr/local/bin/update-test /usr/local/bin/live
 install -d -m 0700 /root/stickers/catalog
+install -d -m 0700 /root/little-sounds-snapshots
 install -d -m 0755 /var/www/little-sounds/sticker-images
 install -d -m 0755 /var/www/little-sounds/sticker-generator
 install -d -m 0755 /var/www/little-sounds/generated-books
+install -d -m 0755 /var/www/little-sounds/phonics-audio/letters /var/www/little-sounds/phonics-audio/words
 
 cat > /var/www/little-sounds/sticker-generator/index.html <<'STATUS'
 <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sticker Generator</title><style>body{min-height:100vh;margin:0;display:grid;place-items:center;padding:20px;box-sizing:border-box;color:#263657;background:linear-gradient(145deg,#68d2f7,#efe6ff,#fff0a6);font-family:ui-rounded,"Arial Rounded MT Bold",system-ui,sans-serif;text-align:center}main{max-width:650px;padding:35px;border:6px solid #fff;border-radius:32px;background:#ffffffc9;box-shadow:0 12px 30px #34486a30}h1{font-size:clamp(2rem,8vw,4rem);margin:0 0 15px}p{font-size:1.15rem;font-weight:800}code{padding:4px 9px;border-radius:8px;background:#e9e4ff}</style></head><body><main><h1>✨ Sticker Generator</h1><p>Your sticker helper is ready.</p><p>Open Termius as root and run <code>generate-stickers</code>.</p><p><a href="/">◀ Back home</a></p></main></body></html>
@@ -126,18 +135,36 @@ ProtectHome=read-only
 ReadWritePaths=/var/www/little-sounds/generated-books
 SYSTEMD
 
+cat > /etc/systemd/system/little-sounds-phonics-cache.service <<'SYSTEMD'
+[Unit]
+Description=Cache Little Sounds phonics word audio
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/root/.config/little-sounds/openai.env
+WorkingDirectory=/opt/little-sounds
+ExecStart=/opt/little-sounds-ai-venv/bin/python /opt/little-sounds/cache_phonics_audio.py
+User=root
+Group=root
+UMask=0022
+Nice=10
+TimeoutStartSec=infinity
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/var/www/little-sounds/phonics-audio
+SYSTEMD
+
 echo "[3/4] Installing the profile and achievement service..."
 python3 -m venv /opt/little-sounds-venv
 /opt/little-sounds-venv/bin/pip install --disable-pip-version-check -r "$installer_dir/server/requirements.txt"
 install -d -m 0755 /opt/little-sounds
 install -m 0644 "$installer_dir/server/app.py" /opt/little-sounds/app.py
 install -m 0644 "$installer_dir/server/requirements.txt" /opt/little-sounds/requirements.txt
-python3 -m venv /opt/little-sounds-test-venv
-/opt/little-sounds-test-venv/bin/pip install --disable-pip-version-check -r "$installer_dir/server/requirements.txt"
-install -d -m 0755 /opt/little-sounds-test /var/www/little-sounds-test
-install -m 0644 "$installer_dir/server/app.py" /opt/little-sounds-test/app.py
-install -m 0644 "$installer_dir/server/requirements.txt" /opt/little-sounds-test/requirements.txt
-install -d -o www-data -g www-data -m 0750 /var/lib/little-sounds /var/lib/little-sounds-test
+install -d -o www-data -g www-data -m 0750 /var/lib/little-sounds
 
 umask 077
 {
@@ -148,16 +175,6 @@ umask 077
   printf 'LITTLE_SOUNDS_DATA="/var/lib/little-sounds"\n'
   printf 'LITTLE_SOUNDS_STICKERS="/var/www/little-sounds/sticker-images"\n'
 } > /etc/little-sounds.env
-
-{
-  printf 'LITTLE_SOUNDS_PARENT="%s"\n' "$parent_profile"
-  printf 'LITTLE_SOUNDS_CHILD_1="%s"\n' "$child_one"
-  printf 'LITTLE_SOUNDS_CHILD_2="%s"\n' "$child_two"
-  printf 'LITTLE_SOUNDS_PIN="%s"\n' "$switch_pin"
-  printf 'LITTLE_SOUNDS_DATA="/var/lib/little-sounds-test"\n'
-  printf 'LITTLE_SOUNDS_STICKERS="/var/www/little-sounds/sticker-images"\n'
-  printf 'LITTLE_SOUNDS_COOKIE_NAME="little_sounds_test_device"\n'
-} > /etc/little-sounds-test.env
 
 cat > /etc/systemd/system/little-sounds.service <<'SYSTEMD'
 [Unit]
@@ -177,29 +194,6 @@ NoNewPrivileges=true
 ProtectSystem=full
 ProtectHome=true
 ReadWritePaths=/var/lib/little-sounds
-
-[Install]
-WantedBy=multi-user.target
-SYSTEMD
-
-cat > /etc/systemd/system/little-sounds-test.service <<'SYSTEMD'
-[Unit]
-Description=Little Sounds isolated test profile and rewards service
-After=network.target
-
-[Service]
-Type=simple
-User=www-data
-Group=www-data
-WorkingDirectory=/opt/little-sounds-test
-EnvironmentFile=/etc/little-sounds-test.env
-ExecStart=/opt/little-sounds-test-venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8788 --access-logfile - app:app
-Restart=on-failure
-PrivateTmp=true
-NoNewPrivileges=true
-ProtectSystem=full
-ProtectHome=true
-ReadWritePaths=/var/lib/little-sounds-test
 
 [Install]
 WantedBy=multi-user.target
@@ -233,20 +227,6 @@ server {
     location = /allstickers { return 301 /allstickers/; }
     location = /sticker-generator { return 301 /sticker-generator/; }
 
-    location = /test { return 301 /test/; }
-
-    location ^~ /test/api/ {
-        proxy_pass http://127.0.0.1:8788/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-
-    location ^~ /test/ {
-        alias /var/www/little-sounds-test/;
-        index index.html;
-    }
-
     location /api/ {
         proxy_pass http://127.0.0.1:8787;
         proxy_http_version 1.1;
@@ -272,7 +252,6 @@ ln -sfn /etc/nginx/sites-available/little-sounds /etc/nginx/sites-enabled/little
 rm -f /etc/nginx/sites-enabled/default
 systemctl daemon-reload
 systemctl enable --now little-sounds nginx
-systemctl enable little-sounds-test.service
 nginx -t
 systemctl restart little-sounds
 systemctl reload nginx
@@ -303,8 +282,6 @@ source_commit="$(curl -fsSL "https://api.github.com/repos/waqaarhussain/little-s
 if [[ "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then
   printf '%s\n' "$source_commit" > /opt/little-sounds/source-commit
 fi
-refresh-test
-
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q '^Status: active'; then
   ufw allow 'Nginx HTTP'
 fi
@@ -324,7 +301,6 @@ echo "Which Has More: http://${server_ip}/more-or-less/"
 echo "Letter Hunt: http://${server_ip}/letter-hunt/"
 echo "Number Hunt: http://${server_ip}/number-hunt/"
 echo "Books: http://${server_ip}/books/"
-echo "Test site: http://${server_ip}/test/"
 echo "Sticker book: http://${server_ip}/stickers/"
 echo "All stickers monitor: http://${server_ip}/allstickers/"
 echo
@@ -335,4 +311,6 @@ echo "Remove all books and narration, but remember old stories: clean"
 echo "Remove generated books but keep The Rainbow Game: clean generated"
 echo "Save stickers, albums, game memory and generated books: backup"
 echo "Save everything except generated books: backup no-books"
-echo "Future test workflow: update-test, test at /test/, then run live to promote it."
+echo "Cache phonics object names once: cache-phonics"
+echo "Future live updates: update-live (offers a rollback snapshot first)."
+echo "Restore the newest snapshot: rollback-live"

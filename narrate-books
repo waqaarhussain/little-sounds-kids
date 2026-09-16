@@ -30,4 +30,3 @@ umask 022
 /opt/little-sounds-ai-venv/bin/python /opt/little-sounds/narrate_books.py
 server_ip="$(hostname -I | awk '{print $1}')"
 echo "Read Aloud is ready on live: http://${server_ip}/books/"
-echo "Read Aloud is ready on test: http://${server_ip}/test/books/"

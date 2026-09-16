@@ -578,34 +578,7 @@
   <div class="sr-only" id="announcement" aria-live="assertive"></div>
   <script src="../assets/site-shell.js"></script>
   <script>
-    const letters = [
-      { l: "A", colour: "#f05d78", dark: "#c83856", soft: "#ffe4ea", items: [["🍎","apple"],["🐜","ant"],["🐊","alligator"],["🪓","axe"]] },
-      { l: "B", colour: "#4c78ea", dark: "#3154b9", soft: "#e3ebff", items: [["⚽","ball"],["🐻","bear"],["🍌","banana"],["🦋","butterfly"]] },
-      { l: "C", colour: "#13a884", dark: "#08795e", soft: "#dcfff5", items: [["🐈","cat"],["🚗","car"],["🥤","cup"],["🦀","crab"]] },
-      { l: "D", colour: "#f08a24", dark: "#bd5d09", soft: "#fff0dc", items: [["🐕","dog"],["🦆","duck"],["🥁","drum"],["🦕","dinosaur"]] },
-      { l: "E", colour: "#8b5cf6", dark: "#6534c9", soft: "#eee6ff", items: [["🥚","egg"],["🐘","elephant"],["💪","elbow"],["✉️","envelope"]] },
-      { l: "F", colour: "#e65193", dark: "#ad2967", soft: "#ffe5f1", items: [["🐟","fish"],["🐸","frog"],["🦊","fox"],["🌸","flower"]] },
-      { l: "G", colour: "#37a64a", dark: "#227532", soft: "#e2f9e6", items: [["🐐","goat"],["🍇","grapes"],["🎁","gift"],["🪿","goose"]] },
-      { l: "H", colour: "#ec6b39", dark: "#b5441e", soft: "#ffeadf", items: [["🎩","hat"],["🐔","hen"],["🦛","hippo"],["🏠","house"]] },
-      { l: "I", colour: "#00a6c8", dark: "#00758f", soft: "#daf8ff", items: [["🧊","ice"],["🦟","insect"],["🖋️","ink"],["🦎","iguana"]] },
-      { l: "J", colour: "#e04b48", dark: "#ad2b29", soft: "#ffe5e4", items: [["🍓","jam"],["✈️","jet"],["🫙","jar"],["🪼","jellyfish"]] },
-      { l: "K", colour: "#6956d9", dark: "#4634a9", soft: "#ebe8ff", items: [["🪁","kite"],["👑","king"],["🐈","kitten"],["🐨","koala"]] },
-      { l: "L", colour: "#e8a31b", dark: "#ae7300", soft: "#fff3d6", items: [["🦁","lion"],["🍃","leaf"],["💡","lamp"],["🍋","lemon"]] },
-      { l: "M", colour: "#c34caf", dark: "#90307f", soft: "#fbe1f7", items: [["🌙","moon"],["🐭","mouse"],["🥛","milk"],["🐒","monkey"]] },
-      { l: "N", colour: "#1b9c79", dark: "#0f7056", soft: "#dff9f1", items: [["🪺","nest"],["🥅","net"],["👃","nose"],["🥜","nut"]] },
-      { l: "O", colour: "#ff7a45", dark: "#c64b1c", soft: "#ffe9df", items: [["🐙","octopus"],["🍊","orange"],["🐂","ox"],["🦩","ostrich"]] },
-      { l: "P", colour: "#ee527f", dark: "#b82c56", soft: "#ffe2eb", items: [["🐖","pig"],["🖊️","pen"],["🍕","pizza"],["🐼","panda"]] },
-      { l: "Q", colour: "#7952c9", dark: "#51318f", soft: "#eee5ff", items: [["👸","queen"],["🪶","quill"],["🧵","quilt"],["❓","question"]] },
-      { l: "R", colour: "#df4a3f", dark: "#a92b24", soft: "#ffe4e1", items: [["🐇","rabbit"],["🌧️","rain"],["🤖","robot"],["🚀","rocket"]] },
-      { l: "S", colour: "#f2b51d", dark: "#b47c00", soft: "#fff4d5", items: [["☀️","sun"],["🧦","sock"],["🐍","snake"],["⭐","star"]] },
-      { l: "T", colour: "#2c9ed9", dark: "#1571a4", soft: "#dff5ff", items: [["🐯","tiger"],["🌳","tree"],["🚂","train"],["🐢","turtle"]] },
-      { l: "U", colour: "#9b58d3", dark: "#6d359c", soft: "#f2e4ff", items: [["☂️","umbrella"],["⬆️","up"],["👨","uncle"],["⬇️","under"]] },
-      { l: "V", colour: "#d84e82", dark: "#9f2857", soft: "#ffe5ef", items: [["🚐","van"],["🏺","vase"],["🎻","violin"],["🌋","volcano"]] },
-      { l: "W", colour: "#237ebf", dark: "#155689", soft: "#e1f2ff", items: [["🐋","whale"],["🕸️","web"],["⌚","watch"],["🍉","watermelon"]] },
-      { l: "X", colour: "#5365d8", dark: "#3545a4", soft: "#e6e9ff", items: [["📦","box"],["🦊","fox"],["6️⃣","six"],["🪓","axe"]] },
-      { l: "Y", colour: "#df941a", dark: "#a66500", soft: "#fff0d3", items: [["🐂","yak"],["🧶","yarn"],["💛","yellow"],["🪀","yo-yo"]] },
-      { l: "Z", colour: "#41a95a", dark: "#25783a", soft: "#e1f8e6", items: [["🦓","zebra"],["🤐","zip"],["0️⃣","zero"],["🦁","zoo"]] }
-    ];
+    let letters = [];
 
     const page = document.getElementById("page");
     const backButton = document.getElementById("backButton");
@@ -625,6 +598,8 @@
     let current = 0;
     let touchStartX = 0;
     let quizAnswer = "";
+    let activeWordAudio = null;
+    const lastSelections = new Map();
 
     function escapeText(value) {
       return String(value).replace(/[&<>"]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[character]);
@@ -647,8 +622,37 @@
       document.querySelector('meta[name="theme-color"]').setAttribute("content", item.colour);
     }
 
+    function audioSlug(word) {
+      return String(word).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    }
+
+    function playLocalAudio(path, label) {
+      if (activeWordAudio) {
+        activeWordAudio.pause();
+        activeWordAudio.currentTime = 0;
+      }
+      const audio = new Audio(ProfileShell.url(path));
+      activeWordAudio = audio;
+      audio.play().catch(() => {
+        announcement.textContent = `${label} audio is not cached yet. Ask a grown-up to run cache-phonics.`;
+      });
+    }
+
+    function chooseItems(item) {
+      const shuffled = shuffle(item.pool);
+      let chosen = shuffled.slice(0, 4);
+      let signature = chosen.map(entry => entry[1]).sort().join("|");
+      if (signature === lastSelections.get(item.l) && shuffled.length > 4) {
+        chosen = [...shuffled.slice(1, 4), shuffled[4]];
+        signature = chosen.map(entry => entry[1]).sort().join("|");
+      }
+      lastSelections.set(item.l, signature);
+      return shuffle(chosen);
+    }
+
     function render() {
       const item = letters[current];
+      item.items = chooseItems(item);
       setTheme(item);
       page.style.animation = "none";
       page.offsetHeight;
@@ -656,9 +660,10 @@
       page.innerHTML = `
         <section class="letter-side">
           <div class="count"><span class="count-dot"></span>${current + 1} of ${letters.length}</div>
-          <div class="letter-button" aria-label="Letter ${item.l}">
+          <button class="letter-button" type="button" aria-label="Play the ${item.l} phonics sound">
             <span class="big-letter">${item.l}</span>
-          </div>
+          </button>
+          <div class="sound-pill">Tap ${item.l} to hear its sound</div>
         </section>
         <section class="picture-side">
           <h1 class="prompt">Tap a picture and learn the word!</h1>
@@ -675,13 +680,19 @@
           </div>
         </section>
       `;
+      page.querySelector(".letter-button").addEventListener("click", () => {
+        playLocalAudio(`/phonics-audio/letters/${item.l.toLowerCase()}.mp3`, `${item.l} phonics`);
+      });
       document.getElementById("gameButton").addEventListener("click", openQuiz);
       page.querySelectorAll(".picture-card").forEach(card => {
         card.addEventListener("click", () => {
           page.querySelectorAll(".picture-card").forEach(other => other.classList.remove("heard"));
           card.classList.add("heard");
+          const word = item.items[Number(card.dataset.index)][1];
+          playLocalAudio(`/phonics-audio/words/${audioSlug(word)}.mp3`, word);
         });
       });
+      item.items.forEach(([, word]) => { const audio = new Audio(ProfileShell.url(`/phonics-audio/words/${audioSlug(word)}.mp3`)); audio.preload = "metadata"; });
       backButton.disabled = current === 0;
       nextButton.textContent = current === letters.length - 1 ? "Start again ↻" : "Next ▶";
       progressBar.style.width = `${((current + 1) / letters.length) * 100}%`;
@@ -723,6 +734,7 @@
         quizChoices.querySelectorAll("button").forEach(choice => choice.disabled = true);
         button.classList.add("right");
         quizStatus.textContent = `Yes! ${quizAnswer}! ⭐`;
+        playLocalAudio(`/phonics-audio/words/${audioSlug(quizAnswer)}.mp3`, quizAnswer);
         makeConfetti();
         completePhonicsLetter(letters[current].l);
       } else {
@@ -828,7 +840,22 @@
       if (distance < 0) goTo(current === letters.length - 1 ? 0 : current + 1);
     }, { passive: true });
 
-    render();
+    async function startPhonics() {
+      try {
+        const response = await fetch("words.json", { cache: "no-store" });
+        if (!response.ok) throw new Error("The phonics word bank could not be loaded.");
+        const data = await response.json();
+        letters = data.letters.map(item => ({ ...item, pool: item.items, items: [] }));
+        if (letters.length !== 26 || letters.some(item => !Array.isArray(item.pool) || item.pool.length < 4)) {
+          throw new Error("The phonics word bank is incomplete.");
+        }
+        render();
+      } catch (error) {
+        page.innerHTML = `<p class="prompt">${escapeText(error.message)}</p>`;
+      }
+    }
+
+    startPhonics();
   </script>
 </body>
 </html>

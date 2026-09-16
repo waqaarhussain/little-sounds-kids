@@ -83,7 +83,8 @@
 
 .site-modal-card h2 { margin: 0; font-size: clamp(2rem, 7vw, 3.3rem); line-height: 1; }
 .site-modal-card > p { margin: 12px auto 22px; font-weight: 800; }
-.profile-grid, .sticker-choice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.sticker-choice-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 .bonus-profile-grid { width: min(520px, 100%); margin: 18px auto 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .reward-symbol { font-size: clamp(2.6rem, 10vw, 4.8rem); line-height: 1; }
 
@@ -117,10 +118,14 @@
 .site-secondary { color: #30405f; background: #e6efff; box-shadow: 0 6px 0 #bed1f0; }
 .site-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
 
-.sticker-choice { min-height: 160px; padding: 8px 8px 14px; }
+.sticker-theme-card { width: min(980px, 98vw); padding: clamp(16px, 3vw, 28px); }
+.sticker-theme-card .reward-symbol { font-size: clamp(2rem, 6vw, 3.2rem); }
+.sticker-theme-card h2 { font-size: clamp(1.65rem, 5vw, 2.8rem); }
+.sticker-theme-card > p { margin: 8px auto 15px; }
+.sticker-choice { min-width: 0; min-height: 0; padding: 6px 5px 9px; border-width: 3px; border-radius: 18px; box-shadow: 0 5px 0 #bfd6f7; font-size: clamp(.68rem, 1.45vw, .92rem); }
 .sticker-choice img { width: 100%; aspect-ratio: 1; object-fit: contain; display: block; }
-.sticker-choice span { display: block; }
-.sticker-choice small { display: block; margin-top: 6px; color: #687795; font-size: .82rem; }
+.sticker-choice span { display: block; overflow: hidden; text-overflow: ellipsis; }
+.sticker-choice small { display: block; margin-top: 3px; color: #687795; font-size: clamp(.55rem, 1.1vw, .7rem); }
 .reward-image { width: min(420px, 78vw); aspect-ratio: 1; object-fit: contain; filter: drop-shadow(0 15px 14px rgba(32, 44, 77, .2)); }
 .reward-confetti { margin-bottom: 8px; font-size: clamp(2.1rem, 8vw, 4rem); }
 
@@ -194,7 +199,10 @@
   .site-tool-button { width: 35px; min-height: 35px; border-width: 2px; padding: 4px; font-size: 1rem; box-shadow: 0 4px 0 rgba(26,79,128,.28); }
   .site-tool-sticker, .site-tool-gift { width: 35px; font-size: 1.08rem; }
   .profile-grid { grid-template-columns: 1fr; }
-  .sticker-choice-grid { grid-template-columns: repeat(2, 1fr); }
+  .sticker-choice-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+  .sticker-theme-card { width: calc(100vw - 16px); padding: 14px 8px 16px; }
+  .sticker-choice { padding: 3px 2px 7px; border-width: 2px; border-radius: 13px; box-shadow: 0 3px 0 #bfd6f7; font-size: clamp(.5rem, 2.3vw, .7rem); }
+  .sticker-choice small { font-size: clamp(.45rem, 2vw, .58rem); }
   .site-modal-card { border-width: 5px; border-radius: 26px; }
   .sticker-sheet { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 11px; gap: 7px; }
   .sticker-slot { padding: 2px; }

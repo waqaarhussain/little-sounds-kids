@@ -12,7 +12,7 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
   })[character]);
   const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
-  const basePath = location.pathname === "/test" || location.pathname.startsWith("/test/") ? "/test" : "";
+  const basePath = "";
   const pagePath = basePath ? location.pathname.slice(basePath.length) || "/" : location.pathname;
   const sitePath = path => {
     if (!String(path).startsWith("/") || !basePath || String(path).startsWith(basePath + "/")) return path;
@@ -38,8 +38,6 @@
   }
 
   function createInterface() {
-    const testBadge = document.querySelector(".test-badge");
-    if (testBadge && basePath) testBadge.hidden = false;
     const phonicsTools = pagePath.startsWith("/phonicsbook")
       ? '<button class="site-tool-button site-tool-icon" id="siteAlphabetButton" type="button" aria-label="Choose a letter">🔤</button>'
       : "";
@@ -210,6 +208,7 @@
   async function chooseStickerTheme(categories, rewardToken, rewardProfile) {
     const modal = document.getElementById("rewardModal");
     const card = document.getElementById("rewardCard");
+    card.classList.add("sticker-theme-card");
     card.innerHTML = `
       <div class="reward-symbol">✨</div><h2>${escapeHtml(rewardProfile)}, choose a theme!</h2>
       <p>Which sticker sheet would you like?</p>
@@ -231,6 +230,7 @@
   async function openStickerSheet(category, rewardToken) {
     const modal = document.getElementById("rewardModal");
     const card = document.getElementById("rewardCard");
+    card.classList.remove("sticker-theme-card");
     card.innerHTML = '<div class="sticker-sheet-loading">Opening your sticker sheet… ✨</div>';
     try {
       const book = await api("/api/sticker-book?category=" + encodeURIComponent(category) + "&reward_token=" + encodeURIComponent(rewardToken));

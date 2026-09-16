@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$(id -u)" -ne 0 ]; then echo "Run update-live as root."; exit 1; fi
+
+repository="waqaarhussain/little-sounds-kids"
+live_site="/var/www/little-sounds"
+live_app="/opt/little-sounds"
+snapshot_root="/root/little-sounds-snapshots"
+work_dir="$(mktemp -d /tmp/little-sounds-live-update.XXXXXX)"
+trap 'rm -rf "$work_dir"' EXIT
+stage="$work_dir/source"
+previous="$work_dir/previous"
+mkdir -p "$stage" "$previous/site" "$previous/app" "$previous/bin" "$snapshot_root"
+
+echo "Downloading the latest live build..."
+main_sha="$(curl -fsSL "https://api.github.com/repos/$repository/branches/main" | python3 -c 'import json,sys; print(json.load(sys.stdin)["commit"]["sha"])')"
+[[ "$main_sha" =~ ^[0-9a-f]{40}$ ]] || { echo "GitHub did not return a valid live commit."; exit 1; }
+curl -fL "https://api.github.com/repos/$repository/tarball/$main_sha" -o "$work_dir/live.tar.gz"
+tar -xzf "$work_dir/live.tar.gz" --strip-components=1 -C "$stage"
+
+python3 -m py_compile "$stage/server/app.py" "$stage/generate_book.py" "$stage/narrate_books.py" "$stage/cache_phonics_audio.py"
+for script in install.sh generate-book narrate-books repair-book clean cache-phonics update-live rollback-live; do
+  bash -n "$stage/$script"
+done
+
+snapshot_current() {
+  local destination="$1"
+  mkdir -p "$destination/site" "$destination/app" "$destination/bin"
+  rsync -a --delete --exclude sticker-images --exclude sticker-generator --exclude generated-books --exclude phonics-audio "$live_site/" "$destination/site/"
+  rsync -a "$live_app/" "$destination/app/"
+  for command in generate-stickers generate-book narrate-books repair-book clean cache-phonics backup update-live rollback-live; do
+    if [ -f "/usr/local/bin/$command" ]; then install -m 0755 "/usr/local/bin/$command" "$destination/bin/$command"; fi
+  done
+  if [ -f "$live_app/source-commit" ]; then cp "$live_app/source-commit" "$destination/source-commit"; fi
+}
+
+snapshot_current "$previous"
+read -r -p "Save a permanent rollback snapshot before changing live? [Y/n]: " save_snapshot
+if [[ ! "$save_snapshot" =~ ^[Nn]$ ]]; then
+  snapshot_name="$(date -u +%Y%m%d-%H%M%S)-${main_sha:0:8}-before"
+  snapshot_current "$snapshot_root/$snapshot_name"
+  echo "Rollback snapshot saved as: $snapshot_name"
+fi
+
+rollback_failed_update() {
+  echo "Live health check failed. Restoring the code from before this update."
+  rsync -a --delete --exclude sticker-images --exclude sticker-generator --exclude generated-books --exclude phonics-audio "$previous/site/" "$live_site/"
+  rsync -a --delete "$previous/app/" "$live_app/"
+  for path in "$previous/bin"/*; do [ -f "$path" ] && install -m 0755 "$path" "/usr/local/bin/$(basename "$path")"; done
+  systemctl restart little-sounds.service
+}
+
+/opt/little-sounds-venv/bin/pip install --disable-pip-version-check -r "$stage/server/requirements.txt" >/dev/null
+rsync -a --delete --exclude sticker-images --exclude sticker-generator --exclude generated-books --exclude phonics-audio "$stage/site/" "$live_site/"
+install -d -m 0755 "$live_site/phonics-audio/letters" "$live_site/phonics-audio/words"
+rsync -a "$stage/site/phonics-audio/letters/" "$live_site/phonics-audio/letters/"
+install -m 0644 "$stage/server/app.py" "$live_app/app.py"
+install -m 0644 "$stage/server/requirements.txt" "$live_app/requirements.txt"
+for python_file in generate_stickers.py generate_book.py narrate_books.py cache_phonics_audio.py sticker_pack.py; do
+  install -m 0755 "$stage/$python_file" "$live_app/$python_file"
+done
+for command in generate-stickers generate-book narrate-books repair-book clean cache-phonics backup update-live rollback-live; do
+  install -m 0755 "$stage/$command" "/usr/local/bin/$command"
+done
+rm -f /usr/local/bin/update-test /usr/local/bin/refresh-test /usr/local/bin/live
+systemctl disable --now little-sounds-test.service 2>/dev/null || true
+rm -f /etc/systemd/system/little-sounds-test.service /etc/little-sounds-test.env
+rm -rf /opt/little-sounds-test /opt/little-sounds-test-venv /var/www/little-sounds-test /var/lib/little-sounds-test
+printf '%s\n' "$main_sha" > "$live_app/source-commit"
+chmod -R a+rX "$live_site"
+systemctl daemon-reload
+systemctl restart little-sounds.service
+
+healthy=false
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -fsS http://127.0.0.1:8787/api/health >/dev/null; then healthy=true; break; fi
+  sleep 1
+done
+if [ "$healthy" != true ]; then rollback_failed_update; exit 1; fi
+
+find "$snapshot_root" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | tail -n +6 | cut -d' ' -f2- | xargs -r rm -rf
+echo "Live is now running build $main_sha. Sticker albums, books and cached phonics audio were preserved."
+echo "Open: http://$(hostname -I | awk '{print $1}')/"
