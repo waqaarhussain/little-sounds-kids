@@ -26,7 +26,16 @@ TEXT_MODEL = os.environ.get("LITTLE_SOUNDS_TEXT_MODEL", "gpt-5-mini")
 IMAGE_MODEL = os.environ.get("LITTLE_SOUNDS_IMAGE_MODEL", "gpt-image-2")
 VISION_MODEL = os.environ.get("LITTLE_SOUNDS_VISION_MODEL", TEXT_MODEL)
 STORY_THEMES = os.environ.get("LITTLE_SOUNDS_STORY_THEMES", "Bluey, PJ Masks, SuperKitties and Paw Patrol")
-BANNED_STORY_NAMES = {"alphablock", "alphablocks", "colourblock", "colourblocks", "numberblock", "numberblocks"}
+BANNED_STORY_NAMES = {
+    "alphablock", "alphablocks", "colourblock", "colourblocks", "numberblock", "numberblocks",
+    "kitty", "superkitty",
+}
+CHARACTER_ROSTERS = {
+    "bluey": ("Bluey", "Bingo", "Chilli", "Bandit"),
+    "pj masks": ("Catboy", "Owlette", "Gekko"),
+    "superkitties": ("Ginny", "Sparks", "Buddy", "Bitsy"),
+    "paw patrol": ("Chase", "Marshall", "Skye", "Rubble", "Rocky", "Zuma"),
+}
 SOUND_EFFECT_WORDS = {"bang", "beep", "boom", "click", "crash", "ding", "pop", "pow", "splash", "whoosh", "zap"}
 HARD_STORY_WORDS = {
     "adventure", "amazed", "astonished", "beautiful", "beneath", "carefully", "celebrated",
@@ -167,6 +176,14 @@ def book_cover_recipe(number):
     )
 
 
+def roster_for_theme(theme):
+    return CHARACTER_ROSTERS.get(normalised(theme), ())
+
+
+def text_names_character(text, character):
+    return f" {normalised(character)} " in f" {normalised(text)} "
+
+
 def clean_slug(title):
     value = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:48]
     return value or "little-learners-story"
@@ -244,6 +261,15 @@ def story_plan(client, number, previous_books, selected_themes, cover_background
     used_titles = {normalised(book.get("title", "")) for book in previous_books if isinstance(book, dict)}
     used_texts = existing_values(previous_books, "text")
     previous_notes = previous_story_notes(previous_books)
+    selected_rosters = {
+        theme: roster_for_theme(theme)
+        for theme in selected_themes
+    }
+    roster_rules = "; ".join(
+        f"{theme}: {', '.join(names)}"
+        for theme, names in selected_rosters.items()
+        if names
+    )
     last_problem = ""
     for attempt in range(1, STORY_PLAN_ATTEMPTS + 1):
         prompt = f"""
@@ -252,6 +278,8 @@ It must be a playful crossover using friendly characters from every one of these
 {", ".join(selected_themes)}. Do not use characters from the other available themes in this book.
 Use at least one named character from each selected theme. Where that theme has other friendly characters,
 avoid repeating the exact named character group used by the recent books below.
+Use character names only from this exact roster: {roster_rules}. Never invent, shorten or rename a character.
+For SuperKitties, the only hero names are Ginny, Sparks, Buddy and Bitsy. There is no character named Kitty.
 Never use, name or show Numberblocks, Alphablocks or Colourblocks. They are not allowed in these books.
 Use familiar character names, kindness, counting, letters and colours. Keep it safe, warm and funny.
 Reading level: for a four-year-old who is just starting school. Each scene must have four or five very
@@ -309,6 +337,9 @@ Previous attempt problem to fix: {last_problem or "none"}
                 raise ValueError("use a short title made from easy words for a four-year-old")
             if normalised(title) in used_titles:
                 raise ValueError("use a title that has never been used before")
+            for theme, roster in selected_rosters.items():
+                if roster and not any(text_names_character(intro, name) for name in roster):
+                    raise ValueError(f"name a real {theme} character from the supplied roster in the intro")
             for label, text in (("intro", intro), ("ending", ending)):
                 if not 24 <= len(text.split()) <= 34 or normalised(text) in used_texts:
                     raise ValueError(f"write a new {label} using 24 to 34 simple words")
