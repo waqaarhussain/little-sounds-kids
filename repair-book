@@ -4,7 +4,7 @@ set -euo pipefail
 service_name="little-sounds-book-generator.service"
 key_dir="/root/.config/little-sounds"
 key_file="$key_dir/openai.env"
-run_file="/run/little-sounds-book.env"
+run_file="$key_dir/book-job.env"
 manifest="/var/www/little-sounds/generated-books/books.json"
 
 if [ "$(id -u)" -ne 0 ]; then echo "Run repair-book as root."; exit 1; fi
@@ -81,7 +81,6 @@ chmod 0600 "$run_file"
 systemctl reset-failed "$service_name" 2>/dev/null || true
 systemctl start "$service_name"
 sleep 2
-rm -f "$run_file"
 if systemctl is-failed --quiet "$service_name"; then journalctl -u "$service_name" -n 40 --no-pager; exit 1; fi
 echo "Book-picture repair is running in the background; you can close Termius."
 echo "Watch it with: repair-book watch"
