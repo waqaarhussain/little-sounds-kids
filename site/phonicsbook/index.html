@@ -599,7 +599,7 @@
     let touchStartX = 0;
     let quizAnswer = "";
     let activeWordAudio = null;
-    const lastSelections = new Map();
+    const fallbackRounds = new Map();
 
     function escapeText(value) {
       return String(value).replace(/[&<>"]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[character]);
@@ -638,16 +638,70 @@
       });
     }
 
-    function chooseItems(item) {
-      const shuffled = shuffle(item.pool);
-      let chosen = shuffled.slice(0, 4);
-      let signature = chosen.map(entry => entry[1]).sort().join("|");
-      if (signature === lastSelections.get(item.l) && shuffled.length > 4) {
-        chosen = [...shuffled.slice(1, 4), shuffled[4]];
-        signature = chosen.map(entry => entry[1]).sort().join("|");
+    function textSeed(value) {
+      let hash = 2166136261;
+      for (const character of value) {
+        hash ^= character.charCodeAt(0);
+        hash = Math.imul(hash, 16777619);
       }
-      lastSelections.set(item.l, signature);
-      return shuffle(chosen);
+      return hash >>> 0;
+    }
+
+    function seededShuffle(array, seed) {
+      const copy = [...array];
+      let state = seed >>> 0;
+      const random = () => {
+        state += 0x6D2B79F5;
+        let value = state;
+        value = Math.imul(value ^ (value >>> 15), value | 1);
+        value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+        return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+      };
+      for (let index = copy.length - 1; index > 0; index -= 1) {
+        const other = Math.floor(random() * (index + 1));
+        [copy[index], copy[other]] = [copy[other], copy[index]];
+      }
+      return copy;
+    }
+
+    function nextRound(profile, letter) {
+      const key = `little-sounds-phonics-round-v2:${profile}:${letter}`;
+      let round = fallbackRounds.get(key) || 0;
+      try {
+        const stored = Number.parseInt(localStorage.getItem(key) || "0", 10);
+        if (Number.isSafeInteger(stored) && stored >= 0) round = stored;
+        localStorage.setItem(key, String(round + 1));
+      } catch (error) {
+        fallbackRounds.set(key, round + 1);
+      }
+      return round;
+    }
+
+    function rotationOrder(item, cycle) {
+      let ordered = seededShuffle(item.pool, textSeed(`little-sounds|${item.l}|0`));
+      for (let index = 1; index <= cycle; index += 1) {
+        const previousSecond = new Set(ordered.slice(4).map(entry => entry[1]));
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          const candidate = seededShuffle(item.pool, textSeed(`little-sounds|${item.l}|${index}|${attempt}`));
+          const overlap = candidate.slice(0, 4).filter(entry => previousSecond.has(entry[1])).length;
+          if (overlap <= 1) {
+            ordered = candidate;
+            break;
+          }
+        }
+      }
+      return ordered;
+    }
+
+    function chooseItems(item) {
+      const profile = ProfileShell.profile || "Guest";
+      const childIndex = ProfileShell.childProfiles.indexOf(profile);
+      const profileSlot = childIndex >= 0 ? childIndex % 2 : textSeed(profile) % 2;
+      const round = nextRound(profile, item.l);
+      const cycle = Math.floor(round / 2);
+      const ordered = rotationOrder(item, cycle);
+      const slot = (round + profileSlot) % 2;
+      return shuffle(ordered.slice(slot * 4, slot * 4 + 4));
     }
 
     function render() {
@@ -707,7 +761,15 @@
     }
 
     function shuffle(array) {
-      return [...array].sort(() => Math.random() - 0.5);
+      const copy = [...array];
+      for (let index = copy.length - 1; index > 0; index -= 1) {
+        const value = window.crypto?.getRandomValues
+          ? window.crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296
+          : Math.random();
+        const other = Math.floor(value * (index + 1));
+        [copy[index], copy[other]] = [copy[other], copy[index]];
+      }
+      return copy;
     }
 
     function openQuiz() {
@@ -716,7 +778,7 @@
       const answer = item.items[answerIndex];
       const others = letters
         .filter((_, index) => index !== current)
-        .flatMap(letter => letter.items)
+        .flatMap(letter => letter.pool)
         .filter(entry => entry[1] !== answer[1]);
       const choices = shuffle([answer, ...shuffle(others).slice(0, 2)]);
       quizAnswer = answer[1];
@@ -842,6 +904,7 @@
 
     async function startPhonics() {
       try {
+        await window.ProfileShell.ready;
         const response = await fetch("words.json", { cache: "no-store" });
         if (!response.ok) throw new Error("The phonics word bank could not be loaded.");
         const data = await response.json();
@@ -854,6 +917,10 @@
         page.innerHTML = `<p class="prompt">${escapeText(error.message)}</p>`;
       }
     }
+
+    window.addEventListener("profilechange", () => {
+      if (letters.length) render();
+    });
 
     startPhonics();
   </script>
