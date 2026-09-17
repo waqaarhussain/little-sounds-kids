@@ -42,5 +42,5 @@ if systemctl is-failed --quiet "$service_name"; then
   journalctl -u "$service_name" -n 40 --no-pager
   exit 1
 fi
-echo "Phonics word audio is caching in the background; you can close Termius."
+echo "UK phonics sounds and object words are caching in the background; you can close Termius."
 echo "Watch it with: cache-phonics watch"

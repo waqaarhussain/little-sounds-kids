@@ -137,7 +137,7 @@ SYSTEMD
 
 cat > /etc/systemd/system/little-sounds-phonics-cache.service <<'SYSTEMD'
 [Unit]
-Description=Cache Little Sounds phonics word audio
+Description=Cache Little Sounds UK phonics audio
 After=network-online.target
 Wants=network-online.target
 
@@ -321,6 +321,6 @@ echo "Keep generated stories but replace their pictures: repair-book"
 echo "Remove all books and narration, but remember old stories: clean"
 echo "Save stickers, albums, game memory and generated books: backup"
 echo "Save everything except generated books: backup no-books"
-echo "Cache phonics object names once: cache-phonics"
+echo "Cache UK phonics sounds and object names: cache-phonics"
 echo "Future live updates: update-live (offers a rollback snapshot first)."
 echo "Restore the newest snapshot: rollback-live"

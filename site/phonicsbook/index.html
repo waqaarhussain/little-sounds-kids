@@ -735,7 +735,7 @@
         </section>
       `;
       page.querySelector(".letter-button").addEventListener("click", () => {
-        playLocalAudio(`/phonics-audio/letters/${item.l.toLowerCase()}.mp3`, `${item.l} phonics`);
+        playLocalAudio(`/phonics-audio/letters/${item.l.toLowerCase()}.mp3?v=uk-marin-2`, `${item.l} phonics`);
       });
       document.getElementById("gameButton").addEventListener("click", openQuiz);
       page.querySelectorAll(".picture-card").forEach(card => {
@@ -743,10 +743,10 @@
           page.querySelectorAll(".picture-card").forEach(other => other.classList.remove("heard"));
           card.classList.add("heard");
           const word = item.items[Number(card.dataset.index)][1];
-          playLocalAudio(`/phonics-audio/words/${audioSlug(word)}.mp3`, word);
+          playLocalAudio(`/phonics-audio/words/${audioSlug(word)}.mp3?v=uk-marin-2`, word);
         });
       });
-      item.items.forEach(([, word]) => { const audio = new Audio(ProfileShell.url(`/phonics-audio/words/${audioSlug(word)}.mp3`)); audio.preload = "metadata"; });
+      item.items.forEach(([, word]) => { const audio = new Audio(ProfileShell.url(`/phonics-audio/words/${audioSlug(word)}.mp3?v=uk-marin-2`)); audio.preload = "metadata"; });
       backButton.disabled = current === 0;
       nextButton.textContent = current === letters.length - 1 ? "Start again ↻" : "Next ▶";
       progressBar.style.width = `${((current + 1) / letters.length) * 100}%`;
@@ -796,7 +796,7 @@
         quizChoices.querySelectorAll("button").forEach(choice => choice.disabled = true);
         button.classList.add("right");
         quizStatus.textContent = `Yes! ${quizAnswer}! ⭐`;
-        playLocalAudio(`/phonics-audio/words/${audioSlug(quizAnswer)}.mp3`, quizAnswer);
+        playLocalAudio(`/phonics-audio/words/${audioSlug(quizAnswer)}.mp3?v=uk-marin-2`, quizAnswer);
         makeConfetti();
         completePhonicsLetter(letters[current].l);
       } else {
