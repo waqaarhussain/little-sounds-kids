@@ -55,6 +55,8 @@ rollback_failed_update() {
 rsync -a --delete --exclude sticker-images --exclude sticker-generator --exclude generated-books --exclude phonics-audio "$stage/site/" "$live_site/"
 install -d -m 0755 "$live_site/phonics-audio/letters" "$live_site/phonics-audio/words"
 rsync -a "$stage/site/phonics-audio/letters/" "$live_site/phonics-audio/letters/"
+rm -rf "$live_site/books/rainbow-rescue" "$live_site/generated-books/narration/rainbow-rescue"
+rm -f "$live_site/generated-books/shelf-state.json"
 install -m 0644 "$stage/server/app.py" "$live_app/app.py"
 install -m 0644 "$stage/server/requirements.txt" "$live_app/requirements.txt"
 for python_file in generate_stickers.py generate_book.py narrate_books.py cache_phonics_audio.py sticker_pack.py; do

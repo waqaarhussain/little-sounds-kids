@@ -16,7 +16,7 @@ from pathlib import Path
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, RateLimitError
 from PIL import Image
 
-from narrate_books import BASE_BOOK, narrate_book
+from narrate_books import narrate_book
 
 
 BOOK_ROOT = Path("/var/www/little-sounds/generated-books")
@@ -1072,7 +1072,7 @@ def create_book(client, number):
     plan = story_plan(
         client,
         number,
-        [BASE_BOOK, *history["books"], *manifest["books"]],
+        [*history["books"], *manifest["books"]],
         selected_themes,
         cover_background,
         cover_action,
@@ -1087,7 +1087,7 @@ def create_book(client, number):
         f"The final story page. {plan['ending']}",
     ]
     story_context = " ".join(page_words)
-    final_page_texts = existing_values([BASE_BOOK, *history["books"], *manifest["books"]], "text")
+    final_page_texts = existing_values([*history["books"], *manifest["books"]], "text")
     briefs = visual_briefs(client, page_words)
     style = illustration_style()
     print(f"Creating cover for: {plan['title']}", flush=True)

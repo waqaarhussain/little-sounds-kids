@@ -14,6 +14,7 @@
     .library>p{font-size:clamp(1rem,2.5vw,1.3rem);font-weight:900}
     .bookcase{position:relative;margin:34px auto 0;width:min(1080px,100%);min-height:260px;padding:28px 22px 38px;border:18px solid #7d3f20;border-radius:28px;background:linear-gradient(90deg,#bd652e,#e7a55f 45%,#bd652e);box-shadow:inset 0 0 0 7px #f6c07e,0 18px 0 #49356e,0 30px 50px #20345d55}
     .shelf-stack{position:relative;z-index:1;display:grid;gap:25px}
+    .empty-shelf{display:grid;place-items:center;min-height:180px;padding:24px;border-radius:18px;background:#fff3d9d9;color:#263867;font-size:clamp(1.1rem,2.5vw,1.5rem);font-weight:1000;box-shadow:inset 0 0 0 4px #fff8}
     .shelf-row{position:relative;display:grid;grid-template-columns:repeat(10,minmax(0,1fr));align-items:end;gap:clamp(4px,1vw,11px);min-height:175px;padding:15px 12px 22px;border-radius:12px 12px 5px 5px;background:linear-gradient(90deg,#7a3c20 0,#b96332 3%,#d98d50 50%,#a6532a 97%,#73351d 100%);box-shadow:inset 0 12px 22px #45200f55}
     .shelf-row:after{content:"";position:absolute;z-index:30;left:-17px;right:-17px;bottom:-8px;height:25px;border-radius:6px;background:linear-gradient(#f0b872,#985027 72%);box-shadow:0 8px 0 #6c391e,0 12px 15px #44251555;pointer-events:none}
     .shelf-book{position:relative;width:100%;max-width:92px;justify-self:center;aspect-ratio:.67;padding:0;border:0;border-radius:3px 9px 9px 3px;background:#6748d8;box-shadow:-4px 0 0 #4e31ae,5px 7px 10px #462a195f;cursor:pointer;transform-origin:bottom center;transition:filter .2s,transform .25s;isolation:isolate}
@@ -64,33 +65,13 @@
   <script src="../assets/site-shell.js"></script>
   <script>
   (function(){
-    const base={
-      slug:"rainbow-rescue",title:"The Rainbow Game",cover:"rainbow-rescue/cover.webp",
-      pages:[
-        {type:"image",src:"rainbow-rescue/cover.webp",alt:"Friends find a glowing rainbow book"},
-        {type:"title",title:"The Rainbow Game",text:"Bluey and her friends find a bright book. It shows a rainbow path to a far castle. They open it and start a fun game."},
-        {type:"image",src:"rainbow-rescue/scene-1.webp",alt:"Bluey, Bingo and their friends watch letters, numbers and shapes fly from a bright book"},
-        {type:"text",title:"Book magic",text:"Bluey and Bingo open the book by a big tree. Bright letters, numbers and shapes fly out. Their friends smile as the magic signs shine in the sun."},
-        {type:"image",src:"rainbow-rescue/scene-4.webp",alt:"Bluey, Bingo and a little dog look at the glowing rainbow book"},
-        {type:"text",title:"A bright plan",text:"Bluey, Bingo and a little dog sit by the open book. A rainbow glows on each page. They look at it and make a plan."},
-        {type:"image",src:"rainbow-rescue/scene-2.webp",alt:"Bluey, Bingo and their friends cross a bright bridge towards a rainbow door"},
-        {type:"text",title:"Rainbow bridge",text:"Bluey, Bingo and their friends cross a bright bridge. The happy blocks lead them to a rainbow door. Owlette and Skye fly above and show the way."},
-        {type:"image",src:"rainbow-rescue/scene-5.webp",alt:"Owlette and Skye find red, blue and yellow lights in the sky"},
-        {type:"text",title:"Sky lights",text:"Owlette and Skye fly high over the town. They find red, blue and yellow lights in the sky. The three lights glow beside them."},
-        {type:"image",src:"rainbow-rescue/scene-6.webp",alt:"Chase and A, B and C place red, blue and yellow pieces into a stone game"},
-        {type:"text",title:"A, B, C",text:"Chase finds A, B and C by a stone game. Each friend holds a bright piece. They put the red, blue and yellow pieces in place."},
-        {type:"image",src:"rainbow-rescue/scene-3.webp",alt:"The friends finish a rainbow number and letter arch before a picnic"},
-        {type:"text",title:"The last pieces",text:"The friends reach a sunny garden. They fit the last numbers and letters into a rainbow arch. Then everyone sits down for a happy picnic."},
-        {type:"image",src:"rainbow-rescue/scene-7.webp",alt:"All the friends cheer under a bright rainbow"},
-        {type:"end",title:"The End",text:"All the friends stand under a big rainbow. They smile and wave together. The book game is done, and every bright piece is home."}
-      ]
-    };
     let books=[],active=null,current=0,activeButton=null,reading=false,playingFinalWords=false,playId=0,endingTimer=0;
     const narration=new Audio();narration.preload="auto";
     const byId=id=>document.getElementById(id);
     const asset=src=>String(src).startsWith("/")?ProfileShell.url(src):src;
     function drawShelf(){
       const shelf=byId("shelfStack");shelf.innerHTML="";
+      if(!books.length){shelf.innerHTML='<div class="empty-shelf">No books yet. Ask a grown-up to run generate-book.</div>';return;}
       books.forEach((book,index)=>{
         if(index%10===0){const row=document.createElement("div");row.className="shelf-row";row.setAttribute("aria-label","Shelf "+(Math.floor(index/10)+1));shelf.appendChild(row);}
         const button=document.createElement("button");button.className="shelf-book";button.type="button";
@@ -166,9 +147,6 @@
     byId("nextPage").onclick=()=>{const total=Math.ceil(active.pages.length/2);current=current===total-1?0:current+1;draw(1);if(reading)playCurrentSpread();};
     document.addEventListener("keydown",event=>{if(!byId("reader").classList.contains("open"))return;if(event.key==="Escape")closeBook();if(event.key==="ArrowRight")byId("nextPage").click();if(event.key==="ArrowLeft")byId("previousPage").click();});
     ProfileShell.ready.then(async()=>{
-      let showBuiltin=true;
-      try{const response=await fetch(ProfileShell.url("/generated-books/shelf-state.json"),{cache:"no-store"});if(response.ok){const state=await response.json();if(state&&state.show_builtin===false)showBuiltin=false;}}catch(_){}
-      if(showBuiltin)books.push(base);
       try{const response=await fetch(ProfileShell.url("/generated-books/books.json"),{cache:"no-store"});if(response.ok){const generated=await response.json();if(Array.isArray(generated.books))books=books.concat(generated.books.filter(book=>book&&Array.isArray(book.pages)&&book.pages.length===16));}}catch(_){}
       drawShelf();
     });

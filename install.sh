@@ -202,6 +202,8 @@ SYSTEMD
 echo "[4/4] Publishing the mobile-friendly website..."
 install -d -m 0755 /var/www/little-sounds
 cp -a "$site_stage/." /var/www/little-sounds/
+rm -rf /var/www/little-sounds/books/rainbow-rescue /var/www/little-sounds/generated-books/narration/rainbow-rescue
+rm -f /var/www/little-sounds/generated-books/shelf-state.json
 chmod -R a+rX /var/www/little-sounds
 
 cat > /etc/nginx/sites-available/little-sounds <<'NGINX'
@@ -308,7 +310,6 @@ echo "Create or refill stickers: generate-stickers"
 echo "Create one or more 16-page books: generate-book"
 echo "Keep generated stories but replace their pictures: repair-book"
 echo "Remove all books and narration, but remember old stories: clean"
-echo "Remove generated books but keep The Rainbow Game: clean generated"
 echo "Save stickers, albums, game memory and generated books: backup"
 echo "Save everything except generated books: backup no-books"
 echo "Cache phonics object names once: cache-phonics"
