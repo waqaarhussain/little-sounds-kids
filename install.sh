@@ -240,6 +240,12 @@ server {
         try_files $uri $uri/ =404;
     }
 
+    location ~* \.(html|css|js|json)$ {
+        expires -1;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        try_files $uri =404;
+    }
+
     location ~* \.(webp|png|jpg|jpeg)$ {
         expires 30d;
         add_header Cache-Control "public";
@@ -280,7 +286,10 @@ else
   echo "No reusable backup is published yet. Run generate-stickers after installation."
 fi
 
-source_commit="$(curl -fsSL "https://api.github.com/repos/waqaarhussain/little-sounds-kids/branches/main" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["commit"]["sha"])' 2>/dev/null || true)"
+source_commit="${LITTLE_SOUNDS_SOURCE_COMMIT:-}"
+if ! [[ "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then
+  source_commit="$(curl -fsSL "https://api.github.com/repos/waqaarhussain/little-sounds-kids/branches/main" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["commit"]["sha"])' 2>/dev/null || true)"
+fi
 if [[ "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then
   printf '%s\n' "$source_commit" > /opt/little-sounds/source-commit
 fi

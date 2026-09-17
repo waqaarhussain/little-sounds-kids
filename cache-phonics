@@ -36,7 +36,7 @@ else
 fi
 
 systemctl reset-failed "$service_name" 2>/dev/null || true
-systemctl start "$service_name"
+systemctl start --no-block "$service_name"
 sleep 2
 if systemctl is-failed --quiet "$service_name"; then
   journalctl -u "$service_name" -n 40 --no-pager
