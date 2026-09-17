@@ -67,6 +67,7 @@ install -m 0755 "$installer_dir/narrate-books" /usr/local/bin/narrate-books
 install -m 0755 "$installer_dir/repair-book" /usr/local/bin/repair-book
 install -m 0755 "$installer_dir/clean" /usr/local/bin/clean
 install -m 0755 "$installer_dir/cache-phonics" /usr/local/bin/cache-phonics
+install -m 0755 "$installer_dir/cache-phonics" /usr/local/bin/cache-words
 install -m 0755 "$installer_dir/sticker_pack.py" /opt/little-sounds/sticker_pack.py
 install -m 0755 "$installer_dir/backup" /usr/local/bin/backup
 install -m 0755 "$installer_dir/update-live" /usr/local/bin/update-live
@@ -77,7 +78,7 @@ install -d -m 0700 /root/little-sounds-snapshots
 install -d -m 0755 /var/www/little-sounds/sticker-images
 install -d -m 0755 /var/www/little-sounds/sticker-generator
 install -d -m 0755 /var/www/little-sounds/generated-books
-install -d -m 0755 /var/www/little-sounds/phonics-audio/letters /var/www/little-sounds/phonics-audio/words
+install -d -m 0755 /var/www/little-sounds/phonics-audio/words
 
 cat > /var/www/little-sounds/sticker-generator/index.html <<'STATUS'
 <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sticker Generator</title><style>body{min-height:100vh;margin:0;display:grid;place-items:center;padding:20px;box-sizing:border-box;color:#263657;background:linear-gradient(145deg,#68d2f7,#efe6ff,#fff0a6);font-family:ui-rounded,"Arial Rounded MT Bold",system-ui,sans-serif;text-align:center}main{max-width:650px;padding:35px;border:6px solid #fff;border-radius:32px;background:#ffffffc9;box-shadow:0 12px 30px #34486a30}h1{font-size:clamp(2rem,8vw,4rem);margin:0 0 15px}p{font-size:1.15rem;font-weight:800}code{padding:4px 9px;border-radius:8px;background:#e9e4ff}</style></head><body><main><h1>✨ Sticker Generator</h1><p>Your sticker helper is ready.</p><p>Open Termius as root and run <code>generate-stickers</code>.</p><p><a href="/">◀ Back home</a></p></main></body></html>
@@ -137,7 +138,7 @@ SYSTEMD
 
 cat > /etc/systemd/system/little-sounds-phonics-cache.service <<'SYSTEMD'
 [Unit]
-Description=Cache Little Sounds UK phonics audio
+Description=Cache Little Sounds UK object-word audio
 After=network-online.target
 Wants=network-online.target
 
@@ -321,6 +322,6 @@ echo "Keep generated stories but replace their pictures: repair-book"
 echo "Remove all books and narration, but remember old stories: clean"
 echo "Save stickers, albums, game memory and generated books: backup"
 echo "Save everything except generated books: backup no-books"
-echo "Cache UK phonics sounds and object names: cache-phonics"
+echo "Cache UK object names: cache-words"
 echo "Future live updates: update-live (offers a rollback snapshot first)."
 echo "Restore the newest snapshot: rollback-live"

@@ -13,35 +13,19 @@ from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI, 
 
 
 WORD_BANK = Path("/var/www/little-sounds/phonicsbook/words.json")
-LETTER_AUDIO_ROOT = Path("/var/www/little-sounds/phonics-audio/letters")
 WORD_AUDIO_ROOT = Path("/var/www/little-sounds/phonics-audio/words")
 TTS_MODEL = os.environ.get("LITTLE_SOUNDS_TTS_MODEL", "gpt-4o-mini-tts")
 TTS_VOICE = os.environ.get("LITTLE_SOUNDS_TTS_VOICE", "marin")
 VOICE_PROFILE = (
-    "Use the Marin voice in a warm, friendly, feminine-sounding modern Southern British English accent. "
-    "Keep the same gentle pitch, pace, energy and studio sound used for the Little Sounds book Read Aloud voice. "
-    "Use a clean, dry, close-microphone sound with no echo, reverb, music or background noise."
+    "Use the Marin voice in the same warm, friendly, feminine-sounding British English style as the Little Sounds book Read Aloud voice. "
+    "Speak slowly and clearly for children aged three to five. Keep exactly the same voice character, speaking pace, energy, "
+    "microphone distance and volume for every object name. Use natural British vocabulary and pronunciation, never American wording."
 )
-WORD_CACHE_VERSION = "phonics-object-uk-marin-dry-v2"
-LETTER_CACHE_VERSION = "phonics-letter-uk-marin-pure-v2"
+WORD_CACHE_VERSION = "object-words-uk-marin-v4"
 WORD_INSTRUCTIONS = (
     f"{VOICE_PROFILE} Say only the supplied object name, exactly once. Pronounce it naturally in British English "
     "for a four-year-old child. Do not introduce it, spell it, define it, place it in a sentence or add a sound effect."
 )
-
-# UK early-years pure sounds. The example guides pronunciation but is never spoken.
-PHONEMES = {
-    "a": ("æ", "apple"), "b": ("b", "bat"), "c": ("k", "cat"),
-    "d": ("d", "dog"), "e": ("ɛ", "egg"), "f": ("f", "fish"),
-    "g": ("ɡ", "goat"), "h": ("h", "hat"), "i": ("ɪ", "insect"),
-    "j": ("dʒ", "jam"), "k": ("k", "kite"), "l": ("l", "leg"),
-    "m": ("m", "moon"), "n": ("n", "nest"), "o": ("ɒ", "octopus"),
-    "p": ("p", "pig"), "q": ("kw", "queen"), "r": ("r", "rabbit"),
-    "s": ("s", "sun"), "t": ("t", "tap"), "u": ("ʌ", "umbrella"),
-    "v": ("v", "van"), "w": ("w", "web"), "x": ("ks", "box"),
-    "y": ("j", "yes"), "z": ("z", "zip"),
-}
-
 
 def slug(word):
     return re.sub(r"[^a-z0-9]+", "-", word.lower()).strip("-")
@@ -130,31 +114,6 @@ def create_clip(
         normalised.unlink(missing_ok=True)
 
 
-def create_letter(client, letter, ipa, example, number, total):
-    instructions = (
-        f"{VOICE_PROFILE} This is a UK early-years pure-phonics recording. The input is the IPA phoneme /{ipa}/, "
-        f"heard at the start of the British word '{example}'. Produce that phoneme alone exactly once. Do not say "
-        f"the letter name, the word '{example}', the IPA notation or any other word. Do not add an 'uh' or schwa "
-        "after a consonant. Make continuant sounds gently sustainable and stop sounds short and crisp."
-    )
-    return create_clip(
-        client,
-        label=f"letter {letter.upper()} /{ipa}/",
-        input_text=f"[{ipa}]",
-        instructions=instructions,
-        cache_version=LETTER_CACHE_VERSION,
-        destination=LETTER_AUDIO_ROOT / f"{letter}.mp3",
-        audio_filter=(
-            "silenceremove=start_periods=1:start_duration=0.01:start_threshold=-55dB:start_silence=0.04,"
-            "areverse,silenceremove=start_periods=1:start_duration=0.01:start_threshold=-55dB:"
-            "start_silence=0.08,areverse,loudnorm=I=-18:TP=-2:LRA=7,apad=pad_dur=0.14"
-        ),
-        max_duration=2.5,
-        number=number,
-        total=total,
-    )
-
-
 def create_word(client, word, number, total):
     return create_clip(
         client,
@@ -163,7 +122,7 @@ def create_word(client, word, number, total):
         instructions=WORD_INSTRUCTIONS,
         cache_version=WORD_CACHE_VERSION,
         destination=WORD_AUDIO_ROOT / f"{slug(word)}.mp3",
-        audio_filter="loudnorm=I=-18:TP=-2:LRA=7,apad=pad_dur=0.18",
+        audio_filter="loudnorm=I=-18:TP=-2:LRA=7",
         max_duration=3.5,
         number=number,
         total=total,
@@ -194,25 +153,19 @@ def main():
     if not WORD_BANK.is_file():
         raise RuntimeError("The phonics word bank is missing.")
 
-    LETTER_AUDIO_ROOT.mkdir(parents=True, exist_ok=True)
     WORD_AUDIO_ROOT.mkdir(parents=True, exist_ok=True)
-    LETTER_AUDIO_ROOT.chmod(0o755)
     WORD_AUDIO_ROOT.chmod(0o755)
     words = load_words()
     client = OpenAI(api_key=key, timeout=180.0, max_retries=0)
     request_with_retry("API key check", lambda: client.models.list())
-
-    made_letters = 0
-    for number, (letter, (ipa, example)) in enumerate(PHONEMES.items(), 1):
-        made_letters += int(create_letter(client, letter, ipa, example, number, len(PHONEMES)))
 
     made_words = 0
     for number, word in enumerate(words, 1):
         made_words += int(create_word(client, word, number, len(words)))
 
     print(
-        f"Phonics audio cache ready: {made_letters} new letter sound(s), "
-        f"{made_words} new object word(s), {len(words)} object word(s) available locally.",
+        f"Object-word cache ready: {made_words} new UK object word(s), "
+        f"{len(words)} object word(s) available locally.",
         flush=True,
     )
 

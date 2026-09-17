@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#42b9f5">
-  <meta name="description" content="A colourful, interactive phonics book for little learners.">
+  <meta name="description" content="A colourful, interactive alphabet and object-word book for little learners.">
   <title>Little Sounds</title>
   <link rel="stylesheet" href="../assets/site-shell.css">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%236c4cff'/%3E%3Cpath d='M18 47 28 17h9l10 30h-8l-2-7H27l-2 7Zm11-14h6l-3-10Z' fill='white'/%3E%3C/svg%3E">
@@ -103,7 +103,7 @@
       color: var(--ink);
       background: white;
       box-shadow: 0 7px 22px rgba(55, 38, 117, 0.12);
-      cursor: pointer;
+      cursor: default;
       display: grid;
       place-items: center;
       font-size: 1.35rem;
@@ -193,33 +193,12 @@
       box-shadow:
         0 16px 0 var(--accent-dark),
         0 24px 40px color-mix(in srgb, var(--accent), transparent 66%);
-      cursor: pointer;
+      cursor: default;
       display: grid;
       place-items: center;
       position: relative;
       transform: rotate(-2deg);
       transition: transform 150ms ease, box-shadow 150ms ease;
-    }
-
-    .letter-button::after {
-      content: "🔊";
-      position: absolute;
-      right: 8%;
-      top: 8%;
-      width: 42px;
-      height: 42px;
-      display: grid;
-      place-items: center;
-      border-radius: 50%;
-      color: var(--ink);
-      background: var(--sun);
-      font-size: 1.2rem;
-      box-shadow: 0 5px 0 rgba(151, 111, 0, 0.25);
-    }
-
-    .letter-button:active {
-      transform: translateY(8px) rotate(1deg) scale(0.985);
-      box-shadow: 0 8px 0 var(--accent-dark), 0 14px 30px color-mix(in srgb, var(--accent), transparent 72%);
     }
 
     .big-letter {
@@ -514,7 +493,6 @@
       .book { padding: 25px 9px 15px; border-width: 5px; }
       .page { grid-template-columns: 1fr; gap: 20px; padding: 15px 11px 18px; background: #fffdf0; }
       .letter-button { width: min(180px, 48vw); border-radius: 34%; box-shadow: 0 10px 0 var(--accent-dark); }
-      .letter-button::after { width: 36px; height: 36px; font-size: 1rem; }
       .big-letter { font-size: clamp(6.4rem, 30vw, 8rem); }
       .sound-pill { margin-top: 17px; min-height: 42px; }
       .prompt { margin-bottom: 12px; }
@@ -634,7 +612,7 @@
       const audio = new Audio(ProfileShell.url(path));
       activeWordAudio = audio;
       audio.play().catch(() => {
-        announcement.textContent = `${label} audio is not cached yet. Ask a grown-up to run cache-phonics.`;
+        announcement.textContent = `${label} audio is not cached yet. Ask a grown-up to run cache-words.`;
       });
     }
 
@@ -714,10 +692,10 @@
       page.innerHTML = `
         <section class="letter-side">
           <div class="count"><span class="count-dot"></span>${current + 1} of ${letters.length}</div>
-          <button class="letter-button" type="button" aria-label="Play the ${item.l} phonics sound">
+          <div class="letter-button" aria-hidden="true">
             <span class="big-letter">${item.l}</span>
-          </button>
-          <div class="sound-pill">Tap ${item.l} to hear its sound</div>
+          </div>
+          <div class="sound-pill">Letter ${item.l}</div>
         </section>
         <section class="picture-side">
           <h1 class="prompt">Tap a picture and learn the word!</h1>
@@ -734,19 +712,16 @@
           </div>
         </section>
       `;
-      page.querySelector(".letter-button").addEventListener("click", () => {
-        playLocalAudio(`/phonics-audio/letters/${item.l.toLowerCase()}.mp3?v=uk-marin-2`, `${item.l} phonics`);
-      });
       document.getElementById("gameButton").addEventListener("click", openQuiz);
       page.querySelectorAll(".picture-card").forEach(card => {
         card.addEventListener("click", () => {
           page.querySelectorAll(".picture-card").forEach(other => other.classList.remove("heard"));
           card.classList.add("heard");
           const word = item.items[Number(card.dataset.index)][1];
-          playLocalAudio(`/phonics-audio/words/${audioSlug(word)}.mp3?v=uk-marin-2`, word);
+          playLocalAudio(`/phonics-audio/words/${audioSlug(word)}.mp3?v=uk-objects-5`, word);
         });
       });
-      item.items.forEach(([, word]) => { const audio = new Audio(ProfileShell.url(`/phonics-audio/words/${audioSlug(word)}.mp3?v=uk-marin-2`)); audio.preload = "metadata"; });
+      item.items.forEach(([, word]) => { const audio = new Audio(ProfileShell.url(`/phonics-audio/words/${audioSlug(word)}.mp3?v=uk-objects-5`)); audio.preload = "metadata"; });
       backButton.disabled = current === 0;
       nextButton.textContent = current === letters.length - 1 ? "Start again ↻" : "Next ▶";
       progressBar.style.width = `${((current + 1) / letters.length) * 100}%`;
@@ -796,7 +771,7 @@
         quizChoices.querySelectorAll("button").forEach(choice => choice.disabled = true);
         button.classList.add("right");
         quizStatus.textContent = `Yes! ${quizAnswer}! ⭐`;
-        playLocalAudio(`/phonics-audio/words/${audioSlug(quizAnswer)}.mp3?v=uk-marin-2`, quizAnswer);
+        playLocalAudio(`/phonics-audio/words/${audioSlug(quizAnswer)}.mp3?v=uk-objects-5`, quizAnswer);
         makeConfetti();
         completePhonicsLetter(letters[current].l);
       } else {
