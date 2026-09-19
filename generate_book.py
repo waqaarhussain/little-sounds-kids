@@ -37,24 +37,30 @@ CHARACTER_ROSTERS = {
     "paw patrol": ("Chase", "Marshall", "Skye", "Rubble", "Rocky", "Zuma"),
 }
 CHARACTER_APPEARANCES = {
-    "Bluey": "a small blue heeler puppy with blue and dark-blue fur",
-    "Bingo": "a small orange heeler puppy with cream patches",
-    "Chilli": "an adult red-orange heeler dog with cream patches",
-    "Bandit": "an adult blue heeler dog with blue and dark-blue fur",
-    "Catboy": "a child hero in a blue cat suit and blue cat-ear mask",
-    "Owlette": "a child hero in a red owl suit, red mask and wing-shaped cape",
-    "Gekko": "a child hero in a green lizard suit and green mask",
-    "Ginny": "an orange ginger tabby cat in a pink hero suit and pink mask",
-    "Sparks": "a yellow Bengal cat in a purple hero suit and purple mask",
-    "Buddy": "a large calico cat in an orange hero suit and orange mask",
-    "Bitsy": "a very small white kitten in a sky-blue hero suit and blue mask",
-    "Chase": "a brown and tan German shepherd pup in blue police gear",
-    "Marshall": "a white Dalmatian pup with black spots in red fire gear",
-    "Skye": "a small tan cockapoo pup in pink flight gear",
-    "Rubble": "a tan and brown bulldog pup in yellow builder gear",
-    "Rocky": "a grey and white mixed-breed pup in green recycling gear",
-    "Zuma": "a chocolate-brown Labrador pup in orange water-rescue gear",
+    "Bluey": "a young girl Blue Heeler puppy with child-sized dog proportions, light-blue fur, dark navy-blue patches and ears, a tan muzzle and belly, and no clothes",
+    "Bingo": "a younger girl Red Heeler puppy, smaller than Bluey, with orange fur, darker orange patches, a cream muzzle and belly, and no clothes",
+    "Chilli": "an adult female Red Heeler with tall slim parent proportions, red-orange and cream fur, darker red patches, and no clothes",
+    "Bandit": "an adult male Blue Heeler with tall broad parent proportions, light-blue fur, dark navy-blue patches, a tan muzzle and belly, and no clothes",
+    "Catboy": "a slim young human boy in a full cobalt-blue cat hero suit and mask with pointed cat ears, pale-blue stripes, a cat tail and chest emblem; never an actual cat",
+    "Owlette": "a slim young human girl in a full bright-red owl hero suit and mask with a red-pink wing-shaped cape and owl chest emblem; never an actual owl",
+    "Gekko": "a compact young human boy in a full green lizard hero suit and mask with lime scale details, a small head crest, lizard tail and chest emblem; never an actual lizard",
+    "Ginny": "an orange ginger tabby cat with a neat small athletic build, darker tabby stripes, a pink hero suit and pink mask",
+    "Sparks": "a yellow Bengal cat with a slim athletic build, darker brown spots and stripes, a purple hero suit and purple mask",
+    "Buddy": "a calico British Shorthair cat, the largest SuperKitty, with a sturdy strong athletic build rather than a fat or round-bellied body, white fur with grey and orange patches, an orange hero suit and orange mask",
+    "Bitsy": "a tiny white Munchkin kitten, the smallest SuperKitty, with very short legs, small grey markings, a sky-blue hero suit and blue mask",
+    "Chase": "a lean brown-and-tan German Shepherd puppy with pointed ears in blue police cap, vest and pup pack",
+    "Marshall": "a lean white Dalmatian puppy with clear black spots and floppy ears in red firefighter helmet, vest and pup pack",
+    "Skye": "a small slim tan Cockapoo puppy with floppy ears in a pink aviator helmet, goggles, flight vest and pup pack",
+    "Rubble": "a short sturdy tan-and-cream English Bulldog puppy, strong but not fat, in a yellow builder hard hat, vest and pup pack",
+    "Rocky": "a slim grey-and-white mixed-breed puppy with floppy ears in a green recycling cap, vest and pup pack",
+    "Zuma": "a slim chocolate-brown Labrador puppy with floppy ears in an orange water-rescue helmet, vest and pup pack",
 }
+CHARACTER_ACCURACY_RULE = (
+    "Every named character must match the supplied appearance guide exactly: species or breed, age and relative "
+    "size, body build and proportions, fur or skin colours, facial and body markings, ears and tail, mask, outfit "
+    "and signature colours. Never use a generic lookalike, a blended character, a swapped costume or a noticeably "
+    "fatter, thinner, older or younger version."
+)
 SOUND_EFFECT_WORDS = {"bang", "beep", "boom", "click", "crash", "ding", "pop", "pow", "splash", "whoosh", "zap"}
 PROTECTED_PAGE_TERMS = {
     "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
@@ -67,7 +73,7 @@ HARD_STORY_WORDS = {
     "mysterious", "noticed", "puzzled", "sparkling", "suddenly", "whispered", "wonderful",
 }
 LONG_NAME_WORDS = {"superkitties"}
-IMAGE_ATTEMPTS = 3
+IMAGE_ATTEMPTS = 4
 STORY_PLAN_ATTEMPTS = 8
 PAGE_TEXT_ATTEMPTS = 3
 MAX_CONSECUTIVE_BOOK_FAILURES = 3
@@ -565,6 +571,7 @@ def image_matches_page(client, raw, page_text, label):
 You are checking whether one preschool storybook picture is a sensible illustration for its page words.
 Exact page words: {page_text}
 Exact appearance guide for every named character on this page: {identity_guide or "no named character guide"}
+Character accuracy rule: {CHARACTER_ACCURACY_RULE}
 One still picture is not expected to show every sentence or every step that happens across the page. Return
 matches=true when it clearly shows the same central story moment, named main characters, setting and key
 objects, without contradicting the page. Do not reject it merely because a small gesture, pose, facial
@@ -573,9 +580,12 @@ hands. Exact colour or object count matters only when that colour or count is ce
 Return false if it shows a different central event, misses a key object, replaces a named main character with
 a character from another world, gets a central learning colour or count wrong, or shows Numberblocks,
 Alphablocks or Colourblocks.
-Return false if a named character has the wrong fur colour, species, mask, suit or uniform from the appearance
-guide. A different character from the same programme does not count as the named character. For example, a
-small white SuperKitties cat in blue is Bitsy, never Ginny; Ginny must be an orange tabby in pink.
+Return false if any named character has the wrong body shape, proportions, relative size, age, fur or skin
+colour, species or breed, facial or body markings, ears, tail, mask, suit, uniform or signature colours from
+the appearance guide. A generic lookalike, blended character or different character from the same programme
+does not count as the named character. Buddy must have a sturdy strong athletic build, never an obese,
+round-bellied or ginger-tabby body. A small white SuperKitties cat in blue is Bitsy, never Ginny; Ginny must be
+an orange tabby in pink.
 Return false if the picture contains a story heading, caption, sentence, paragraph, speech bubble or page
 wording. A single learning symbol such as A or 3 is allowed only when the page itself needs that object.
 Small background details do not matter. Never require story words to be printed inside the picture.
@@ -588,7 +598,7 @@ Small background details do not matter. Never require story words to be printed 
                 "role": "user",
                 "content": [
                     {"type": "input_text", "text": check_prompt},
-                    {"type": "input_image", "image_url": f"data:image/png;base64,{encoded}", "detail": "low"},
+                    {"type": "input_image", "image_url": f"data:image/png;base64,{encoded}", "detail": "high"},
                 ],
             }],
             text={
@@ -608,19 +618,23 @@ Small background details do not matter. Never require story words to be printed 
 def image_continues_previous_page(client, previous_raw, current_raw, previous_words, current_words, label):
     previous_encoded = base64.b64encode(previous_raw).decode("ascii")
     current_encoded = base64.b64encode(current_raw).decode("ascii")
+    identity_guide = character_appearance_guide(f"{previous_words} {current_words}")
     prompt = f"""
 Check visual continuity between two consecutive preschool storybook pictures. The first supplied image is the
 previous page and the second supplied image is the new page.
 Previous page words: {previous_words}
 New page words: {current_words}
+Exact appearance guide for every named character: {identity_guide or "no named character guide"}
+Character accuracy rule: {CHARACTER_ACCURACY_RULE}
 
 Return consistent=true when recurring characters and important story objects keep the same identity and visible
 features. An object may move, turn, fold, open, close or gain something only when the page words explain that
 change. Return false when a continuing object silently changes its base colour, shape, pattern or key parts. For
 example, a blue blanket with red, blue and green square patches cannot become a blanket with a pink star and a
 yellow circle on the next page. Also reject a named character changing into a different character. Different
-camera views, poses, lighting, backgrounds and non-recurring small props are fine. If no important object carries
-between the pages, return true. Explain only the key continuity reason.
+camera views, poses, lighting, backgrounds and non-recurring small props are fine. Even when there is no recurring
+object, return false if a named character breaks its exact appearance guide. If no important object carries
+between the pages and every named character is accurate, return true. Explain only the key continuity reason.
 """
     response = request_with_retry(
         f"{label} continuity check",
@@ -770,6 +784,7 @@ def adapted_page_from_image(
     fixed_heading = heading if page_type in {"title", "end"} else ""
     last_problem = first_problem
     official_roster = complete_character_roster()
+    identity_guide = character_appearance_guide(f"{heading} {text}")
     for attempt in range(1, PAGE_TEXT_ATTEMPTS + 1):
         heading_rule = (
             f"Keep the heading exactly as {json.dumps(fixed_heading)}."
@@ -781,11 +796,14 @@ Rewrite one page of a picture book for children aged 3 to 5 so its words truthfu
 The picture was made for this original page: {heading}. {text}
 Story context to preserve where the picture allows it: {story_context}
 The last mismatch was: {last_problem}
+Exact appearance guide for every named original character: {identity_guide or "no named character guide"}
+Character accuracy rule: {CHARACTER_ACCURACY_RULE}
 {heading_rule}
 Return usable=false if the picture contains a caption, story sentence, speech bubble, logo, watermark,
 Numberblocks, Alphablocks or Colourblocks. Also return usable=false when the picture replaces or omits a named
-original character, changes the central action, changes the setting, or shows a different story event; that picture
-must be regenerated. Official character names are: {official_roster}. Never invent, shorten or guess a character
+original character, gives a named character any wrong body build, proportions, relative size, species, colours,
+markings or outfit, changes the central action, changes the setting, or shows a different story event; that picture
+must be regenerated rather than described with different words. Official character names are: {official_roster}. Never invent, shorten or guess a character
 name. Keep every original named character, the central goal, action and setting exactly the same. Never change,
 add or remove a number, count or colour. You may only adjust a small visible pose or gesture that does not change the plot.
 Otherwise return usable=true and write four or five complete,
@@ -803,7 +821,7 @@ wording from the story context. Do not mention the picture.
                     "role": "user",
                     "content": [
                         {"type": "input_text", "text": prompt},
-                        {"type": "input_image", "image_url": f"data:image/png;base64,{encoded}", "detail": "low"},
+                        {"type": "input_image", "image_url": f"data:image/png;base64,{encoded}", "detail": "high"},
                     ],
                 }],
                 text={
@@ -993,6 +1011,7 @@ def illustration_style():
         f"Faithful friendly characters only from these allowed worlds: {STORY_THEMES}. "
         "Never show Numberblocks, Alphablocks or Colourblocks. Show only characters named in the visual brief. "
         "Match the brief's central moment, key objects and setting. Do not add a different main action or extra hero. "
+        + CHARACTER_ACCURACY_RULE + " "
     )
 
 
@@ -1233,7 +1252,16 @@ def repair_book_pictures(client, book):
         for index, (filename, words, brief) in enumerate(zip(filenames, page_words, briefs), 1):
             label = "Cover" if index == 1 else f"Picture {index - 1} of 7"
             print(f"Repairing {book['title']}: {label.lower()}...", flush=True)
-            prompt = style + "Draw this scene and nothing else: " + brief
+            identity_guide = character_appearance_guide(words)
+            prompt = (
+                style
+                + "Draw this scene and nothing else: "
+                + brief
+                + ". Exact named character appearance guide: "
+                + (identity_guide or "no named characters")
+                + ". "
+                + CHARACTER_ACCURACY_RULE
+            )
             save_webp(matching_image_bytes(client, label, prompt, words, attempts=6), temporary / filename)
         for filename in filenames:
             (temporary / filename).replace(directory / filename)
