@@ -29,7 +29,7 @@ snapshot_current() {
   mkdir -p "$destination/site" "$destination/app" "$destination/bin"
   rsync -a --delete --exclude sticker-images --exclude sticker-generator --exclude generated-books --exclude phonics-audio "$live_site/" "$destination/site/"
   rsync -a "$live_app/" "$destination/app/"
-  for command in generate-stickers generate-book narrate-books repair-book clean cache-phonics backup update-live rollback-live; do
+  for command in generate-stickers generate-book narrate-books repair-book clean cache-phonics cache-words backup update-live rollback-live; do
     if [ -f "/usr/local/bin/$command" ]; then install -m 0755 "/usr/local/bin/$command" "$destination/bin/$command"; fi
   done
   if [ -f "$live_app/source-commit" ]; then cp "$live_app/source-commit" "$destination/source-commit"; fi
@@ -53,8 +53,8 @@ rollback_failed_update() {
 
 /opt/little-sounds-venv/bin/pip install --disable-pip-version-check -r "$stage/server/requirements.txt" >/dev/null
 rsync -a --delete --exclude sticker-images --exclude sticker-generator --exclude generated-books --exclude phonics-audio "$stage/site/" "$live_site/"
-install -d -m 0755 "$live_site/phonics-audio/letters" "$live_site/phonics-audio/words"
-rsync -a "$stage/site/phonics-audio/letters/" "$live_site/phonics-audio/letters/"
+rm -rf "$live_site/phonics-audio/letters"
+install -d -m 0755 "$live_site/phonics-audio/words"
 rm -rf "$live_site/books/rainbow-rescue" "$live_site/generated-books/narration/rainbow-rescue"
 rm -f "$live_site/generated-books/shelf-state.json"
 install -m 0644 "$stage/server/app.py" "$live_app/app.py"
@@ -65,6 +65,7 @@ done
 for command in generate-stickers generate-book narrate-books repair-book clean cache-phonics backup update-live rollback-live; do
   install -m 0755 "$stage/$command" "/usr/local/bin/$command"
 done
+install -m 0755 "$stage/cache-phonics" /usr/local/bin/cache-words
 rm -f /usr/local/bin/update-test /usr/local/bin/refresh-test /usr/local/bin/live
 systemctl disable --now little-sounds-test.service 2>/dev/null || true
 rm -f /etc/systemd/system/little-sounds-test.service /etc/little-sounds-test.env
@@ -82,5 +83,5 @@ done
 if [ "$healthy" != true ]; then rollback_failed_update; exit 1; fi
 
 find "$snapshot_root" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | tail -n +6 | cut -d' ' -f2- | xargs -r rm -rf
-echo "Live is now running build $main_sha. Sticker albums, books and cached phonics audio were preserved."
+echo "Live is now running build $main_sha. Sticker albums, books and cached UK object-word audio were preserved."
 echo "Open: http://$(hostname -I | awk '{print $1}')/"
