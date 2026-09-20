@@ -32,41 +32,70 @@
     return data;
   };
   const spots = {
-    "sun-colour": {x:83,y:78,rx:55,ry:55,label:"sun"},
-    "cloud-missing": {x:250,y:78,rx:92,ry:52,label:"cloud"},
-    "kite-shape": {x:420,y:82,rx:67,ry:67,label:"kite"},
-    "left-character-size": {x:245,y:318,rx:145,ry:170,label:"left character"},
-    "right-character-mirror": {x:560,y:318,rx:145,ry:170,label:"right character"},
-    "flower-colour": {x:82,y:485,rx:70,ry:65,label:"flower"},
-    "ball-missing": {x:710,y:485,rx:70,ry:65,label:"ball"},
-    "butterfly-colour": {x:585,y:92,rx:65,ry:55,label:"butterfly"}
+    sun: {x:83,y:78,rx:58,ry:58,label:"sun"},
+    cloud: {x:250,y:78,rx:96,ry:55,label:"cloud"},
+    kite: {x:420,y:105,rx:70,ry:92,label:"kite"},
+    butterfly: {x:585,y:92,rx:68,ry:58,label:"butterfly"},
+    leftCharacter: {x:245,y:318,rx:145,ry:170,label:"left character"},
+    rightCharacter: {x:560,y:318,rx:145,ry:170,label:"right character"},
+    flower: {x:82,y:485,rx:70,ry:65,label:"flower"},
+    ball: {x:710,y:485,rx:70,ry:65,label:"ball"}
+  };
+  const differenceSpots = {
+    "sun-colour":"sun", "sun-size":"sun", "sun-rays":"sun", "sun-shape":"sun",
+    "cloud-missing":"cloud", "cloud-small":"cloud", "cloud-puff":"cloud", "cloud-colour":"cloud",
+    "kite-shape":"kite", "kite-colour":"kite", "kite-tail":"kite", "kite-string":"kite",
+    "butterfly-colour":"butterfly", "butterfly-missing":"butterfly", "butterfly-size":"butterfly", "butterfly-spots":"butterfly",
+    "left-character-size":"leftCharacter", "left-character-mirror":"leftCharacter", "left-character-position":"leftCharacter", "left-character-tilt":"leftCharacter",
+    "right-character-mirror":"rightCharacter", "right-character-size":"rightCharacter", "right-character-position":"rightCharacter", "right-character-tilt":"rightCharacter",
+    "flower-colour":"flower", "flower-centre":"flower", "flower-petal":"flower", "flower-size":"flower",
+    "ball-missing":"ball", "ball-colour":"ball", "ball-size":"ball", "ball-stripe":"ball"
   };
   let plan, attempt = 0, found = new Set(), finished = false, nextTimer = 0;
 
   function changed(name, side) { return side === 2 && plan.differences.includes(name); }
+  function spotFor(name) { return spots[differenceSpots[name]]; }
   function sceneMarkup(side) {
     const first = plan.characters[0], second = plan.characters[1];
-    const leftChanged = changed("left-character-size", side);
-    const rightChanged = changed("right-character-mirror", side);
+    const leftTransform = changed("left-character-size",side) ? "translate(45 58) scale(.82)" :
+      changed("left-character-mirror",side) ? "translate(500 0) scale(-1 1)" :
+      changed("left-character-position",side) ? "translate(-34 22)" :
+      changed("left-character-tilt",side) ? "rotate(-10 250 320)" : "";
+    const rightTransform = changed("right-character-size",side) ? "translate(101 58) scale(.82)" :
+      changed("right-character-mirror",side) ? "translate(1120 0) scale(-1 1)" :
+      changed("right-character-position",side) ? "translate(34 22)" :
+      changed("right-character-tilt",side) ? "rotate(10 560 320)" : "";
+    const sunShape = changed("sun-shape",side)
+      ? '<path d="M0-47 12-18 43-25 25 0 45 25 13 19 0 48-13 19-45 25-25 0-43-25-12-18Z" fill="#ffd84b"/>'
+      : `<circle r="45" fill="${changed("sun-colour",side) ? "#ff7aaf" : "#ffd84b"}"/>`;
     return `
       <defs><linearGradient id="sky${side}" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#9be8ff"/><stop offset="1" stop-color="#effcff"/></linearGradient></defs>
       <rect width="800" height="560" rx="28" fill="url(#sky${side})"/>
-      <circle cx="82" cy="78" r="45" fill="${changed("sun-colour",side) ? "#ff7aaf" : "#ffd84b"}"/>
-      <g opacity="${changed("cloud-missing",side) ? 0 : 1}" fill="#fff"><ellipse cx="208" cy="82" rx="49" ry="28"/><ellipse cx="254" cy="68" rx="57" ry="39"/><ellipse cx="303" cy="84" rx="47" ry="27"/></g>
-      <g transform="translate(420 82)">${changed("kite-shape",side) ? '<rect x="-35" y="-35" width="70" height="70" rx="14" fill="#8a60ec"/>' : '<path d="M0-49 49 0 0 49-49 0Z" fill="#ff6d79"/>'}<path d="M0 48q25 28 2 55t20 45" fill="none" stroke="#5b4a84" stroke-width="6" stroke-linecap="round"/></g>
-      <g fill="none" stroke="${changed("butterfly-colour",side) ? "#f25c91" : "#6e53d9"}" stroke-width="13" stroke-linecap="round"><path d="M580 83q-38-40-45 4q4 31 45 13M590 83q38-40 45 4q-4 31-45 13"/></g><circle cx="585" cy="95" r="9" fill="#273b75"/>
+      <g transform="translate(82 78) scale(${changed("sun-size",side) ? ".7" : "1"})">
+        <g opacity="${changed("sun-rays",side) ? 0 : 1}" stroke="#f7a72e" stroke-width="7" stroke-linecap="round"><path d="M0-64V-55M0 55V64M-64 0H-55M55 0H64M-45-45-39-39M45-45 39-39M-45 45-39 39M45 45 39 39"/></g>${sunShape}
+      </g>
+      <g opacity="${changed("cloud-missing",side) ? 0 : 1}" fill="${changed("cloud-colour",side) ? "#ffd6eb" : "#fff"}" transform="${changed("cloud-small",side) ? "translate(75 24) scale(.7)" : ""}"><ellipse cx="208" cy="82" rx="49" ry="28"/><ellipse cx="254" cy="68" rx="57" ry="39"/><ellipse cx="303" cy="84" rx="47" ry="27" opacity="${changed("cloud-puff",side) ? 0 : 1}"/></g>
+      <g transform="translate(420 82)">
+        ${changed("kite-shape",side) ? '<rect x="-35" y="-35" width="70" height="70" rx="14" fill="#ff6d79"/>' : `<path d="M0-49 49 0 0 49-49 0Z" fill="${changed("kite-colour",side) ? "#8a60ec" : "#ff6d79"}"/>`}
+        <path d="M0 48q25 28 2 55t20 45" opacity="${changed("kite-tail",side) ? 0 : 1}" fill="none" stroke="#5b4a84" stroke-width="6" stroke-linecap="round"/>
+        <path d="M-4 48q-34 55-10 112" opacity="${changed("kite-string",side) ? 0 : 1}" fill="none" stroke="#6e5a79" stroke-width="3" stroke-linecap="round"/>
+      </g>
+      <g opacity="${changed("butterfly-missing",side) ? 0 : 1}" transform="translate(585 92) scale(${changed("butterfly-size",side) ? ".68" : "1"}) translate(-585 -92)">
+        <g fill="none" stroke="${changed("butterfly-colour",side) ? "#f25c91" : "#6e53d9"}" stroke-width="13" stroke-linecap="round"><path d="M580 83q-38-40-45 4q4 31 45 13M590 83q38-40 45 4q-4 31-45 13"/></g><circle cx="585" cy="95" r="9" fill="#273b75"/>
+        <g opacity="${changed("butterfly-spots",side) ? 0 : 1}" fill="#ffd84b"><circle cx="551" cy="80" r="7"/><circle cx="619" cy="80" r="7"/></g>
+      </g>
       <path d="M0 390Q150 320 310 395T610 380T800 370V560H0Z" fill="#83dda1"/><path d="M0 455Q170 405 330 462T630 445T800 435V560H0Z" fill="#4fbc79" opacity=".72"/>
-      <image href="${first.image}" x="${leftChanged ? 145 : 105}" y="${leftChanged ? 215 : 145}" width="${leftChanged ? 210 : 290}" height="${leftChanged ? 260 : 350}" preserveAspectRatio="xMidYMid meet"/>
-      <image href="${second.image}" x="415" y="145" width="290" height="350" preserveAspectRatio="xMidYMid meet" transform="${rightChanged ? "translate(1120 0) scale(-1 1)" : ""}"/>
-      <g transform="translate(82 492)"><circle r="17" fill="#ffd849"/><g fill="${changed("flower-colour",side) ? "#9a65eb" : "#ff6d9c"}"><circle cy="-30" r="22"/><circle cx="29" cy="-9" r="22"/><circle cx="18" cy="25" r="22"/><circle cx="-18" cy="25" r="22"/><circle cx="-29" cy="-9" r="22"/></g><circle r="15" fill="#ffd849"/></g>
-      <g opacity="${changed("ball-missing",side) ? 0 : 1}"><circle cx="710" cy="490" r="48" fill="#fff" stroke="#fff" stroke-width="7"/><path d="M710 442A48 48 0 0 1 751 514L710 490Z" fill="#ff637a"/><path d="M710 490 674 522A48 48 0 0 1 669 465Z" fill="#5c66dc"/><circle cx="710" cy="490" r="9" fill="#ffd84b"/></g>
+      <g transform="${leftTransform}"><image href="${first.image}" x="105" y="145" width="290" height="350" preserveAspectRatio="xMidYMid meet"/></g>
+      <g transform="${rightTransform}"><image href="${second.image}" x="415" y="145" width="290" height="350" preserveAspectRatio="xMidYMid meet"/></g>
+      <g transform="translate(82 492) scale(${changed("flower-size",side) ? ".7" : "1"})"><g fill="${changed("flower-colour",side) ? "#9a65eb" : "#ff6d9c"}"><circle cy="-30" r="22"/><circle cx="29" cy="-9" r="22"/><circle cx="18" cy="25" r="22"/><circle cx="-18" cy="25" r="22"/><circle cx="-29" cy="-9" r="22" opacity="${changed("flower-petal",side) ? 0 : 1}"/></g><circle r="15" fill="${changed("flower-centre",side) ? "#42a9ea" : "#ffd849"}"/></g>
+      <g opacity="${changed("ball-missing",side) ? 0 : 1}" transform="translate(710 490) scale(${changed("ball-size",side) ? ".72" : "1"}) translate(-710 -490)"><circle cx="710" cy="490" r="48" fill="#fff" stroke="#fff" stroke-width="7"/><path d="M710 442A48 48 0 0 1 751 514L710 490Z" fill="${changed("ball-colour",side) ? "#55c489" : "#ff637a"}"/><path d="M710 490 674 522A48 48 0 0 1 669 465Z" fill="${changed("ball-colour",side) ? "#f28f3b" : "#5c66dc"}"/><path d="M674 474Q710 501 749 478" opacity="${changed("ball-stripe",side) ? 0 : 1}" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/><circle cx="710" cy="490" r="9" fill="#ffd84b"/></g>
       <g class="difference-targets"></g><g class="difference-found-marks"></g>`;
   }
 
   function addTargets(svg) {
     const group = svg.querySelector(".difference-targets");
     plan.differences.forEach(name => {
-      const spot = spots[name];
+      const spot = spotFor(name);
       if (!spot) return;
       const target = document.createElementNS(ns, "ellipse");
       target.setAttribute("cx", spot.x); target.setAttribute("cy", spot.y);
@@ -80,7 +109,7 @@
   }
 
   function markFound(svg, name) {
-    const spot = spots[name], ring = document.createElementNS(ns, "ellipse");
+    const spot = spotFor(name), ring = document.createElementNS(ns, "ellipse");
     ring.setAttribute("cx", spot.x); ring.setAttribute("cy", spot.y);
     ring.setAttribute("rx", spot.rx); ring.setAttribute("ry", spot.ry);
     ring.setAttribute("class", "difference-found-ring");
@@ -109,7 +138,7 @@
     try {
       const result = await api("/api/progress/complete", {method:"POST", body:JSON.stringify({activity,item:"puzzle",attempt})});
       if (result.exercise_completed && result.reward_token) await ProfileShell.claimReward(result.reward_token);
-      if (result.exercise_completed) nextTimer = window.setTimeout(loadPuzzle, 1800);
+      if (result.exercise_completed) nextTimer = window.setTimeout(() => loadPuzzle(true), 1800);
     } catch (error) { byId("feedback").textContent = error.message; }
   }
 
@@ -128,12 +157,14 @@
     });
   }
 
-  async function loadPuzzle() {
+  async function loadPuzzle(fresh = true) {
     window.clearTimeout(nextTimer); byId("feedback").textContent = "Choosing two fresh characters…";
-    try { const variant = await api("/api/activity/variant?activity=" + activity); attempt = variant.attempt; render(variant.plan); }
+    const query = "/api/activity/variant?activity=" + activity + (fresh ? "&fresh=1" : "");
+    try { const variant = await api(query); attempt = variant.attempt; render(variant.plan); }
     catch (error) { byId("feedback").textContent = error.message; }
   }
-  ProfileShell.ready.then(loadPuzzle);
+  ProfileShell.ready.then(() => loadPuzzle(true));
+  window.addEventListener("pageshow", event => { if (event.persisted) ProfileShell.ready.then(() => loadPuzzle(true)); });
 })();
 </script>
 </body>

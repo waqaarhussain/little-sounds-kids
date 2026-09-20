@@ -77,9 +77,15 @@ RANDOM_ACTIVITIES = {
     "dot-to-dot", "character-maze", "character-jigsaw", "spot-the-difference",
 }
 PUZZLE_ACTIVITIES = {"dot-to-dot", "character-maze", "character-jigsaw", "spot-the-difference"}
-SPOT_DIFFERENCES = (
-    "sun-colour", "cloud-missing", "kite-shape", "left-character-size",
-    "right-character-mirror", "flower-colour", "ball-missing", "butterfly-colour",
+SPOT_DIFFERENCE_GROUPS = (
+    ("sun-colour", "sun-size", "sun-rays", "sun-shape"),
+    ("cloud-missing", "cloud-small", "cloud-puff", "cloud-colour"),
+    ("kite-shape", "kite-colour", "kite-tail", "kite-string"),
+    ("butterfly-colour", "butterfly-missing", "butterfly-size", "butterfly-spots"),
+    ("left-character-size", "left-character-mirror", "left-character-position", "left-character-tilt"),
+    ("right-character-mirror", "right-character-size", "right-character-position", "right-character-tilt"),
+    ("flower-colour", "flower-centre", "flower-petal", "flower-size"),
+    ("ball-missing", "ball-colour", "ball-size", "ball-stripe"),
 )
 COUNTING_ICONS = (
     ("apples", "🍎"), ("stars", "⭐"), ("ladybirds", "🐞"), ("fish", "🐠"),
@@ -741,9 +747,11 @@ def build_themed_activity_plan(connection, profile, activity, attempt):
     if activity == "spot-the-difference":
         characters = choose_activity_sticker_pair(connection, profile, activity)
         difference_count = random.randint(5, 8)
-        differences = random.sample(SPOT_DIFFERENCES, difference_count)
+        selected_groups = random.sample(SPOT_DIFFERENCE_GROUPS, difference_count)
+        differences = [random.choice(group) for group in selected_groups]
+        random.shuffle(differences)
         plan = {
-            "layout_version": 1,
+            "layout_version": 2,
             "characters": characters,
             "sticker_ids": [character["sticker_id"] for character in characters],
             "themes": [character["theme"] for character in characters],
@@ -936,7 +944,13 @@ def get_or_create_activity_variant(connection, profile, activity):
     ).fetchone()
     if row:
         existing_plan = json.loads(row["plan_json"])
-        if activity != "dot-to-dot" or int(existing_plan.get("layout_version", 0)) >= 6:
+        layout_version = int(existing_plan.get("layout_version", 0))
+        plan_is_current = (
+            activity not in {"dot-to-dot", "spot-the-difference"}
+            or (activity == "dot-to-dot" and layout_version >= 6)
+            or (activity == "spot-the-difference" and layout_version >= 2)
+        )
+        if plan_is_current:
             return int(row["attempt"]), existing_plan
         connection.execute(
             "UPDATE activity_variants SET completed = 1 WHERE profile = ? AND activity = ? AND attempt = ?",
@@ -977,6 +991,19 @@ def activity_variant():
         if not device:
             return jsonify({"error": "Choose a profile first."}), 401
         connection.execute("BEGIN IMMEDIATE")
+        if activity == "spot-the-difference" and request.args.get("fresh") == "1":
+            connection.execute(
+                "UPDATE activity_variants SET completed = 1 WHERE profile = ? AND activity = ? AND completed = 0",
+                (device["profile"], activity),
+            )
+            connection.execute(
+                "DELETE FROM activity_progress WHERE profile = ? AND activity = ?",
+                (device["profile"], activity),
+            )
+            connection.execute(
+                "DELETE FROM activity_sessions WHERE profile = ? AND activity = ?",
+                (device["profile"], activity),
+            )
         attempt, plan = get_or_create_activity_variant(connection, device["profile"], activity)
         return jsonify({"activity": activity, "attempt": attempt, "plan": plan})
 
