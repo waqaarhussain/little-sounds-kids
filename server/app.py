@@ -442,44 +442,26 @@ def outline_dots(image_path, count):
     analysis = image.resize((analysis_size, analysis_size), Image.Resampling.LANCZOS)
     analysis_alpha = analysis.getchannel("A")
     smooth = analysis.convert("RGB").filter(ImageFilter.GaussianBlur(0.8))
-    alpha_pixels = analysis_alpha.load()
     colour_pixels = smooth.load()
 
-    # Sticker art often includes a white cutout, lightning marks and small props.
-    # Remove pale backing, break thin decorative lines, then select the largest
-    # substantial colour region nearest the centre. That region is the character.
-    colour_mask = Image.new("L", (analysis_size, analysis_size))
-    colour_mask_pixels = colour_mask.load()
-    for y in range(analysis_size):
-        for x in range(analysis_size):
-            red, green, blue = colour_pixels[x, y]
-            _, saturation, value = colorsys.rgb_to_hsv(red / 255, green / 255, blue / 255)
-            if alpha_pixels[x, y] >= 48 and ((saturation >= 0.18 and value <= 0.97) or value < 0.62):
-                colour_mask_pixels[x, y] = 255
-    opened_mask = colour_mask.filter(ImageFilter.MinFilter(7)).filter(ImageFilter.MaxFilter(7))
-    opened_pixels = opened_mask.load()
+    # Use transparency for the complete figure. Selecting one colour region can
+    # mistake an eye patch, suit panel or helmet for the whole character.
+    alpha_mask = analysis_alpha.point(lambda value: 255 if value >= 48 else 0)
+    alpha_mask_pixels = alpha_mask.load()
     subject_components = components(
         (x, y)
         for y in range(analysis_size)
         for x in range(analysis_size)
-        if opened_pixels[x, y]
+        if alpha_mask_pixels[x, y]
     )
     if not subject_components:
         raise ValueError("The selected character picture has no usable character shape.")
-
-    def subject_score(component):
-        centre_x = sum(point[0] for point in component) / len(component)
-        centre_y = sum(point[1] for point in component) / len(component)
-        distance = math.hypot(centre_x - analysis_size / 2, centre_y - analysis_size / 2)
-        centrality = 1 + max(0, 1 - distance / (analysis_size / math.sqrt(2)))
-        return len(component) * centrality
-
-    subject_seed = max(subject_components, key=subject_score)
-    seed_mask = Image.new("L", (analysis_size, analysis_size))
-    seed_pixels = seed_mask.load()
-    for x, y in subject_seed:
-        seed_pixels[x, y] = 255
-    subject_mask = seed_mask.filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.MinFilter(3))
+    subject = max(subject_components, key=len)
+    subject_mask = Image.new("L", (analysis_size, analysis_size))
+    subject_pixels = subject_mask.load()
+    for x, y in subject:
+        subject_pixels[x, y] = 255
+    subject_mask = subject_mask.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
     subject_pixels = subject_mask.load()
     subject_bounds = subject_mask.getbbox()
     if not subject_bounds:
@@ -692,7 +674,7 @@ def build_themed_activity_plan(connection, profile, activity, attempt):
         dots, guides = outline_dots(artwork["image"], random.randint(45, 60))
         plan = {
             **artwork,
-            "layout_version": 5,
+            "layout_version": 6,
             "line_colour": artwork_line_colour(artwork["image"], artwork["theme"]),
             "dot_count": len(dots),
             "dots": dots,
@@ -871,7 +853,7 @@ def get_or_create_activity_variant(connection, profile, activity):
     ).fetchone()
     if row:
         existing_plan = json.loads(row["plan_json"])
-        if activity != "dot-to-dot" or int(existing_plan.get("layout_version", 0)) >= 5:
+        if activity != "dot-to-dot" or int(existing_plan.get("layout_version", 0)) >= 6:
             return int(row["attempt"]), existing_plan
         connection.execute(
             "UPDATE activity_variants SET completed = 1 WHERE profile = ? AND activity = ? AND attempt = ?",
