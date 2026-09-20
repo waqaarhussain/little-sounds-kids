@@ -15,7 +15,7 @@
     <div class="puzzle-stage dot-stage" id="dotStage">
       <svg id="dotSvg" viewBox="0 0 1000 700" role="img" aria-label="Join the numbered dots in order">
         <image class="dot-picture" id="dotPicture" x="195" y="45" width="610" height="610" preserveAspectRatio="xMidYMid meet"></image>
-        <g id="dotLines"></g><g class="dot-markers" id="dotMarkers"></g>
+        <g class="dot-guides" id="dotGuides"></g><g class="dot-lines" id="dotLines"></g><g class="dot-markers" id="dotMarkers"></g>
       </svg>
     </div>
     <p class="feedback" id="feedback" aria-live="polite">Join the dots in number order. You can use your finger or Apple Pencil.</p>
@@ -120,6 +120,7 @@
     dots = plan.dots;
     nextIndex = 0; activePointer = null; completing = false;
     byId("dotStage").classList.remove("finished");
+    byId("dotGuides").replaceChildren();
     byId("dotLines").replaceChildren();
     byId("dotMarkers").replaceChildren();
     byId("themePill").textContent = plan.theme_label + " surprise";
@@ -127,6 +128,12 @@
     byId("feedback").textContent = "Join the dots in number order. You can use your finger or Apple Pencil.";
     byId("dotPicture").setAttribute("href", plan.image);
     byId("dotStage").style.setProperty("--dot-line-colour", plan.line_colour || "#6d50df");
+    (plan.guides || []).forEach(points => {
+      const guide = document.createElementNS(ns, "polyline");
+      guide.setAttribute("class", "dot-guide");
+      guide.setAttribute("points", points.map(point => point[0] + "," + point[1]).join(" "));
+      byId("dotGuides").appendChild(guide);
+    });
     const labels = labelPositions();
     dots.forEach((dot, index) => {
       const group = document.createElementNS(ns, "g");

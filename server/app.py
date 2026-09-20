@@ -386,44 +386,6 @@ def outline_dots(image_path, count):
     source = sticker_file(image_path)
     with Image.open(source) as opened:
         image = opened.convert("RGBA")
-    alpha = image.getchannel("A")
-    bounds = alpha.point(lambda value: 255 if value >= 48 else 0).getbbox()
-    if not bounds:
-        raise ValueError("The selected character picture has no usable outline.")
-    left, top, right, bottom = bounds
-    centre_x = (left + right - 1) / 2
-    centre_y = (top + bottom - 1) / 2
-    pixels = alpha.load()
-    boundary = []
-    for y in range(max(1, top), min(image.height - 1, bottom)):
-        for x in range(max(1, left), min(image.width - 1, right)):
-            if pixels[x, y] < 48:
-                continue
-            if min(pixels[x - 1, y], pixels[x + 1, y], pixels[x, y - 1], pixels[x, y + 1]) < 48:
-                dx, dy = x - centre_x, y - centre_y
-                boundary.append((math.atan2(dy, dx), math.hypot(dx, dy), x, y))
-    if not boundary:
-        raise ValueError("The selected character picture has no usable edge.")
-
-    # Keep the outermost edge in small angular buckets. This supplies only part
-    # of the puzzle. Strong colour edges inside the artwork supply the face,
-    # costume and object details so the result is not merely one easy silhouette.
-    bucket_count = 720
-    buckets = [None] * bucket_count
-    for angle, radius, x, y in boundary:
-        bucket = min(bucket_count - 1, int(((angle + math.pi / 2) % math.tau) / math.tau * bucket_count))
-        current = buckets[bucket]
-        if current is None or radius > current[0]:
-            buckets[bucket] = (radius, x, y)
-    outline = [
-        (
-            195 + point[1] / max(image.width - 1, 1) * 610,
-            45 + point[2] / max(image.height - 1, 1) * 610,
-        )
-        for point in buckets if point is not None
-    ]
-    if len(outline) < 35:
-        raise ValueError("The selected character outline is too small for a dot-to-dot puzzle.")
 
     def sample_polyline(points, sample_count, closed=False, offset=0.0):
         line_segments = []
@@ -456,22 +418,141 @@ def outline_dots(image_path, count):
             ))
         return points
 
+    def components(points, minimum=10):
+        remaining = set(points)
+        groups = []
+        while remaining:
+            start = remaining.pop()
+            component = {start}
+            queue = [start]
+            while queue:
+                x, y = queue.pop()
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        neighbour = (x + dx, y + dy)
+                        if neighbour in remaining:
+                            remaining.remove(neighbour)
+                            component.add(neighbour)
+                            queue.append(neighbour)
+            if len(component) >= minimum:
+                groups.append(component)
+        return groups
+
     analysis_size = 256
     analysis = image.resize((analysis_size, analysis_size), Image.Resampling.LANCZOS)
     analysis_alpha = analysis.getchannel("A")
     smooth = analysis.convert("RGB").filter(ImageFilter.GaussianBlur(0.8))
     alpha_pixels = analysis_alpha.load()
     colour_pixels = smooth.load()
+
+    # Sticker art often includes a white cutout, lightning marks and small props.
+    # Remove pale backing, break thin decorative lines, then select the largest
+    # substantial colour region nearest the centre. That region is the character.
+    colour_mask = Image.new("L", (analysis_size, analysis_size))
+    colour_mask_pixels = colour_mask.load()
+    for y in range(analysis_size):
+        for x in range(analysis_size):
+            red, green, blue = colour_pixels[x, y]
+            _, saturation, value = colorsys.rgb_to_hsv(red / 255, green / 255, blue / 255)
+            if alpha_pixels[x, y] >= 48 and ((saturation >= 0.18 and value <= 0.97) or value < 0.62):
+                colour_mask_pixels[x, y] = 255
+    opened_mask = colour_mask.filter(ImageFilter.MinFilter(7)).filter(ImageFilter.MaxFilter(7))
+    opened_pixels = opened_mask.load()
+    subject_components = components(
+        (x, y)
+        for y in range(analysis_size)
+        for x in range(analysis_size)
+        if opened_pixels[x, y]
+    )
+    if not subject_components:
+        raise ValueError("The selected character picture has no usable character shape.")
+
+    def subject_score(component):
+        centre_x = sum(point[0] for point in component) / len(component)
+        centre_y = sum(point[1] for point in component) / len(component)
+        distance = math.hypot(centre_x - analysis_size / 2, centre_y - analysis_size / 2)
+        centrality = 1 + max(0, 1 - distance / (analysis_size / math.sqrt(2)))
+        return len(component) * centrality
+
+    subject_seed = max(subject_components, key=subject_score)
+    seed_mask = Image.new("L", (analysis_size, analysis_size))
+    seed_pixels = seed_mask.load()
+    for x, y in subject_seed:
+        seed_pixels[x, y] = 255
+    subject_mask = seed_mask.filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.MinFilter(3))
+    subject_pixels = subject_mask.load()
+    subject_bounds = subject_mask.getbbox()
+    if not subject_bounds:
+        raise ValueError("The selected character picture has no usable character outline.")
+
+    # Trace the mask boundary in true walking order. Sorting boundary points by
+    # angle causes concave arms, legs and ears to collapse into number clusters.
+    edges = set()
+    for y in range(analysis_size):
+        for x in range(analysis_size):
+            if not subject_pixels[x, y]:
+                continue
+            if y == 0 or not subject_pixels[x, y - 1]:
+                edges.add(((x, y), (x + 1, y)))
+            if x == analysis_size - 1 or not subject_pixels[x + 1, y]:
+                edges.add(((x + 1, y), (x + 1, y + 1)))
+            if y == analysis_size - 1 or not subject_pixels[x, y + 1]:
+                edges.add(((x + 1, y + 1), (x, y + 1)))
+            if x == 0 or not subject_pixels[x - 1, y]:
+                edges.add(((x, y + 1), (x, y)))
+    if not edges:
+        raise ValueError("The selected character picture has no usable character edge.")
+
+    edge_starts = {}
+    for edge in edges:
+        edge_starts.setdefault(edge[0], []).append(edge[1])
+    contours = []
+    unused_edges = set(edges)
+    while unused_edges:
+        start, finish = min(unused_edges)
+        contour = [start]
+        unused_edges.remove((start, finish))
+        current = finish
+        while current != start and len(contour) <= len(edges):
+            contour.append(current)
+            candidates = [end for end in edge_starts.get(current, ()) if (current, end) in unused_edges]
+            if not candidates:
+                break
+            following = candidates[0]
+            unused_edges.remove((current, following))
+            current = following
+        if current == start and len(contour) >= 12:
+            contours.append(contour)
+    if not contours:
+        raise ValueError("The selected character outline could not be traced.")
+
+    def contour_area(contour):
+        return abs(sum(
+            first[0] * second[1] - second[0] * first[1]
+            for first, second in zip(contour, contour[1:] + contour[:1])
+        )) / 2
+
+    character_contour = max(contours, key=contour_area)
+    outline = [
+        (
+            195 + x / analysis_size * 610,
+            45 + y / analysis_size * 610,
+        )
+        for x, y in character_contour
+    ]
+    if len(outline) < 35:
+        raise ValueError("The selected character outline is too small for a dot-to-dot puzzle.")
+
     magnitudes = {}
-    edge_margin = 9
+    edge_margin = 5
     for y in range(edge_margin, analysis_size - edge_margin):
         for x in range(edge_margin, analysis_size - edge_margin):
-            if alpha_pixels[x, y] < 96:
+            if not subject_pixels[x, y]:
                 continue
             if min(
-                alpha_pixels[x - edge_margin, y], alpha_pixels[x + edge_margin, y],
-                alpha_pixels[x, y - edge_margin], alpha_pixels[x, y + edge_margin],
-            ) < 96:
+                subject_pixels[x - edge_margin, y], subject_pixels[x + edge_margin, y],
+                subject_pixels[x, y - edge_margin], subject_pixels[x, y + edge_margin],
+            ) == 0:
                 continue
             colour = colour_pixels[x, y]
             magnitude = max(
@@ -485,23 +566,7 @@ def outline_dots(image_path, count):
     if magnitudes:
         ordered_magnitudes = sorted(magnitudes.values())
         threshold = max(55, ordered_magnitudes[int((len(ordered_magnitudes) - 1) * 0.88)])
-        remaining_edges = {point for point, magnitude in magnitudes.items() if magnitude >= threshold}
-        components = []
-        while remaining_edges:
-            start = remaining_edges.pop()
-            component = {start}
-            queue = [start]
-            while queue:
-                x, y = queue.pop()
-                for dx in (-1, 0, 1):
-                    for dy in (-1, 0, 1):
-                        neighbour = (x + dx, y + dy)
-                        if neighbour in remaining_edges:
-                            remaining_edges.remove(neighbour)
-                            component.add(neighbour)
-                            queue.append(neighbour)
-            if len(component) >= 10:
-                components.append(component)
+        edge_components = components(point for point, magnitude in magnitudes.items() if magnitude >= threshold)
 
         def farthest(component, start):
             queue = deque([start])
@@ -519,7 +584,7 @@ def outline_dots(image_path, count):
             finish = max(distance, key=distance.get)
             return finish, previous, distance[finish]
 
-        for component in components:
+        for component in edge_components:
             first, _, _ = farthest(component, min(component))
             last, previous, graph_length = farthest(component, first)
             if graph_length < 16:
@@ -536,7 +601,7 @@ def outline_dots(image_path, count):
                 math.hypot(canvas_path[index][0] - canvas_path[index - 1][0], canvas_path[index][1] - canvas_path[index - 1][1])
                 for index in range(1, len(canvas_path))
             )
-            if path_length >= 70:
+            if path_length >= 45:
                 feature_paths.append((path_length, canvas_path))
 
     selected_features = []
@@ -550,33 +615,11 @@ def outline_dots(image_path, count):
             continue
         selected_features.append((path_length, path))
         feature_centres.append(centre)
-        if len(selected_features) == 5:
+        if len(selected_features) == 8:
             break
 
     target = max(35, min(60, count))
-    feature_segments = []
-    if selected_features:
-        wanted_features = min(target - 18, max(16, target // 2))
-        total_feature_length = sum(item[0] for item in selected_features)
-        allocations = [
-            max(4, round(wanted_features * path_length / total_feature_length))
-            for path_length, _ in selected_features
-        ]
-        while sum(allocations) > target - 18:
-            index = max(range(len(allocations)), key=allocations.__getitem__)
-            if allocations[index] <= 4:
-                break
-            allocations[index] -= 1
-        while sum(allocations) < wanted_features:
-            index = max(range(len(allocations)), key=lambda item: selected_features[item][0] / allocations[item])
-            allocations[index] += 1
-        for allocation, (_, path) in zip(allocations, selected_features):
-            sampled = sample_polyline(path, allocation)
-            if len(sampled) >= 4:
-                feature_segments.append(sampled)
-
-    outer_count = max(18, target - sum(len(segment) for segment in feature_segments))
-    outer_choices = [sample_polyline(outline, outer_count, closed=True, offset=offset / 20) for offset in range(20)]
+    outer_choices = [sample_polyline(outline, target, closed=True, offset=offset / 20) for offset in range(20)]
     outer_points = max(
         outer_choices,
         key=lambda points: min(
@@ -586,34 +629,22 @@ def outline_dots(image_path, count):
         ),
     )
 
-    chunk_count = min(3, max(1, len(feature_segments) + 1))
-    outer_segments = []
-    for chunk in range(chunk_count):
-        start = round(len(outer_points) * chunk / chunk_count)
-        finish = round(len(outer_points) * (chunk + 1) / chunk_count)
-        if finish - start >= 3:
-            outer_segments.append(outer_points[start:finish])
-
-    puzzle_segments = []
-    for index in range(max(len(outer_segments), len(feature_segments))):
-        if index < len(outer_segments):
-            puzzle_segments.append(outer_segments[index])
-        if index < len(feature_segments):
-            puzzle_segments.append(feature_segments[index])
-    if not puzzle_segments:
-        puzzle_segments = [outer_points]
-
-    dots = []
-    for segment_index, segment in enumerate(puzzle_segments):
-        for point_index, (x, y) in enumerate(segment):
-            dots.append({
-                "number": len(dots) + 1,
-                "x": x,
-                "y": y,
-                "segment": segment_index,
-                "break_before": point_index == 0,
-            })
-    return dots[:60]
+    dots = [
+        {
+            "number": index + 1,
+            "x": x,
+            "y": y,
+            "segment": 0,
+            "break_before": index == 0,
+        }
+        for index, (x, y) in enumerate(outer_points)
+    ]
+    guides = []
+    for path_length, path in selected_features:
+        sampled = sample_polyline(path, min(28, max(6, round(path_length / 15))))
+        if len(sampled) >= 4:
+            guides.append([[x, y] for x, y in sampled])
+    return dots, guides
 
 
 def generate_maze(columns, rows):
@@ -658,13 +689,14 @@ def generate_maze(columns, rows):
 def build_themed_activity_plan(connection, profile, activity, attempt):
     artwork = choose_activity_sticker(connection, profile, activity, single_character=activity != "character-jigsaw")
     if activity == "dot-to-dot":
-        dots = outline_dots(artwork["image"], random.randint(45, 60))
+        dots, guides = outline_dots(artwork["image"], random.randint(45, 60))
         plan = {
             **artwork,
-            "layout_version": 4,
+            "layout_version": 5,
             "line_colour": artwork_line_colour(artwork["image"], artwork["theme"]),
             "dot_count": len(dots),
             "dots": dots,
+            "guides": guides,
         }
     elif activity == "character-maze":
         if attempt <= 2:
@@ -839,7 +871,7 @@ def get_or_create_activity_variant(connection, profile, activity):
     ).fetchone()
     if row:
         existing_plan = json.loads(row["plan_json"])
-        if activity != "dot-to-dot" or int(existing_plan.get("layout_version", 0)) >= 4:
+        if activity != "dot-to-dot" or int(existing_plan.get("layout_version", 0)) >= 5:
             return int(row["attempt"]), existing_plan
         connection.execute(
             "UPDATE activity_variants SET completed = 1 WHERE profile = ? AND activity = ? AND attempt = ?",
