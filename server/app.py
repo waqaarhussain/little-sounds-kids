@@ -5,12 +5,13 @@ import os
 import random
 import secrets
 import sqlite3
+from collections import deque
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import Flask, jsonify, request
-from PIL import Image
+from PIL import Image, ImageFilter
 
 
 DATA_DIRECTORY = Path(os.environ.get("LITTLE_SOUNDS_DATA", "/var/lib/little-sounds"))
@@ -369,9 +370,9 @@ def outline_dots(image_path, count):
     if not boundary:
         raise ValueError("The selected character picture has no usable edge.")
 
-    # Keep the outermost edge in small angular buckets, then sample that closed
-    # outline by travelled distance. Equal-angle sampling clusters markers near
-    # the top and bottom of a character and can hide one number behind another.
+    # Keep the outermost edge in small angular buckets. This supplies only part
+    # of the puzzle. Strong colour edges inside the artwork supply the face,
+    # costume and object details so the result is not merely one easy silhouette.
     bucket_count = 720
     buckets = [None] * bucket_count
     for angle, radius, x, y in boundary:
@@ -389,24 +390,30 @@ def outline_dots(image_path, count):
     if len(outline) < 35:
         raise ValueError("The selected character outline is too small for a dot-to-dot puzzle.")
 
-    segments = []
-    perimeter = 0.0
-    for index, start in enumerate(outline):
-        end = outline[(index + 1) % len(outline)]
-        length = math.hypot(end[0] - start[0], end[1] - start[1])
-        if length <= 0:
-            continue
-        segments.append((perimeter, perimeter + length, start, end))
-        perimeter += length
-
-    def sample(sample_count, offset=0.0):
+    def sample_polyline(points, sample_count, closed=False, offset=0.0):
+        line_segments = []
+        total_length = 0.0
+        pair_count = len(points) if closed else len(points) - 1
+        for index in range(pair_count):
+            start = points[index]
+            end = points[(index + 1) % len(points)]
+            length = math.hypot(end[0] - start[0], end[1] - start[1])
+            if length <= 0:
+                continue
+            line_segments.append((total_length, total_length + length, start, end))
+            total_length += length
+        if not line_segments or sample_count < 2:
+            return []
         points = []
         segment_index = 0
         for index in range(sample_count):
-            target = perimeter * (index + offset) / sample_count
-            while segment_index + 1 < len(segments) and target > segments[segment_index][1]:
+            if closed:
+                target = total_length * (index + offset) / sample_count
+            else:
+                target = total_length * index / (sample_count - 1)
+            while segment_index + 1 < len(line_segments) and target > line_segments[segment_index][1]:
                 segment_index += 1
-            start_distance, end_distance, start, end = segments[segment_index]
+            start_distance, end_distance, start, end = line_segments[segment_index]
             fraction = (target - start_distance) / max(end_distance - start_distance, 0.001)
             points.append((
                 round(start[0] + (end[0] - start[0]) * fraction, 1),
@@ -414,28 +421,164 @@ def outline_dots(image_path, count):
             ))
         return points
 
-    while True:
-        choices = [sample(count, offset / 20) for offset in range(20)]
-        chosen = max(
-            choices,
-            key=lambda points: min(
-                math.hypot(first[0] - second[0], first[1] - second[1])
-                for index, first in enumerate(points)
-                for second in points[index + 1:]
-            ),
+    analysis_size = 256
+    analysis = image.resize((analysis_size, analysis_size), Image.Resampling.LANCZOS)
+    analysis_alpha = analysis.getchannel("A")
+    smooth = analysis.convert("RGB").filter(ImageFilter.GaussianBlur(0.8))
+    alpha_pixels = analysis_alpha.load()
+    colour_pixels = smooth.load()
+    magnitudes = {}
+    edge_margin = 9
+    for y in range(edge_margin, analysis_size - edge_margin):
+        for x in range(edge_margin, analysis_size - edge_margin):
+            if alpha_pixels[x, y] < 96:
+                continue
+            if min(
+                alpha_pixels[x - edge_margin, y], alpha_pixels[x + edge_margin, y],
+                alpha_pixels[x, y - edge_margin], alpha_pixels[x, y + edge_margin],
+            ) < 96:
+                continue
+            colour = colour_pixels[x, y]
+            magnitude = max(
+                sum(abs(colour[channel] - colour_pixels[nx, ny][channel]) for channel in range(3))
+                for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1))
+            )
+            if magnitude:
+                magnitudes[(x, y)] = magnitude
+
+    feature_paths = []
+    if magnitudes:
+        ordered_magnitudes = sorted(magnitudes.values())
+        threshold = max(55, ordered_magnitudes[int((len(ordered_magnitudes) - 1) * 0.88)])
+        remaining_edges = {point for point, magnitude in magnitudes.items() if magnitude >= threshold}
+        components = []
+        while remaining_edges:
+            start = remaining_edges.pop()
+            component = {start}
+            queue = [start]
+            while queue:
+                x, y = queue.pop()
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        neighbour = (x + dx, y + dy)
+                        if neighbour in remaining_edges:
+                            remaining_edges.remove(neighbour)
+                            component.add(neighbour)
+                            queue.append(neighbour)
+            if len(component) >= 10:
+                components.append(component)
+
+        def farthest(component, start):
+            queue = deque([start])
+            distance = {start: 0}
+            previous = {}
+            while queue:
+                x, y = queue.popleft()
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        neighbour = (x + dx, y + dy)
+                        if neighbour in component and neighbour not in distance:
+                            distance[neighbour] = distance[(x, y)] + 1
+                            previous[neighbour] = (x, y)
+                            queue.append(neighbour)
+            finish = max(distance, key=distance.get)
+            return finish, previous, distance[finish]
+
+        for component in components:
+            first, _, _ = farthest(component, min(component))
+            last, previous, graph_length = farthest(component, first)
+            if graph_length < 16:
+                continue
+            path = [last]
+            while path[-1] != first:
+                path.append(previous[path[-1]])
+            path.reverse()
+            canvas_path = [
+                (195 + x / (analysis_size - 1) * 610, 45 + y / (analysis_size - 1) * 610)
+                for x, y in path
+            ]
+            path_length = sum(
+                math.hypot(canvas_path[index][0] - canvas_path[index - 1][0], canvas_path[index][1] - canvas_path[index - 1][1])
+                for index in range(1, len(canvas_path))
+            )
+            if path_length >= 70:
+                feature_paths.append((path_length, canvas_path))
+
+    selected_features = []
+    feature_centres = []
+    for path_length, path in sorted(feature_paths, reverse=True):
+        centre = (
+            sum(point[0] for point in path) / len(path),
+            sum(point[1] for point in path) / len(path),
         )
-        closest = min(
-            math.hypot(first[0] - second[0], first[1] - second[1])
-            for index, first in enumerate(chosen)
-            for second in chosen[index + 1:]
-        )
-        if closest >= 32 or count == 35:
+        if any(math.hypot(centre[0] - old[0], centre[1] - old[1]) < 65 for old in feature_centres):
+            continue
+        selected_features.append((path_length, path))
+        feature_centres.append(centre)
+        if len(selected_features) == 5:
             break
-        count -= 1
-    return [
-        {"number": index + 1, "x": x, "y": y}
-        for index, (x, y) in enumerate(chosen)
-    ]
+
+    target = max(35, min(60, count))
+    feature_segments = []
+    if selected_features:
+        wanted_features = min(target - 18, max(16, target // 2))
+        total_feature_length = sum(item[0] for item in selected_features)
+        allocations = [
+            max(4, round(wanted_features * path_length / total_feature_length))
+            for path_length, _ in selected_features
+        ]
+        while sum(allocations) > target - 18:
+            index = max(range(len(allocations)), key=allocations.__getitem__)
+            if allocations[index] <= 4:
+                break
+            allocations[index] -= 1
+        while sum(allocations) < wanted_features:
+            index = max(range(len(allocations)), key=lambda item: selected_features[item][0] / allocations[item])
+            allocations[index] += 1
+        for allocation, (_, path) in zip(allocations, selected_features):
+            sampled = sample_polyline(path, allocation)
+            if len(sampled) >= 4:
+                feature_segments.append(sampled)
+
+    outer_count = max(18, target - sum(len(segment) for segment in feature_segments))
+    outer_choices = [sample_polyline(outline, outer_count, closed=True, offset=offset / 20) for offset in range(20)]
+    outer_points = max(
+        outer_choices,
+        key=lambda points: min(
+            math.hypot(first[0] - second[0], first[1] - second[1])
+            for index, first in enumerate(points)
+            for second in points[index + 1:]
+        ),
+    )
+
+    chunk_count = min(3, max(1, len(feature_segments) + 1))
+    outer_segments = []
+    for chunk in range(chunk_count):
+        start = round(len(outer_points) * chunk / chunk_count)
+        finish = round(len(outer_points) * (chunk + 1) / chunk_count)
+        if finish - start >= 3:
+            outer_segments.append(outer_points[start:finish])
+
+    puzzle_segments = []
+    for index in range(max(len(outer_segments), len(feature_segments))):
+        if index < len(outer_segments):
+            puzzle_segments.append(outer_segments[index])
+        if index < len(feature_segments):
+            puzzle_segments.append(feature_segments[index])
+    if not puzzle_segments:
+        puzzle_segments = [outer_points]
+
+    dots = []
+    for segment_index, segment in enumerate(puzzle_segments):
+        for point_index, (x, y) in enumerate(segment):
+            dots.append({
+                "number": len(dots) + 1,
+                "x": x,
+                "y": y,
+                "segment": segment_index,
+                "break_before": point_index == 0,
+            })
+    return dots[:60]
 
 
 def generate_maze(columns, rows):
@@ -480,8 +623,8 @@ def generate_maze(columns, rows):
 def build_themed_activity_plan(connection, profile, activity, attempt):
     artwork = choose_activity_sticker(connection, profile, activity, single_character=activity != "character-jigsaw")
     if activity == "dot-to-dot":
-        dots = outline_dots(artwork["image"], random.randint(35, 60))
-        plan = {**artwork, "layout_version": 2, "dot_count": len(dots), "dots": dots}
+        dots = outline_dots(artwork["image"], random.randint(45, 60))
+        plan = {**artwork, "layout_version": 3, "dot_count": len(dots), "dots": dots}
     elif activity == "character-maze":
         if attempt <= 2:
             columns, rows, difficulty = 11, 9, "Easy"
@@ -655,7 +798,7 @@ def get_or_create_activity_variant(connection, profile, activity):
     ).fetchone()
     if row:
         existing_plan = json.loads(row["plan_json"])
-        if activity != "dot-to-dot" or int(existing_plan.get("layout_version", 0)) >= 2:
+        if activity != "dot-to-dot" or int(existing_plan.get("layout_version", 0)) >= 3:
             return int(row["attempt"]), existing_plan
         connection.execute(
             "UPDATE activity_variants SET completed = 1 WHERE profile = ? AND activity = ? AND attempt = ?",

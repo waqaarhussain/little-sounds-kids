@@ -55,7 +55,7 @@
     if (index !== nextIndex) { flashWrong(index); return; }
     const node = byId("dot-" + index);
     node.classList.remove("next"); node.classList.add("done");
-    if (index > 0) {
+    if (index > 0 && !dots[index].break_before) {
       const line = document.createElementNS(ns, "line");
       line.setAttribute("class", "dot-line");
       line.setAttribute("x1", dots[index - 1].x); line.setAttribute("y1", dots[index - 1].y);
@@ -72,18 +72,14 @@
   async function finishPuzzle() {
     if (completing) return;
     completing = true;
-    const close = document.createElementNS(ns, "line");
-    close.setAttribute("class", "dot-line");
-    close.setAttribute("x1", dots[dots.length - 1].x); close.setAttribute("y1", dots[dots.length - 1].y);
-    close.setAttribute("x2", dots[0].x); close.setAttribute("y2", dots[0].y);
-    byId("dotLines").appendChild(close);
     byId("dotStage").classList.add("finished");
     byId("dotProgress").textContent = dots.length + " dots joined";
     byId("feedback").textContent = "You revealed the character! ✨";
     try {
       const result = await api("/api/progress/complete", {method:"POST", body:JSON.stringify({activity, item:"puzzle", attempt})});
+      if (result.exercise_completed) await new Promise(resolve => window.setTimeout(resolve, 2000));
       if (result.exercise_completed && result.reward_token) await ProfileShell.claimReward(result.reward_token);
-      if (result.exercise_completed) nextTimer = window.setTimeout(loadPuzzle, 1800);
+      if (result.exercise_completed) nextTimer = window.setTimeout(loadPuzzle, result.reward_token ? 600 : 0);
     } catch (error) { byId("feedback").textContent = error.message; }
   }
   function render(plan) {
@@ -101,8 +97,11 @@
       group.setAttribute("class", "dot-node" + (index === 0 ? " next" : ""));
       group.setAttribute("id", "dot-" + index);
       group.setAttribute("transform", "translate(" + dot.x + " " + dot.y + ")");
-      const circle = document.createElementNS(ns, "circle"); circle.setAttribute("r", "15");
+      const circle = document.createElementNS(ns, "circle"); circle.setAttribute("r", "6"); circle.setAttribute("class", "dot-point");
       const text = document.createElementNS(ns, "text"); text.textContent = dot.number;
+      const fromCentreX = dot.x - 500, fromCentreY = dot.y - 350, distance = Math.max(1, Math.hypot(fromCentreX, fromCentreY));
+      text.setAttribute("x", (fromCentreX / distance * 17).toFixed(1));
+      text.setAttribute("y", (fromCentreY / distance * 17).toFixed(1));
       group.append(circle, text);
       group.addEventListener("pointerdown", event => { event.preventDefault(); event.stopPropagation(); acceptDot(index); });
       byId("dotMarkers").appendChild(group);
