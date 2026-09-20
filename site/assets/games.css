@@ -64,9 +64,22 @@
 .jigsaw-slot .jigsaw-piece{width:100%;height:100%;border:0;border-radius:0;box-shadow:none;pointer-events:none}
 .jigsaw-board.finished{animation:puzzleReveal .85s cubic-bezier(.2,.8,.2,1);box-shadow:0 0 0 8px #fff,0 0 35px 18px #ffdc56}
 .drag-ghost{position:fixed;z-index:1000;pointer-events:none;opacity:.9;transform:translate(-50%,-50%) scale(1.08);filter:drop-shadow(0 12px 10px #24355b55)}
+
+/* Spot the difference */
+.difference-wrap{max-width:1180px}.difference-prompt{margin:0;font-weight:1000;font-size:clamp(1rem,2vw,1.3rem)}
+.difference-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start;width:100%}
+.difference-picture{min-width:0;padding:8px;border:4px solid #dce8f8;border-radius:22px;background:#f7fbff;box-shadow:0 7px 0 #bfd0eb}
+.difference-picture>span{display:block;margin:1px 0 7px;font-weight:1000;color:#4b3bb6}
+.difference-picture svg{display:block;width:100%;height:auto;border-radius:16px;touch-action:manipulation;cursor:crosshair;overflow:hidden}
+.difference-picture svg.wrong{animation:mazeFlash .32s}
+.difference-target{fill:transparent;stroke:transparent;stroke-width:4;cursor:pointer;pointer-events:all;outline:none}
+.difference-target:focus-visible{stroke:#263f7a;stroke-dasharray:10 7}
+.difference-found-ring{fill:#fff4;stroke:#ff315d;stroke-width:10;stroke-dasharray:19 10;filter:drop-shadow(0 3px 1px #fff);pointer-events:none;animation:foundDifference .55s ease both}
+.difference-layout.finished{animation:puzzleReveal .85s cubic-bezier(.2,.8,.2,1)}
+@keyframes foundDifference{0%{opacity:0;transform-box:fill-box;transform-origin:center;transform:scale(.45) rotate(-12deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
 @keyframes dotPulse{50%{fill:#ffe174;stroke-width:7}}
 @keyframes mazeFlash{50%{box-shadow:inset 0 0 0 18px #f14f6a88}}
 @keyframes puzzleReveal{0%{transform:scale(.82) rotate(-3deg);opacity:.2}60%{transform:scale(1.05) rotate(2deg)}100%{transform:scale(1) rotate(0);opacity:1}}
-@media(max-width:700px){.jigsaw-layout{grid-template-columns:1fr}.jigsaw-tray{min-height:130px;grid-template-columns:repeat(6,minmax(42px,1fr))}.dot-node text{font-size:16px}.puzzle-stage{border-width:3px;border-radius:18px}}
+@media(max-width:700px){.jigsaw-layout{grid-template-columns:1fr}.jigsaw-tray{min-height:130px;grid-template-columns:repeat(6,minmax(42px,1fr))}.dot-node text{font-size:16px}.puzzle-stage{border-width:3px;border-radius:18px}.difference-layout{grid-template-columns:1fr;gap:11px}.difference-picture{padding:5px;border-width:3px;border-radius:18px}.difference-picture svg{border-radius:13px}}
 @media(max-width:430px){.jigsaw-tray{grid-template-columns:repeat(4,minmax(42px,1fr))}.puzzle-card{padding:10px}.puzzle-meta{font-size:.86rem}}
-@media(prefers-reduced-motion:reduce){.dot-node.next circle,.dot-stage.finished .dot-picture,.maze-stage.finished,.jigsaw-board.finished{animation-duration:.01ms}}
+@media(prefers-reduced-motion:reduce){.dot-node.next circle,.dot-stage.finished .dot-picture,.maze-stage.finished,.jigsaw-board.finished,.difference-layout.finished,.difference-found-ring{animation-duration:.01ms}}

@@ -15,12 +15,15 @@ A private, mobile-friendly family learning site.
 - Character Dot-to-Dot: 35 to 60 ordered dots around a random themed character
 - Character Maze: procedurally generated touch and Apple Pencil mazes
 - Character Jigsaw: random themed pictures with 12, 20 or 24 pieces
+- Spot the Difference: two fresh themed characters with five to eight visual changes
 - Book shelf placeholder at `/books/`
 - Separate child sticker albums and parent-PIN profile switching
 - Ad-hoc good-behaviour sticker rewards
 - Sticker generation monitor at `/allstickers/`
 
 This version is intentionally voice-free. It has no bundled MP3 files and the installer does not download or generate speech.
+
+The site includes an installable web app manifest, iPhone/iPad icons and a safe app-shell service worker. Profiles, rewards, sticker pictures and generated books are never cached by the service worker. A secure HTTPS address is required for service-worker installation outside localhost.
 
 ## Reward rules
 

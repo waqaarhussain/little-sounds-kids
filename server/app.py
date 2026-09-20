@@ -67,15 +67,20 @@ ACTIVITY_ITEMS = {
     "dot-to-dot": ("puzzle",),
     "character-maze": ("puzzle",),
     "character-jigsaw": ("puzzle",),
+    "spot-the-difference": ("puzzle",),
     **NUMBER_LEVELS,
 }
 RANDOM_ACTIVITIES = {
     "count-and-choose", "match-the-pairs", "sort-colours-shapes",
     "finish-the-pattern", "odd-one-out", "more-or-less",
     "letter-hunt", "number-hunt",
-    "dot-to-dot", "character-maze", "character-jigsaw",
+    "dot-to-dot", "character-maze", "character-jigsaw", "spot-the-difference",
 }
-PUZZLE_ACTIVITIES = {"dot-to-dot", "character-maze", "character-jigsaw"}
+PUZZLE_ACTIVITIES = {"dot-to-dot", "character-maze", "character-jigsaw", "spot-the-difference"}
+SPOT_DIFFERENCES = (
+    "sun-colour", "cloud-missing", "kite-shape", "left-character-size",
+    "right-character-mirror", "flower-colour", "ball-missing", "butterfly-colour",
+)
 COUNTING_ICONS = (
     ("apples", "🍎"), ("stars", "⭐"), ("ladybirds", "🐞"), ("fish", "🐠"),
     ("butterflies", "🦋"), ("strawberries", "🍓"), ("flowers", "🌼"), ("cars", "🚗"),
@@ -292,12 +297,16 @@ def recent_activity_art(connection, profile, activity, limit=8):
     for row in rows:
         try:
             plan = json.loads(row["plan_json"])
-            sticker_id = int(plan.get("sticker_id", 0))
-            theme = str(plan.get("theme", ""))
-            if sticker_id:
-                recent_ids.append(sticker_id)
-            if theme:
-                recent_themes.append(theme)
+            sticker_ids = plan.get("sticker_ids", [plan.get("sticker_id", 0)])
+            themes = plan.get("themes", [plan.get("theme", "")])
+            for sticker_id in sticker_ids:
+                sticker_id = int(sticker_id or 0)
+                if sticker_id:
+                    recent_ids.append(sticker_id)
+            for theme in themes:
+                theme = str(theme or "")
+                if theme:
+                    recent_themes.append(theme)
         except (TypeError, ValueError, json.JSONDecodeError):
             continue
     return recent_ids, recent_themes
@@ -336,6 +345,66 @@ def choose_activity_sticker(connection, profile, activity, single_character=Fals
         "image": row["image_path"],
         "serial": int(row["serial"]),
     }
+
+
+def choose_activity_sticker_pair(connection, profile, activity):
+    recent_ids, recent_themes = recent_activity_art(connection, profile, activity, limit=10)
+    recent_character_keys = set()
+    for recent in connection.execute(
+        """
+        SELECT plan_json FROM activity_variants
+        WHERE profile = ? AND activity = ?
+        ORDER BY attempt DESC LIMIT 4
+        """,
+        (profile, activity),
+    ).fetchall():
+        try:
+            for character in json.loads(recent["plan_json"]).get("characters", []):
+                recent_character_keys.add((str(character["theme"]), (int(character["serial"]) - 1) % 10))
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+    placeholders = ",".join("?" for _ in ACTIVITY_THEMES)
+    rows = connection.execute(
+        f"""
+        SELECT id, category, serial, image_path
+        FROM catalog_stickers
+        WHERE active = 1 AND staged = 0 AND category IN ({placeholders})
+        ORDER BY RANDOM() LIMIT 160
+        """,
+        ACTIVITY_THEMES,
+    ).fetchall()
+    rows = [
+        row for row in rows
+        if (int(row["serial"]) - 1) % 10 in SINGLE_CHARACTER_SLOTS.get(row["category"], set())
+    ]
+    fresh = [
+        row for row in rows
+        if int(row["id"]) not in recent_ids
+        and (row["category"], (int(row["serial"]) - 1) % 10) not in recent_character_keys
+    ]
+    candidates = fresh if len(fresh) >= 2 else rows
+    if len(candidates) < 2:
+        raise RuntimeError("Two themed character pictures are needed. Ask a grown-up to run generate-stickers.")
+
+    preferred = [row for row in candidates if row["category"] not in recent_themes[:4]]
+    first = random.choice(preferred or candidates)
+    different_theme = [
+        row for row in candidates
+        if int(row["id"]) != int(first["id"]) and row["category"] != first["category"]
+    ]
+    remaining = [row for row in candidates if int(row["id"]) != int(first["id"])]
+    second = random.choice(different_theme or remaining)
+
+    return [
+        {
+            "sticker_id": int(row["id"]),
+            "theme": row["category"],
+            "theme_label": CATEGORIES[row["category"]],
+            "image": row["image_path"],
+            "serial": int(row["serial"]),
+        }
+        for row in (first, second)
+    ]
 
 
 def sticker_file(image_path):
@@ -669,7 +738,21 @@ def generate_maze(columns, rows):
 
 
 def build_themed_activity_plan(connection, profile, activity, attempt):
-    artwork = choose_activity_sticker(connection, profile, activity, single_character=activity != "character-jigsaw")
+    if activity == "spot-the-difference":
+        characters = choose_activity_sticker_pair(connection, profile, activity)
+        difference_count = random.randint(5, 8)
+        differences = random.sample(SPOT_DIFFERENCES, difference_count)
+        plan = {
+            "layout_version": 1,
+            "characters": characters,
+            "sticker_ids": [character["sticker_id"] for character in characters],
+            "themes": [character["theme"] for character in characters],
+            "theme_labels": [character["theme_label"] for character in characters],
+            "difference_count": difference_count,
+            "differences": differences,
+        }
+    else:
+        artwork = choose_activity_sticker(connection, profile, activity, single_character=activity != "character-jigsaw")
     if activity == "dot-to-dot":
         dots, guides = outline_dots(artwork["image"], random.randint(45, 60))
         plan = {
@@ -699,7 +782,7 @@ def build_themed_activity_plan(connection, profile, activity, attempt):
         order = list(range(columns * rows))
         random.shuffle(order)
         plan = {**artwork, "columns": columns, "rows": rows, "piece_count": len(order), "order": order}
-    else:
+    elif activity != "spot-the-difference":
         raise ValueError("That themed activity is not valid.")
     signature_source = {key: value for key, value in plan.items() if key != "theme_label"}
     canonical = json.dumps(signature_source, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -707,7 +790,7 @@ def build_themed_activity_plan(connection, profile, activity, attempt):
 
 
 def build_activity_plan(activity, connection=None, profile="", attempt=1):
-    if activity in {"dot-to-dot", "character-maze", "character-jigsaw"}:
+    if activity in {"dot-to-dot", "character-maze", "character-jigsaw", "spot-the-difference"}:
         if connection is None or not profile:
             raise ValueError("The themed activity needs a profile and catalogue.")
         return build_themed_activity_plan(connection, profile, activity, attempt)

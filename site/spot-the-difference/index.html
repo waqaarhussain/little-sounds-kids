@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Spot the Difference</title>
+  <link rel="stylesheet" href="../assets/site-shell.css">
+  <link rel="stylesheet" href="../assets/games.css">
+</head>
+<body>
+<main class="game-wrap difference-wrap">
+  <h1 class="game-title">🔎 Spot the Difference</h1>
+  <section class="game-card puzzle-card" id="gameCard">
+    <div class="puzzle-meta"><span class="theme-pill" id="themePill">Choosing two characters…</span><span id="differenceProgress"></span></div>
+    <p class="difference-prompt">Tap every difference in either picture.</p>
+    <div class="difference-layout" id="differenceLayout" aria-label="Two pictures to compare">
+      <div class="difference-picture"><span>Picture 1</span><svg id="sceneOne" viewBox="0 0 800 560" role="img" aria-label="First picture"></svg></div>
+      <div class="difference-picture"><span>Picture 2</span><svg id="sceneTwo" viewBox="0 0 800 560" role="img" aria-label="Second picture"></svg></div>
+    </div>
+    <p class="feedback" id="feedback" aria-live="polite">Look carefully at both pictures.</p>
+  </section>
+</main>
+<script src="../assets/site-shell.js"></script>
+<script>
+(() => {
+  const activity = "spot-the-difference", ns = "http://www.w3.org/2000/svg";
+  const byId = id => document.getElementById(id);
+  const api = async (path, options = {}) => {
+    const response = await fetch(ProfileShell.url(path), {credentials:"same-origin", headers:{"Content-Type":"application/json"}, ...options});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Try again.");
+    return data;
+  };
+  const spots = {
+    "sun-colour": {x:83,y:78,rx:55,ry:55,label:"sun"},
+    "cloud-missing": {x:250,y:78,rx:92,ry:52,label:"cloud"},
+    "kite-shape": {x:420,y:82,rx:67,ry:67,label:"kite"},
+    "left-character-size": {x:245,y:318,rx:145,ry:170,label:"left character"},
+    "right-character-mirror": {x:560,y:318,rx:145,ry:170,label:"right character"},
+    "flower-colour": {x:82,y:485,rx:70,ry:65,label:"flower"},
+    "ball-missing": {x:710,y:485,rx:70,ry:65,label:"ball"},
+    "butterfly-colour": {x:585,y:92,rx:65,ry:55,label:"butterfly"}
+  };
+  let plan, attempt = 0, found = new Set(), finished = false, nextTimer = 0;
+
+  function changed(name, side) { return side === 2 && plan.differences.includes(name); }
+  function sceneMarkup(side) {
+    const first = plan.characters[0], second = plan.characters[1];
+    const leftChanged = changed("left-character-size", side);
+    const rightChanged = changed("right-character-mirror", side);
+    return `
+      <defs><linearGradient id="sky${side}" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#9be8ff"/><stop offset="1" stop-color="#effcff"/></linearGradient></defs>
+      <rect width="800" height="560" rx="28" fill="url(#sky${side})"/>
+      <circle cx="82" cy="78" r="45" fill="${changed("sun-colour",side) ? "#ff7aaf" : "#ffd84b"}"/>
+      <g opacity="${changed("cloud-missing",side) ? 0 : 1}" fill="#fff"><ellipse cx="208" cy="82" rx="49" ry="28"/><ellipse cx="254" cy="68" rx="57" ry="39"/><ellipse cx="303" cy="84" rx="47" ry="27"/></g>
+      <g transform="translate(420 82)">${changed("kite-shape",side) ? '<rect x="-35" y="-35" width="70" height="70" rx="14" fill="#8a60ec"/>' : '<path d="M0-49 49 0 0 49-49 0Z" fill="#ff6d79"/>'}<path d="M0 48q25 28 2 55t20 45" fill="none" stroke="#5b4a84" stroke-width="6" stroke-linecap="round"/></g>
+      <g fill="none" stroke="${changed("butterfly-colour",side) ? "#f25c91" : "#6e53d9"}" stroke-width="13" stroke-linecap="round"><path d="M580 83q-38-40-45 4q4 31 45 13M590 83q38-40 45 4q-4 31-45 13"/></g><circle cx="585" cy="95" r="9" fill="#273b75"/>
+      <path d="M0 390Q150 320 310 395T610 380T800 370V560H0Z" fill="#83dda1"/><path d="M0 455Q170 405 330 462T630 445T800 435V560H0Z" fill="#4fbc79" opacity=".72"/>
+      <image href="${first.image}" x="${leftChanged ? 145 : 105}" y="${leftChanged ? 215 : 145}" width="${leftChanged ? 210 : 290}" height="${leftChanged ? 260 : 350}" preserveAspectRatio="xMidYMid meet"/>
+      <image href="${second.image}" x="415" y="145" width="290" height="350" preserveAspectRatio="xMidYMid meet" transform="${rightChanged ? "translate(1120 0) scale(-1 1)" : ""}"/>
+      <g transform="translate(82 492)"><circle r="17" fill="#ffd849"/><g fill="${changed("flower-colour",side) ? "#9a65eb" : "#ff6d9c"}"><circle cy="-30" r="22"/><circle cx="29" cy="-9" r="22"/><circle cx="18" cy="25" r="22"/><circle cx="-18" cy="25" r="22"/><circle cx="-29" cy="-9" r="22"/></g><circle r="15" fill="#ffd849"/></g>
+      <g opacity="${changed("ball-missing",side) ? 0 : 1}"><circle cx="710" cy="490" r="48" fill="#fff" stroke="#fff" stroke-width="7"/><path d="M710 442A48 48 0 0 1 751 514L710 490Z" fill="#ff637a"/><path d="M710 490 674 522A48 48 0 0 1 669 465Z" fill="#5c66dc"/><circle cx="710" cy="490" r="9" fill="#ffd84b"/></g>
+      <g class="difference-targets"></g><g class="difference-found-marks"></g>`;
+  }
+
+  function addTargets(svg) {
+    const group = svg.querySelector(".difference-targets");
+    plan.differences.forEach(name => {
+      const spot = spots[name];
+      if (!spot) return;
+      const target = document.createElementNS(ns, "ellipse");
+      target.setAttribute("cx", spot.x); target.setAttribute("cy", spot.y);
+      target.setAttribute("rx", spot.rx); target.setAttribute("ry", spot.ry);
+      target.setAttribute("class", "difference-target"); target.dataset.difference = name;
+      target.setAttribute("role", "button"); target.setAttribute("tabindex", "0");
+      target.setAttribute("aria-label", "Possible difference near " + spot.label);
+      target.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); findDifference(name); } });
+      group.appendChild(target);
+    });
+  }
+
+  function markFound(svg, name) {
+    const spot = spots[name], ring = document.createElementNS(ns, "ellipse");
+    ring.setAttribute("cx", spot.x); ring.setAttribute("cy", spot.y);
+    ring.setAttribute("rx", spot.rx); ring.setAttribute("ry", spot.ry);
+    ring.setAttribute("class", "difference-found-ring");
+    svg.querySelector(".difference-found-marks").appendChild(ring);
+  }
+
+  function wrongTap(svg) {
+    svg.classList.remove("wrong"); void svg.getBoundingClientRect(); svg.classList.add("wrong");
+    byId("feedback").textContent = "No difference there. Keep looking!";
+    window.setTimeout(() => svg.classList.remove("wrong"), 380);
+  }
+
+  function findDifference(name) {
+    if (finished || found.has(name)) return;
+    found.add(name);
+    markFound(byId("sceneOne"), name); markFound(byId("sceneTwo"), name);
+    const remaining = plan.difference_count - found.size;
+    byId("differenceProgress").textContent = found.size + " of " + plan.difference_count + " found";
+    byId("feedback").textContent = remaining ? "You found one! " + remaining + " left." : "You found every difference! ✨";
+    if (!remaining) complete();
+  }
+
+  async function complete() {
+    if (finished) return;
+    finished = true; byId("differenceLayout").classList.add("finished");
+    try {
+      const result = await api("/api/progress/complete", {method:"POST", body:JSON.stringify({activity,item:"puzzle",attempt})});
+      if (result.exercise_completed && result.reward_token) await ProfileShell.claimReward(result.reward_token);
+      if (result.exercise_completed) nextTimer = window.setTimeout(loadPuzzle, 1800);
+    } catch (error) { byId("feedback").textContent = error.message; }
+  }
+
+  function render(value) {
+    plan = value; found = new Set(); finished = false;
+    byId("differenceLayout").classList.remove("finished");
+    byId("themePill").textContent = plan.theme_labels.join(" + ");
+    byId("differenceProgress").textContent = "0 of " + plan.difference_count + " found";
+    byId("feedback").textContent = "Look carefully at both pictures.";
+    [byId("sceneOne"), byId("sceneTwo")].forEach((svg, index) => {
+      svg.innerHTML = sceneMarkup(index + 1); addTargets(svg);
+      svg.onclick = event => {
+        const target = event.target.closest("[data-difference]");
+        if (target) findDifference(target.dataset.difference); else wrongTap(svg);
+      };
+    });
+  }
+
+  async function loadPuzzle() {
+    window.clearTimeout(nextTimer); byId("feedback").textContent = "Choosing two fresh characters…";
+    try { const variant = await api("/api/activity/variant?activity=" + activity); attempt = variant.attempt; render(variant.plan); }
+    catch (error) { byId("feedback").textContent = error.message; }
+  }
+  ProfileShell.ready.then(loadPuzzle);
+})();
+</script>
+</body>
+</html>

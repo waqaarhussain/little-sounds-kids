@@ -236,6 +236,7 @@ server {
     location = /dot-to-dot { return 301 /dot-to-dot/; }
     location = /character-maze { return 301 /character-maze/; }
     location = /character-jigsaw { return 301 /character-jigsaw/; }
+    location = /spot-the-difference { return 301 /spot-the-difference/; }
     location = /stickers { return 301 /stickers/; }
     location = /allstickers { return 301 /allstickers/; }
     location = /sticker-generator { return 301 /sticker-generator/; }
@@ -251,7 +252,14 @@ server {
         try_files $uri $uri/ =404;
     }
 
-    location ~* \.(html|css|js|json)$ {
+    location = /manifest.webmanifest {
+        default_type application/manifest+json;
+        expires -1;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        try_files $uri =404;
+    }
+
+    location ~* \.(html|css|js|json|webmanifest)$ {
         expires -1;
         add_header Cache-Control "no-store, no-cache, must-revalidate";
         try_files $uri =404;
@@ -325,6 +333,7 @@ echo "Number Hunt: http://${server_ip}/number-hunt/"
 echo "Character Dot-to-Dot: http://${server_ip}/dot-to-dot/"
 echo "Character Maze: http://${server_ip}/character-maze/"
 echo "Character Jigsaw: http://${server_ip}/character-jigsaw/"
+echo "Spot the Difference: http://${server_ip}/spot-the-difference/"
 echo "Books: http://${server_ip}/books/"
 echo "Sticker book: http://${server_ip}/stickers/"
 echo "All stickers monitor: http://${server_ip}/allstickers/"

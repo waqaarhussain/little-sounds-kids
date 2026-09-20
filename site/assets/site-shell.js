@@ -19,6 +19,13 @@
     return basePath + path;
   };
 
+  function registerAppWorker() {
+    if (!("serviceWorker" in navigator) || !window.isSecureContext) return;
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register(sitePath("/sw.js"), { scope: sitePath("/") }).catch(() => {});
+    });
+  }
+
   async function api(path, options = {}) {
     const response = await fetch(sitePath(path), {
       credentials: "same-origin",
@@ -364,6 +371,7 @@
     if (pagePath.startsWith("/dot-to-dot")) return "dot-to-dot";
     if (pagePath.startsWith("/character-maze")) return "character-maze";
     if (pagePath.startsWith("/character-jigsaw")) return "character-jigsaw";
+    if (pagePath.startsWith("/spot-the-difference")) return "spot-the-difference";
     return "";
   }
 
@@ -429,6 +437,7 @@
   });
 
   createInterface();
+  registerAppWorker();
   startActivityTracking();
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
