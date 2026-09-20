@@ -101,7 +101,7 @@
       group.setAttribute("class", "dot-node" + (index === 0 ? " next" : ""));
       group.setAttribute("id", "dot-" + index);
       group.setAttribute("transform", "translate(" + dot.x + " " + dot.y + ")");
-      const circle = document.createElementNS(ns, "circle"); circle.setAttribute("r", "18");
+      const circle = document.createElementNS(ns, "circle"); circle.setAttribute("r", "15");
       const text = document.createElementNS(ns, "text"); text.textContent = dot.number;
       group.append(circle, text);
       group.addEventListener("pointerdown", event => { event.preventDefault(); event.stopPropagation(); acceptDot(index); });

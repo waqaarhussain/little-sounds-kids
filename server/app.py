@@ -368,31 +368,74 @@ def outline_dots(image_path, count):
                 boundary.append((math.atan2(dy, dx), math.hypot(dx, dy), x, y))
     if not boundary:
         raise ValueError("The selected character picture has no usable edge.")
-    dots = []
-    used = set()
-    half_window = math.tau / count * 0.8
-    for index in range(count):
-        angle = -math.pi / 2 + (index * math.tau / count)
-        candidates = []
-        for point_angle, radius, x, y in boundary:
-            difference = abs((point_angle - angle + math.pi) % math.tau - math.pi)
-            if difference <= half_window:
-                candidates.append((radius, x, y))
-        if candidates:
-            ordered = sorted(candidates, reverse=True)
-            _, x, y = next((point for point in ordered if (point[1], point[2]) not in used), ordered[0])
-        else:
-            _, _, x, y = min(
-                boundary,
-                key=lambda point: abs((point[0] - angle + math.pi) % math.tau - math.pi),
-            )
-        used.add((x, y))
-        dots.append({
-            "number": index + 1,
-            "x": round(195 + x / max(image.width - 1, 1) * 610, 1),
-            "y": round(45 + y / max(image.height - 1, 1) * 610, 1),
-        })
-    return dots
+
+    # Keep the outermost edge in small angular buckets, then sample that closed
+    # outline by travelled distance. Equal-angle sampling clusters markers near
+    # the top and bottom of a character and can hide one number behind another.
+    bucket_count = 720
+    buckets = [None] * bucket_count
+    for angle, radius, x, y in boundary:
+        bucket = min(bucket_count - 1, int(((angle + math.pi / 2) % math.tau) / math.tau * bucket_count))
+        current = buckets[bucket]
+        if current is None or radius > current[0]:
+            buckets[bucket] = (radius, x, y)
+    outline = [
+        (
+            195 + point[1] / max(image.width - 1, 1) * 610,
+            45 + point[2] / max(image.height - 1, 1) * 610,
+        )
+        for point in buckets if point is not None
+    ]
+    if len(outline) < 35:
+        raise ValueError("The selected character outline is too small for a dot-to-dot puzzle.")
+
+    segments = []
+    perimeter = 0.0
+    for index, start in enumerate(outline):
+        end = outline[(index + 1) % len(outline)]
+        length = math.hypot(end[0] - start[0], end[1] - start[1])
+        if length <= 0:
+            continue
+        segments.append((perimeter, perimeter + length, start, end))
+        perimeter += length
+
+    def sample(sample_count, offset=0.0):
+        points = []
+        segment_index = 0
+        for index in range(sample_count):
+            target = perimeter * (index + offset) / sample_count
+            while segment_index + 1 < len(segments) and target > segments[segment_index][1]:
+                segment_index += 1
+            start_distance, end_distance, start, end = segments[segment_index]
+            fraction = (target - start_distance) / max(end_distance - start_distance, 0.001)
+            points.append((
+                round(start[0] + (end[0] - start[0]) * fraction, 1),
+                round(start[1] + (end[1] - start[1]) * fraction, 1),
+            ))
+        return points
+
+    while True:
+        choices = [sample(count, offset / 20) for offset in range(20)]
+        chosen = max(
+            choices,
+            key=lambda points: min(
+                math.hypot(first[0] - second[0], first[1] - second[1])
+                for index, first in enumerate(points)
+                for second in points[index + 1:]
+            ),
+        )
+        closest = min(
+            math.hypot(first[0] - second[0], first[1] - second[1])
+            for index, first in enumerate(chosen)
+            for second in chosen[index + 1:]
+        )
+        if closest >= 32 or count == 35:
+            break
+        count -= 1
+    return [
+        {"number": index + 1, "x": x, "y": y}
+        for index, (x, y) in enumerate(chosen)
+    ]
 
 
 def generate_maze(columns, rows):
@@ -437,8 +480,8 @@ def generate_maze(columns, rows):
 def build_themed_activity_plan(connection, profile, activity, attempt):
     artwork = choose_activity_sticker(connection, profile, activity, single_character=activity != "character-jigsaw")
     if activity == "dot-to-dot":
-        dot_count = random.randint(35, 60)
-        plan = {**artwork, "dot_count": dot_count, "dots": outline_dots(artwork["image"], dot_count)}
+        dots = outline_dots(artwork["image"], random.randint(35, 60))
+        plan = {**artwork, "layout_version": 2, "dot_count": len(dots), "dots": dots}
     elif activity == "character-maze":
         if attempt <= 2:
             columns, rows, difficulty = 11, 9, "Easy"
@@ -611,7 +654,13 @@ def get_or_create_activity_variant(connection, profile, activity):
         (profile, activity),
     ).fetchone()
     if row:
-        return int(row["attempt"]), json.loads(row["plan_json"])
+        existing_plan = json.loads(row["plan_json"])
+        if activity != "dot-to-dot" or int(existing_plan.get("layout_version", 0)) >= 2:
+            return int(row["attempt"]), existing_plan
+        connection.execute(
+            "UPDATE activity_variants SET completed = 1 WHERE profile = ? AND activity = ? AND attempt = ?",
+            (profile, activity, int(row["attempt"])),
+        )
     attempt = int(connection.execute(
         "SELECT COALESCE(MAX(attempt), 0) + 1 FROM activity_variants WHERE profile = ? AND activity = ?",
         (profile, activity),
