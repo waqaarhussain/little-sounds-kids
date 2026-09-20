@@ -195,32 +195,22 @@ def theme_names():
 
 
 def shuffled_cover_recipes():
-    names = theme_names()
-    groups = []
-    if len(names) >= 2:
-        groups.extend(combinations(names, 2))
-    if len(names) >= 3:
-        groups.extend(combinations(names, 3))
-    if not groups:
-        groups = [tuple(names)]
-    groups = list(groups)
     backgrounds = list(COVER_BACKGROUNDS)
     actions = list(COVER_ACTIONS)
     seed = os.environ.get("BOOK_RECIPE_SEED", "") or str(random.SystemRandom().getrandbits(128))
     recipe_random = random.Random(seed)
-    recipe_random.shuffle(groups)
     recipe_random.shuffle(backgrounds)
     recipe_random.shuffle(actions)
-    return groups, backgrounds, actions
+    return backgrounds, actions
 
 
-THEME_GROUPS, SHUFFLED_COVER_BACKGROUNDS, SHUFFLED_COVER_ACTIONS = shuffled_cover_recipes()
+SHUFFLED_COVER_BACKGROUNDS, SHUFFLED_COVER_ACTIONS = shuffled_cover_recipes()
 
 
-def book_cover_recipe(number):
+def book_cover_recipe(number, previous_books):
     index = max(0, number - 1)
     return (
-        THEME_GROUPS[index % len(THEME_GROUPS)],
+        select_story_themes(previous_books),
         SHUFFLED_COVER_BACKGROUNDS[index % len(SHUFFLED_COVER_BACKGROUNDS)],
         SHUFFLED_COVER_ACTIONS[index % len(SHUFFLED_COVER_ACTIONS)],
         COVER_COMPOSITIONS[index % len(COVER_COMPOSITIONS)],
@@ -269,6 +259,89 @@ def named_characters(text):
         for name in CHARACTER_APPEARANCES
         if text_names_character(text, name)
     }
+
+
+def book_story_text(book):
+    return " ".join(
+        str(page.get("text", ""))
+        for page in book.get("pages", []) if isinstance(page, dict)
+    )
+
+
+def characters_in_book(book):
+    stored = {
+        str(name)
+        for name in book.get("characters", [])
+        if str(name) in CHARACTER_APPEARANCES
+    }
+    return stored | named_characters(book_story_text(book))
+
+
+def themes_in_book(book):
+    available = {normalised(theme): theme for theme in theme_names() if roster_for_theme(theme)}
+    stored = {
+        available[normalised(theme)]
+        for theme in book.get("themes", [])
+        if normalised(theme) in available
+    }
+    if stored:
+        return stored
+    characters = characters_in_book(book)
+    return {
+        available[theme]
+        for theme, roster in CHARACTER_ROSTERS.items()
+        if theme in available and characters.intersection(roster)
+    }
+
+
+def select_story_themes(previous_books):
+    available = [theme for theme in theme_names() if roster_for_theme(theme)]
+    if len(available) < 2:
+        raise RuntimeError("At least two story themes with character rosters are required.")
+    pairs = list(combinations(available, 2))
+    usage = {theme: 0 for theme in available}
+    for book in previous_books:
+        for theme in themes_in_book(book):
+            if theme in usage:
+                usage[theme] += 1
+    latest = themes_in_book(previous_books[-1]) if previous_books else set()
+    recent_pairs = {
+        frozenset(themes)
+        for themes in (themes_in_book(book) for book in previous_books[-3:])
+        if len(themes) == 2
+    }
+    scores = {
+        pair: (
+            frozenset(pair) in recent_pairs,
+            sum(theme in latest for theme in pair),
+            sum(usage[theme] for theme in pair),
+            max(usage[theme] for theme in pair),
+        )
+        for pair in pairs
+    }
+    best_score = min(scores.values())
+    best_pairs = [pair for pair, score in scores.items() if score == best_score]
+    return random.SystemRandom().choice(best_pairs)
+
+
+def select_story_cast(selected_themes, previous_books):
+    recent_characters = [characters_in_book(book) for book in previous_books[-12:]]
+    latest_characters = set().union(*recent_characters[-4:]) if recent_characters else set()
+    selected = []
+    chooser = random.SystemRandom()
+    for theme in selected_themes:
+        roster = list(roster_for_theme(theme))
+        usage = {
+            character: sum(character in book_characters for book_characters in recent_characters)
+            for character in roster
+        }
+        best_score = min((character in latest_characters, usage[character]) for character in roster)
+        candidates = [
+            character for character in roster
+            if (character in latest_characters, usage[character]) == best_score
+        ]
+        selected.append(chooser.choice(candidates))
+    return tuple(selected)
 
 
 def clean_slug(title):
@@ -406,13 +479,13 @@ Keep the wording simple, but never make it broken or robotic.
     return approved, str(result.get("reason", "The pages do not form one natural story."))
 
 
-def story_plan(client, number, previous_books, selected_themes, cover_background, cover_action):
+def story_plan(client, number, previous_books, selected_themes, selected_cast, cover_background, cover_action):
     used_titles = {normalised(book.get("title", "")) for book in previous_books if isinstance(book, dict)}
     used_texts = existing_values(previous_books, "text")
     previous_notes = previous_story_notes(previous_books)
     selected_rosters = {
-        theme: roster_for_theme(theme)
-        for theme in selected_themes
+        theme: (character,)
+        for theme, character in zip(selected_themes, selected_cast)
     }
     roster_rules = "; ".join(
         f"{theme}: {', '.join(names)}"
@@ -425,8 +498,7 @@ def story_plan(client, number, previous_books, selected_themes, cover_background
 Create one original 16-page picture-book plan for children aged 3 to 5 in UK English.
 It must be a playful crossover using friendly characters from every one of these selected themes:
 {", ".join(selected_themes)}. Do not use characters from the other available themes in this book.
-Use at least one named character from each selected theme. Where that theme has other friendly characters,
-avoid repeating the exact named character group used by the recent books below.
+Use exactly these two named characters and no other named character: {", ".join(selected_cast)}.
 Use character names only from this exact roster: {roster_rules}. Never invent, shorten or rename a character.
 For SuperKitties, the only hero names are Ginny, Sparks, Buddy and Bitsy. There is no character named Kitty.
 Never use, name or show Numberblocks, Alphablocks or Colourblocks. They are not allowed in these books.
@@ -450,7 +522,7 @@ made from four or five very short sentences. The intro must begin the story. The
 Name every character shown in the intro and ending so their matching pictures can be made from those words.
 The intro and cover must take place in {cover_background}. Centre that opening moment on {cover_action}.
 The intro must introduce the whole main cast and one clear goal or small problem. Use one named character
-from each selected theme and at most one extra character. Keep that same small cast through the whole book.
+from each selected theme, making exactly two main characters. Keep that same small cast through the whole book.
 No new named character may appear after the intro. Every main character must take part throughout the story.
 scenes must contain exactly 6 objects with heading and text. Each scene must continue directly from the prior
 scene and move the same goal forward. Name every character shown so the picture can match the exact words.
@@ -535,6 +607,10 @@ Previous attempt problem to fix: {last_problem or "none"}
                 new_texts.add(text_key)
                 cleaned.append({"heading": heading, "text": text})
             intro_cast = named_characters(intro)
+            if intro_cast != set(selected_cast):
+                raise ValueError(
+                    f"use exactly this two-character cast in the opening: {', '.join(selected_cast)}"
+                )
             later_pages = [(f"scene {index}", scene["text"]) for index, scene in enumerate(cleaned, 1)]
             later_pages.append(("ending", ending))
             for page_label, page_text in later_pages:
@@ -1137,12 +1213,20 @@ def create_book(client, number):
     history = read_history()
     if merge_history(history, manifest["books"]):
         write_json_atomic(HISTORY, history)
-    selected_themes, cover_background, cover_action, composition = book_cover_recipe(number)
+    previous_books = history["books"]
+    selected_themes, cover_background, cover_action, composition = book_cover_recipe(number, previous_books)
+    selected_cast = select_story_cast(selected_themes, previous_books)
+    print(
+        f"Book {number} random cast: {selected_themes[0]} ({selected_cast[0]}) and "
+        f"{selected_themes[1]} ({selected_cast[1]}).",
+        flush=True,
+    )
     plan = story_plan(
         client,
         number,
-        [*history["books"], *manifest["books"]],
+        previous_books,
         selected_themes,
+        selected_cast,
         cover_background,
         cover_action,
     )
@@ -1263,6 +1347,8 @@ def create_book(client, number):
         "title": plan["title"],
         "cover": f"/generated-books/{slug}/cover.webp",
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "themes": list(selected_themes),
+        "characters": list(selected_cast),
         "pages": pages,
     }
     (directory / "book.json").write_text(json.dumps(book, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
