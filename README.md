@@ -12,6 +12,9 @@ A private, mobile-friendly family learning site.
 - Finish the Pattern: 20 changing visual sequences
 - Odd One Out: 20 changing picture puzzles
 - Which Has More?: 20 changing comparison challenges
+- Character Dot-to-Dot: 35 to 60 ordered dots around a random themed character
+- Character Maze: procedurally generated touch and Apple Pencil mazes
+- Character Jigsaw: random themed pictures with 12, 20 or 24 pieces
 - Book shelf placeholder at `/books/`
 - Separate child sticker albums and parent-PIN profile switching
 - Ad-hoc good-behaviour sticker rewards
@@ -29,18 +32,9 @@ Sticker use is stored separately for each child. A sticker remains available to 
 
 Incomplete activity progress resets after ten minutes without interaction. Each new game cycle gets a freshly shuffled plan, and exact completed plans are remembered so they are not served again. Completed rewards and sticker albums never expire.
 
-## Live and test workflow
+## Live workflow
 
-The live site is served at `/`. The isolated test clone is served at `/test/` with its own SQLite database and cookie. Sticker image files are shared read-only, while album choices, achievements and used-sticker state are copied into the test database and can be changed safely.
-
-- Future approved development is published to the GitHub `test` branch.
-- Run `update-test` to load that branch into `/test/` without changing live.
-- Test the build.
-- Run `live` and paste a GitHub token with Contents write access.
-- The helper health-checks the test build, promotes its code to live and GitHub `main`, preserves the live database, then deletes and recreates the test state from the latest live state.
-- Run `refresh-test` at any time to discard test activity and clone the current live state again.
-
-The test database is a snapshot. It deliberately stops mirroring live while testing, because sharing one database would allow test rewards to alter the children's real albums.
+The live site is served at `/`. Run `update-live` to download `main`, offer a rollback snapshot, install the code, preserve sticker images and generated books, then health-check the service. Run `rollback-live` if a live update needs to be reversed.
 
 ## Installation
 
@@ -48,11 +42,12 @@ Run `install.sh` as root on a fresh Ubuntu VPS and provide the parent profile, t
 
 ## Sticker commands
 
-- `generate` securely asks for an OpenAI API key, shows progress at `/allstickers/`, and fills each theme to 100 active stickers.
-- `update-test` installs the current GitHub `test` branch only on `/test/`.
-- `live` promotes the tested code to the VPS live site and GitHub `main`, without replacing live user data.
-- `refresh-test` discards the test database and rebuilds it from the current live site.
-- `backup-stickers` packages the current catalogue, anonymised child albums, used-sticker state and randomized-game memory, then publishes the release asset using a GitHub token.
+- `generate-stickers` fills each theme to 100 active stickers.
+- `backup` includes stickers, albums, game-plan memory and generated books.
+- `backup no-books` includes stickers, albums and game-plan memory but excludes generated books.
+- `update-live` installs the latest `main` build while preserving live data.
+- `rollback-live` restores the latest saved code snapshot.
+- `reset-vps` verifies the published sticker backup, removes only the Little Learners installation and performs a clean reinstall.
 
 Generated sticker images are stored under `/root/stickers/catalog` and served copies under `/var/www/little-sounds/sticker-images`.
 

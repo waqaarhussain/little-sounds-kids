@@ -1,5 +1,6 @@
 import hashlib
 import json
+import math
 import os
 import random
 import secrets
@@ -9,10 +10,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import Flask, jsonify, request
+from PIL import Image
 
 
 DATA_DIRECTORY = Path(os.environ.get("LITTLE_SOUNDS_DATA", "/var/lib/little-sounds"))
 DATABASE = DATA_DIRECTORY / "little-sounds.sqlite3"
+SITE_ROOT = Path(os.environ.get("LITTLE_SOUNDS_SITE", "/var/www/little-sounds"))
+STICKER_ROOT = Path(os.environ.get("LITTLE_SOUNDS_STICKERS", str(SITE_ROOT / "sticker-images")))
 SWITCH_PIN = os.environ.get("LITTLE_SOUNDS_PIN", "0000")
 COOKIE_NAME = os.environ.get("LITTLE_SOUNDS_COOKIE_NAME", "little_sounds_device")
 PARENT_PROFILE = os.environ.get("LITTLE_SOUNDS_PARENT", "Parent").strip() or "Parent"
@@ -30,6 +34,13 @@ CATEGORIES = {
     "numberblocks": "Numberblocks",
     "alphablocks": "Alphablocks",
     "colourblocks": "Colourblocks",
+}
+ACTIVITY_THEMES = ("bluey", "pj-masks", "super-kitties", "paw-patrol")
+SINGLE_CHARACTER_SLOTS = {
+    "bluey": {0, 1, 3, 4, 5, 6, 7},
+    "pj-masks": {0, 1, 2},
+    "super-kitties": {0, 1, 2, 3},
+    "paw-patrol": set(range(8)),
 }
 NUMBER_LEVELS = {
     f"numbers-{start}-{start + 9}": tuple(str(number) for number in range(start, start + 10))
@@ -51,13 +62,18 @@ ACTIVITY_ITEMS = {
     "more-or-less": tuple(f"round-{number}" for number in range(1, 21)),
     "letter-hunt": tuple(f"round-{number}" for number in range(1, 21)),
     "number-hunt": tuple(f"round-{number}" for number in range(1, 21)),
+    "dot-to-dot": ("puzzle",),
+    "character-maze": ("puzzle",),
+    "character-jigsaw": ("puzzle",),
     **NUMBER_LEVELS,
 }
 RANDOM_ACTIVITIES = {
     "count-and-choose", "match-the-pairs", "sort-colours-shapes",
     "finish-the-pattern", "odd-one-out", "more-or-less",
     "letter-hunt", "number-hunt",
+    "dot-to-dot", "character-maze", "character-jigsaw",
 }
+PUZZLE_ACTIVITIES = {"dot-to-dot", "character-maze", "character-jigsaw"}
 COUNTING_ICONS = (
     ("apples", "🍎"), ("stars", "⭐"), ("ladybirds", "🐞"), ("fish", "🐠"),
     ("butterflies", "🦋"), ("strawberries", "🍓"), ("flowers", "🌼"), ("cars", "🚗"),
@@ -260,7 +276,200 @@ def shuffled_choices(answer, values, size=3):
     return choices
 
 
-def build_activity_plan(activity):
+def recent_activity_art(connection, profile, activity, limit=8):
+    rows = connection.execute(
+        """
+        SELECT plan_json FROM activity_variants
+        WHERE profile = ? AND activity = ?
+        ORDER BY attempt DESC LIMIT ?
+        """,
+        (profile, activity, limit),
+    ).fetchall()
+    recent_ids = []
+    recent_themes = []
+    for row in rows:
+        try:
+            plan = json.loads(row["plan_json"])
+            sticker_id = int(plan.get("sticker_id", 0))
+            theme = str(plan.get("theme", ""))
+            if sticker_id:
+                recent_ids.append(sticker_id)
+            if theme:
+                recent_themes.append(theme)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+    return recent_ids, recent_themes
+
+
+def choose_activity_sticker(connection, profile, activity, single_character=False):
+    recent_ids, recent_themes = recent_activity_art(connection, profile, activity)
+    preferred_themes = [theme for theme in ACTIVITY_THEMES if theme not in recent_themes[:3]]
+    if not preferred_themes:
+        preferred_themes = list(ACTIVITY_THEMES)
+    placeholders = ",".join("?" for _ in preferred_themes)
+    rows = connection.execute(
+        f"""
+        SELECT id, category, serial, image_path
+        FROM catalog_stickers
+        WHERE active = 1 AND staged = 0 AND category IN ({placeholders})
+        ORDER BY RANDOM() LIMIT 80
+        """,
+        preferred_themes,
+    ).fetchall()
+    if single_character:
+        rows = [
+            row for row in rows
+            if (int(row["serial"]) - 1) % 10 in SINGLE_CHARACTER_SLOTS.get(row["category"], set())
+        ]
+    candidates = [row for row in rows if int(row["id"]) not in recent_ids]
+    if not candidates:
+        candidates = rows
+    if not candidates:
+        raise RuntimeError("No themed character pictures are ready. Ask a grown-up to run generate-stickers.")
+    row = random.choice(candidates)
+    return {
+        "sticker_id": int(row["id"]),
+        "theme": row["category"],
+        "theme_label": CATEGORIES[row["category"]],
+        "image": row["image_path"],
+        "serial": int(row["serial"]),
+    }
+
+
+def sticker_file(image_path):
+    prefix = "/sticker-images/"
+    if not str(image_path).startswith(prefix):
+        raise ValueError("The selected character picture has an invalid path.")
+    relative = Path(str(image_path)[len(prefix):])
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError("The selected character picture has an invalid path.")
+    return STICKER_ROOT / relative
+
+
+def outline_dots(image_path, count):
+    source = sticker_file(image_path)
+    with Image.open(source) as opened:
+        image = opened.convert("RGBA")
+    alpha = image.getchannel("A")
+    bounds = alpha.point(lambda value: 255 if value >= 48 else 0).getbbox()
+    if not bounds:
+        raise ValueError("The selected character picture has no usable outline.")
+    left, top, right, bottom = bounds
+    centre_x = (left + right - 1) / 2
+    centre_y = (top + bottom - 1) / 2
+    pixels = alpha.load()
+    boundary = []
+    for y in range(max(1, top), min(image.height - 1, bottom)):
+        for x in range(max(1, left), min(image.width - 1, right)):
+            if pixels[x, y] < 48:
+                continue
+            if min(pixels[x - 1, y], pixels[x + 1, y], pixels[x, y - 1], pixels[x, y + 1]) < 48:
+                dx, dy = x - centre_x, y - centre_y
+                boundary.append((math.atan2(dy, dx), math.hypot(dx, dy), x, y))
+    if not boundary:
+        raise ValueError("The selected character picture has no usable edge.")
+    dots = []
+    used = set()
+    half_window = math.tau / count * 0.8
+    for index in range(count):
+        angle = -math.pi / 2 + (index * math.tau / count)
+        candidates = []
+        for point_angle, radius, x, y in boundary:
+            difference = abs((point_angle - angle + math.pi) % math.tau - math.pi)
+            if difference <= half_window:
+                candidates.append((radius, x, y))
+        if candidates:
+            ordered = sorted(candidates, reverse=True)
+            _, x, y = next((point for point in ordered if (point[1], point[2]) not in used), ordered[0])
+        else:
+            _, _, x, y = min(
+                boundary,
+                key=lambda point: abs((point[0] - angle + math.pi) % math.tau - math.pi),
+            )
+        used.add((x, y))
+        dots.append({
+            "number": index + 1,
+            "x": round(195 + x / max(image.width - 1, 1) * 610, 1),
+            "y": round(45 + y / max(image.height - 1, 1) * 610, 1),
+        })
+    return dots
+
+
+def generate_maze(columns, rows):
+    north, east, south, west = 1, 2, 4, 8
+    walls = [north | east | south | west for _ in range(columns * rows)]
+    visited = {0}
+    stack = [0]
+    directions = ((0, -1, north, south), (1, 0, east, west), (0, 1, south, north), (-1, 0, west, east))
+    while stack:
+        cell = stack[-1]
+        x, y = cell % columns, cell // columns
+        choices = []
+        for dx, dy, wall, opposite in directions:
+            nx, ny = x + dx, y + dy
+            neighbour = ny * columns + nx
+            if 0 <= nx < columns and 0 <= ny < rows and neighbour not in visited:
+                choices.append((neighbour, wall, opposite))
+        if not choices:
+            stack.pop()
+            continue
+        neighbour, wall, opposite = random.choice(choices)
+        walls[cell] &= ~wall
+        walls[neighbour] &= ~opposite
+        visited.add(neighbour)
+        stack.append(neighbour)
+
+    distances = {0: 0}
+    queue = [0]
+    while queue:
+        cell = queue.pop(0)
+        x, y = cell % columns, cell // columns
+        for dx, dy, wall, _ in directions:
+            nx, ny = x + dx, y + dy
+            neighbour = ny * columns + nx
+            if 0 <= nx < columns and 0 <= ny < rows and not (walls[cell] & wall) and neighbour not in distances:
+                distances[neighbour] = distances[cell] + 1
+                queue.append(neighbour)
+    finish = max(distances, key=distances.get)
+    return walls, finish
+
+
+def build_themed_activity_plan(connection, profile, activity, attempt):
+    artwork = choose_activity_sticker(connection, profile, activity, single_character=activity != "character-jigsaw")
+    if activity == "dot-to-dot":
+        dot_count = random.randint(35, 60)
+        plan = {**artwork, "dot_count": dot_count, "dots": outline_dots(artwork["image"], dot_count)}
+    elif activity == "character-maze":
+        if attempt <= 2:
+            columns, rows, difficulty = 11, 9, "Easy"
+        elif attempt <= 5:
+            columns, rows, difficulty = 15, 11, "Medium"
+        else:
+            columns, rows, difficulty = 19, 13, "Hard"
+        walls, finish = generate_maze(columns, rows)
+        plan = {**artwork, "columns": columns, "rows": rows, "walls": walls, "start": 0, "finish": finish, "difficulty": difficulty}
+    elif activity == "character-jigsaw":
+        if attempt <= 2:
+            columns, rows = 4, 3
+        elif attempt <= 5:
+            columns, rows = 5, 4
+        else:
+            columns, rows = 6, 4
+        order = list(range(columns * rows))
+        random.shuffle(order)
+        plan = {**artwork, "columns": columns, "rows": rows, "piece_count": len(order), "order": order}
+    else:
+        raise ValueError("That themed activity is not valid.")
+    signature_source = {key: value for key, value in plan.items() if key != "theme_label"}
+    canonical = json.dumps(signature_source, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return plan, hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def build_activity_plan(activity, connection=None, profile="", attempt=1):
+    if activity in {"dot-to-dot", "character-maze", "character-jigsaw"}:
+        if connection is None or not profile:
+            raise ValueError("The themed activity needs a profile and catalogue.")
+        return build_themed_activity_plan(connection, profile, activity, attempt)
     if activity == "count-and-choose":
         combinations = [(count, name, icon) for count in range(1, 11) for name, icon in COUNTING_ICONS]
         selected = random.sample(combinations, 20)
@@ -408,7 +617,7 @@ def get_or_create_activity_variant(connection, profile, activity):
         (profile, activity),
     ).fetchone()[0])
     for _ in range(100):
-        plan, signature = build_activity_plan(activity)
+        plan, signature = build_activity_plan(activity, connection, profile, attempt)
         if connection.execute(
             "SELECT 1 FROM activity_variants WHERE activity = ? AND signature = ? LIMIT 1",
             (activity, signature),
@@ -892,6 +1101,36 @@ def complete_activity_item():
         profile = device["profile"]
         total = len(ACTIVITY_ITEMS[activity])
         connection.execute("BEGIN IMMEDIATE")
+        variant_attempt = None
+        if activity in PUZZLE_ACTIVITIES:
+            try:
+                variant_attempt = int(body.get("attempt", 0))
+            except (TypeError, ValueError):
+                variant_attempt = 0
+            variant = connection.execute(
+                """
+                SELECT completed FROM activity_variants
+                WHERE profile = ? AND activity = ? AND attempt = ?
+                """,
+                (profile, activity, variant_attempt),
+            ).fetchone()
+            if not variant:
+                return jsonify({"error": "This puzzle is no longer active. Reload for a fresh one."}), 409
+            if int(variant["completed"]):
+                return jsonify({
+                    "activity": activity,
+                    "item": item,
+                    "new_item": False,
+                    "already_completed": True,
+                    "count": total,
+                    "total": total,
+                    "exercise_completed": False,
+                    "cycle": None,
+                    "reward_token": None,
+                    "completed_items": [],
+                    "parent_preview": profile == PARENT_PROFILE,
+                    "expired": False,
+                })
         expired = touch_activity_progress(connection, profile, activity)
         cursor = connection.execute(
             "INSERT OR IGNORE INTO activity_progress(profile, activity, item, completed_at) VALUES (?, ?, ?, ?)",
@@ -908,13 +1147,22 @@ def complete_activity_item():
         reward_token = None
         if exercise_completed:
             if activity in RANDOM_ACTIVITIES:
-                connection.execute(
-                    """
-                    UPDATE activity_variants SET completed = 1
-                    WHERE profile = ? AND activity = ? AND completed = 0
-                    """,
-                    (profile, activity),
-                )
+                if variant_attempt is None:
+                    connection.execute(
+                        """
+                        UPDATE activity_variants SET completed = 1
+                        WHERE profile = ? AND activity = ? AND completed = 0
+                        """,
+                        (profile, activity),
+                    )
+                else:
+                    connection.execute(
+                        """
+                        UPDATE activity_variants SET completed = 1
+                        WHERE profile = ? AND activity = ? AND attempt = ? AND completed = 0
+                        """,
+                        (profile, activity, variant_attempt),
+                    )
             cycle = int(
                 connection.execute(
                     "SELECT COALESCE(MAX(cycle), 0) + 1 FROM activity_completions WHERE profile = ? AND activity = ?",

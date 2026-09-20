@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Run this reset as root."
+  exit 1
+fi
+
+if [ ! -f /etc/little-sounds.env ]; then
+  echo "The current Little Learners profile settings are missing. Run install.sh manually instead."
+  exit 1
+fi
+
+set -a
+# This file is created by install.sh from validated profile names and a four-digit PIN.
+. /etc/little-sounds.env
+set +a
+
+for required in LITTLE_SOUNDS_PARENT LITTLE_SOUNDS_CHILD_1 LITTLE_SOUNDS_CHILD_2 LITTLE_SOUNDS_PIN; do
+  if [ -z "${!required:-}" ]; then
+    echo "The current profile settings are incomplete: $required is missing."
+    exit 1
+  fi
+done
+
+repository="waqaarhussain/little-sounds-kids"
+backup_url="${LITTLE_SOUNDS_STICKER_BACKUP_URL:-https://github.com/$repository/releases/download/sticker-pack/little-sounds-sticker-pack.tar.gz}"
+source_commit="${LITTLE_SOUNDS_SOURCE_COMMIT:-}"
+work_dir="$(mktemp -d /tmp/little-learners-full-reset.XXXXXX)"
+trap 'rm -rf "$work_dir"' EXIT
+
+echo "Checking the sticker-only backup before removing anything..."
+curl -fL --retry 3 --retry-delay 2 "$backup_url" -o "$work_dir/sticker-pack.tar.gz"
+tar -tzf "$work_dir/sticker-pack.tar.gz" > "$work_dir/backup-files.txt"
+grep -Fxq 'manifest.json' "$work_dir/backup-files.txt" || {
+  echo "The downloaded sticker backup is invalid. Nothing was removed."
+  exit 1
+}
+
+if ! [[ "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then
+  source_commit="$(curl -fsSL "https://api.github.com/repos/$repository/branches/main" | python3 -c 'import json,sys; print(json.load(sys.stdin)["commit"]["sha"])')"
+fi
+[[ "$source_commit" =~ ^[0-9a-f]{40}$ ]] || { echo "GitHub did not return a valid build. Nothing was removed."; exit 1; }
+
+echo "Downloading Little Learners build $source_commit..."
+mkdir -p "$work_dir/source"
+curl -fL --retry 3 --retry-delay 2 "https://api.github.com/repos/$repository/tarball/$source_commit" -o "$work_dir/source.tar.gz"
+tar -xzf "$work_dir/source.tar.gz" --strip-components=1 -C "$work_dir/source"
+bash -n "$work_dir/source/install.sh"
+python3 -m py_compile "$work_dir/source/server/app.py" "$work_dir/source/generate_book.py"
+
+echo "Removing only the existing Little Learners installation..."
+systemctl disable --now little-sounds.service little-sounds-book-generator.service little-sounds-sticker-generator.service little-sounds-phonics-cache.service 2>/dev/null || true
+rm -f /etc/systemd/system/little-sounds.service /etc/systemd/system/little-sounds-book-generator.service /etc/systemd/system/little-sounds-sticker-generator.service /etc/systemd/system/little-sounds-phonics-cache.service
+rm -f /etc/nginx/sites-enabled/little-sounds /etc/nginx/sites-available/little-sounds
+rm -f /etc/little-sounds.env /etc/little-sounds-book-job.env
+rm -f /usr/local/bin/generate-stickers /usr/local/bin/generate-book /usr/local/bin/narrate-books /usr/local/bin/repair-book /usr/local/bin/clean /usr/local/bin/cache-phonics /usr/local/bin/cache-words /usr/local/bin/backup /usr/local/bin/update-live /usr/local/bin/rollback-live /usr/local/bin/reset-vps
+rm -rf /var/www/little-sounds /var/lib/little-sounds /opt/little-sounds /opt/little-sounds-venv /opt/little-sounds-ai-venv /root/stickers/catalog /root/little-sounds-snapshots
+systemctl daemon-reload
+
+echo "Installing the clean build and restoring the verified sticker backup..."
+LITTLE_SOUNDS_SOURCE_COMMIT="$source_commit" \
+LITTLE_SOUNDS_STICKER_BACKUP_URL="file://$work_dir/sticker-pack.tar.gz" \
+LITTLE_SOUNDS_PARENT="$LITTLE_SOUNDS_PARENT" \
+LITTLE_SOUNDS_CHILD_1="$LITTLE_SOUNDS_CHILD_1" \
+LITTLE_SOUNDS_CHILD_2="$LITTLE_SOUNDS_CHILD_2" \
+LITTLE_SOUNDS_PIN="$LITTLE_SOUNDS_PIN" \
+bash "$work_dir/source/install.sh"
+
+echo "Full reset finished. Stickers and both child albums were restored; generated books were not restored."

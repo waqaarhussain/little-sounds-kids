@@ -56,6 +56,8 @@ python3 -m venv /opt/little-sounds-ai-venv
 /opt/little-sounds-ai-venv/bin/pip install --disable-pip-version-check --upgrade \
   "openai>=2.0,<3.0" "Pillow>=11.0,<13.0" "ImageHash>=4.3,<5.0"
 install -d -m 0755 /opt/little-sounds
+install -d -m 0755 /opt/little-sounds/references
+install -m 0644 "$installer_dir/references/superkitties.png" /opt/little-sounds/references/superkitties.png
 install -m 0755 "$installer_dir/generate_stickers.py" /opt/little-sounds/generate_stickers.py
 install -m 0755 "$installer_dir/generate_book.py" /opt/little-sounds/generate_book.py
 install -m 0755 "$installer_dir/narrate_books.py" /opt/little-sounds/narrate_books.py
@@ -72,6 +74,7 @@ install -m 0755 "$installer_dir/sticker_pack.py" /opt/little-sounds/sticker_pack
 install -m 0755 "$installer_dir/backup" /usr/local/bin/backup
 install -m 0755 "$installer_dir/update-live" /usr/local/bin/update-live
 install -m 0755 "$installer_dir/rollback-live" /usr/local/bin/rollback-live
+install -m 0755 "$installer_dir/reset-vps" /usr/local/bin/reset-vps
 rm -f /usr/local/bin/refresh-test /usr/local/bin/update-test /usr/local/bin/live
 install -d -m 0700 /root/stickers/catalog
 install -d -m 0700 /root/little-sounds-snapshots
@@ -226,6 +229,9 @@ server {
     location = /books { return 301 /books/; }
     location = /letter-hunt { return 301 /letter-hunt/; }
     location = /number-hunt { return 301 /number-hunt/; }
+    location = /dot-to-dot { return 301 /dot-to-dot/; }
+    location = /character-maze { return 301 /character-maze/; }
+    location = /character-jigsaw { return 301 /character-jigsaw/; }
     location = /stickers { return 301 /stickers/; }
     location = /allstickers { return 301 /allstickers/; }
     location = /sticker-generator { return 301 /sticker-generator/; }
@@ -312,6 +318,9 @@ echo "Odd One Out: http://${server_ip}/odd-one-out/"
 echo "Which Has More: http://${server_ip}/more-or-less/"
 echo "Letter Hunt: http://${server_ip}/letter-hunt/"
 echo "Number Hunt: http://${server_ip}/number-hunt/"
+echo "Character Dot-to-Dot: http://${server_ip}/dot-to-dot/"
+echo "Character Maze: http://${server_ip}/character-maze/"
+echo "Character Jigsaw: http://${server_ip}/character-jigsaw/"
 echo "Books: http://${server_ip}/books/"
 echo "Sticker book: http://${server_ip}/stickers/"
 echo "All stickers monitor: http://${server_ip}/allstickers/"
@@ -325,3 +334,4 @@ echo "Save everything except generated books: backup no-books"
 echo "Cache UK object names: cache-words"
 echo "Future live updates: update-live (offers a rollback snapshot first)."
 echo "Restore the newest snapshot: rollback-live"
+echo "Full clean reinstall after backup: reset-vps"

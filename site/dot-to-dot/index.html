@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Character Dot-to-Dot</title>
+  <link rel="stylesheet" href="../assets/site-shell.css">
+  <link rel="stylesheet" href="../assets/games.css">
+</head>
+<body>
+<main class="game-wrap">
+  <h1 class="game-title">🔢 Character Dot-to-Dot</h1>
+  <section class="game-card puzzle-card" id="gameCard">
+    <div class="puzzle-meta"><span class="theme-pill" id="themePill">Choosing a character…</span><span id="dotProgress">Start at dot 1</span></div>
+    <div class="puzzle-stage dot-stage" id="dotStage">
+      <svg id="dotSvg" viewBox="0 0 1000 700" role="img" aria-label="Join the numbered dots in order">
+        <image class="dot-picture" id="dotPicture" x="195" y="45" width="610" height="610" preserveAspectRatio="xMidYMid meet"></image>
+        <g id="dotLines"></g><g class="dot-markers" id="dotMarkers"></g>
+      </svg>
+    </div>
+    <p class="feedback" id="feedback" aria-live="polite">Join the dots in number order. You can use your finger or Apple Pencil.</p>
+  </section>
+</main>
+<script src="../assets/site-shell.js"></script>
+<script>
+(() => {
+  const activity = "dot-to-dot", ns = "http://www.w3.org/2000/svg";
+  const byId = id => document.getElementById(id);
+  const api = async (path, options = {}) => {
+    const response = await fetch(ProfileShell.url(path), {credentials:"same-origin", headers:{"Content-Type":"application/json"}, ...options});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Try again.");
+    return data;
+  };
+  let dots = [], nextIndex = 0, activePointer = null, completing = false, attempt = 0;
+
+  function svgPoint(event) {
+    const point = byId("dotSvg").createSVGPoint();
+    point.x = event.clientX; point.y = event.clientY;
+    return point.matrixTransform(byId("dotSvg").getScreenCTM().inverse());
+  }
+  function nearestExpected(event) {
+    if (!dots[nextIndex]) return false;
+    const point = svgPoint(event), target = dots[nextIndex];
+    return Math.hypot(point.x - target.x, point.y - target.y) <= 38;
+  }
+  function flashWrong(index) {
+    const node = byId("dot-" + index);
+    node?.classList.add("wrong");
+    byId("feedback").textContent = "That is not the next dot. Look for " + (nextIndex + 1) + ".";
+    setTimeout(() => node?.classList.remove("wrong"), 450);
+  }
+  function acceptDot(index) {
+    if (completing) return;
+    if (index !== nextIndex) { flashWrong(index); return; }
+    const node = byId("dot-" + index);
+    node.classList.remove("next"); node.classList.add("done");
+    if (index > 0) {
+      const line = document.createElementNS(ns, "line");
+      line.setAttribute("class", "dot-line");
+      line.setAttribute("x1", dots[index - 1].x); line.setAttribute("y1", dots[index - 1].y);
+      line.setAttribute("x2", dots[index].x); line.setAttribute("y2", dots[index].y);
+      byId("dotLines").appendChild(line);
+    }
+    nextIndex += 1;
+    if (nextIndex < dots.length) {
+      byId("dot-" + nextIndex).classList.add("next");
+      byId("dotProgress").textContent = nextIndex + " of " + dots.length + " joined";
+      byId("feedback").textContent = "Now find dot " + (nextIndex + 1) + ".";
+    } else finishPuzzle();
+  }
+  async function finishPuzzle() {
+    if (completing) return;
+    completing = true;
+    const close = document.createElementNS(ns, "line");
+    close.setAttribute("class", "dot-line");
+    close.setAttribute("x1", dots[dots.length - 1].x); close.setAttribute("y1", dots[dots.length - 1].y);
+    close.setAttribute("x2", dots[0].x); close.setAttribute("y2", dots[0].y);
+    byId("dotLines").appendChild(close);
+    byId("dotStage").classList.add("finished");
+    byId("dotProgress").textContent = dots.length + " dots joined";
+    byId("feedback").textContent = "You revealed the character! ✨";
+    try {
+      const result = await api("/api/progress/complete", {method:"POST", body:JSON.stringify({activity, item:"puzzle", attempt})});
+      if (result.exercise_completed && result.reward_token) await ProfileShell.claimReward(result.reward_token);
+    } catch (error) { byId("feedback").textContent = error.message; }
+  }
+  function render(plan) {
+    dots = plan.dots;
+    byId("themePill").textContent = plan.theme_label + " surprise";
+    byId("dotProgress").textContent = "0 of " + dots.length + " joined";
+    byId("dotPicture").setAttribute("href", plan.image);
+    dots.forEach((dot, index) => {
+      const group = document.createElementNS(ns, "g");
+      group.setAttribute("class", "dot-node" + (index === 0 ? " next" : ""));
+      group.setAttribute("id", "dot-" + index);
+      group.setAttribute("transform", "translate(" + dot.x + " " + dot.y + ")");
+      const circle = document.createElementNS(ns, "circle"); circle.setAttribute("r", "18");
+      const text = document.createElementNS(ns, "text"); text.textContent = dot.number;
+      group.append(circle, text);
+      group.addEventListener("pointerdown", event => { event.preventDefault(); event.stopPropagation(); acceptDot(index); });
+      byId("dotMarkers").appendChild(group);
+    });
+    const svg = byId("dotSvg");
+    svg.addEventListener("pointerdown", event => { activePointer = event.pointerId; svg.setPointerCapture?.(event.pointerId); if (nearestExpected(event)) acceptDot(nextIndex); });
+    svg.addEventListener("pointermove", event => { if (event.pointerId === activePointer && nearestExpected(event)) acceptDot(nextIndex); });
+    const stop = event => { if (event.pointerId === activePointer) activePointer = null; };
+    svg.addEventListener("pointerup", stop); svg.addEventListener("pointercancel", stop);
+  }
+  ProfileShell.ready.then(async () => {
+    try { const variant = await api("/api/activity/variant?activity=" + activity); attempt = variant.attempt; render(variant.plan); }
+    catch (error) { byId("feedback").textContent = error.message; }
+  });
+})();
+</script>
+</body>
+</html>

@@ -28,7 +28,7 @@ const { chromium } = require("playwright");
   if (!choices || choices.x < 0 || choices.x + choices.width > 391) throw new Error("Shape choices overflow mobile viewport");
 
   await page.goto("http://127.0.0.1:8765/", { waitUntil: "networkidle" });
-  for (const href of ["/phonicsbook/", "/handwriting/", "/counting/", "/matching/", "/sorting/"]) {
+  for (const href of ["phonicsbook/", "handwriting/", "counting/", "matching/", "sorting/", "dot-to-dot/", "character-maze/", "character-jigsaw/"]) {
     if ((await page.locator('a[href="' + href + '"]').count()) !== 1) throw new Error("Missing activity " + href);
   }
   console.log("MOBILE QA PASSED: toolbar, initials, 1-100 tracing, scribble rejection, shape layout and activities");

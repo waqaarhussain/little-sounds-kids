@@ -20,6 +20,8 @@ from narrate_books import narrate_book
 
 
 BOOK_ROOT = Path("/var/www/little-sounds/generated-books")
+REFERENCE_ROOT = Path(os.environ.get("LITTLE_SOUNDS_REFERENCE_ROOT", "/opt/little-sounds/references"))
+SUPERKITTIES_REFERENCE = REFERENCE_ROOT / "superkitties.png"
 MANIFEST = BOOK_ROOT / "books.json"
 HISTORY = BOOK_ROOT / "story-history.json"
 TEXT_MODEL = os.environ.get("LITTLE_SOUNDS_TEXT_MODEL", "gpt-5-mini")
@@ -247,6 +249,18 @@ def complete_character_roster():
         f"{theme}: {', '.join(names)}"
         for theme, names in CHARACTER_ROSTERS.items()
     )
+
+
+def superkitties_reference(text):
+    if SUPERKITTIES_REFERENCE.is_file() and any(
+        text_names_character(text, name) for name in CHARACTER_ROSTERS["superkitties"]
+    ):
+        return SUPERKITTIES_REFERENCE
+    return None
+
+
+def reference_data_url(path):
+    return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
 
 def named_characters(text):
@@ -548,17 +562,38 @@ Previous attempt problem to fix: {last_problem or "none"}
     raise RuntimeError(f"The story model could not make a unique valid plan: {last_problem}")
 
 
-def image_bytes(client, prompt):
-    response = request_with_retry(
-        "Illustration",
-        lambda: client.images.generate(
-            model=IMAGE_MODEL,
-            prompt=prompt,
-            size="1536x1024",
-            quality="low",
-            output_format="png",
-        ),
-    )
+def image_bytes(client, prompt, page_text=""):
+    reference = superkitties_reference(page_text)
+    if reference:
+        with reference.open("rb") as reference_file:
+            response = request_with_retry(
+                "Illustration",
+                lambda: client.images.edit(
+                    model=IMAGE_MODEL,
+                    image=[reference_file],
+                    prompt=(
+                        "The supplied image is the canonical SuperKitties character reference sheet. "
+                        "Use it only to preserve the exact face, fur markings, body build, relative size, mask and suit "
+                        "of each named SuperKitties character. Draw only the characters requested in this scene. "
+                        "Do not copy the reference background or pose. " + prompt
+                    ),
+                    size="1536x1024",
+                    quality="low",
+                    input_fidelity="high",
+                    output_format="png",
+                ),
+            )
+    else:
+        response = request_with_retry(
+            "Illustration",
+            lambda: client.images.generate(
+                model=IMAGE_MODEL,
+                prompt=prompt,
+                size="1536x1024",
+                quality="low",
+                output_format="png",
+            ),
+        )
     if not response.data or not response.data[0].b64_json:
         raise RuntimeError("OpenAI returned no illustration data.")
     return base64.b64decode(response.data[0].b64_json)
@@ -590,16 +625,24 @@ Return false if the picture contains a story heading, caption, sentence, paragra
 wording. A single learning symbol such as A or 3 is allowed only when the page itself needs that object.
 Small background details do not matter. Never require story words to be printed inside the picture.
 """
+    content = [
+        {"type": "input_text", "text": check_prompt},
+        {"type": "input_text", "text": "Candidate storybook picture:"},
+        {"type": "input_image", "image_url": f"data:image/png;base64,{encoded}", "detail": "high"},
+    ]
+    reference = superkitties_reference(page_text)
+    if reference:
+        content.extend([
+            {"type": "input_text", "text": "Canonical SuperKitties reference sheet. Left to right: Sparks, Ginny, Buddy and Bitsy:"},
+            {"type": "input_image", "image_url": reference_data_url(reference), "detail": "high"},
+        ])
     response = request_with_retry(
         f"{label} check",
         lambda: client.responses.create(
             model=VISION_MODEL,
             input=[{
                 "role": "user",
-                "content": [
-                    {"type": "input_text", "text": check_prompt},
-                    {"type": "input_image", "image_url": f"data:image/png;base64,{encoded}", "detail": "high"},
-                ],
+                "content": content,
             }],
             text={
                 "format": {
@@ -636,17 +679,24 @@ camera views, poses, lighting, backgrounds and non-recurring small props are fin
 object, return false if a named character breaks its exact appearance guide. If no important object carries
 between the pages and every named character is accurate, return true. Explain only the key continuity reason.
 """
+    content = [
+        {"type": "input_text", "text": prompt},
+        {"type": "input_image", "image_url": f"data:image/png;base64,{previous_encoded}", "detail": "high"},
+        {"type": "input_image", "image_url": f"data:image/png;base64,{current_encoded}", "detail": "high"},
+    ]
+    reference = superkitties_reference(f"{previous_words} {current_words}")
+    if reference:
+        content.extend([
+            {"type": "input_text", "text": "Canonical SuperKitties reference sheet. Left to right: Sparks, Ginny, Buddy and Bitsy:"},
+            {"type": "input_image", "image_url": reference_data_url(reference), "detail": "high"},
+        ])
     response = request_with_retry(
         f"{label} continuity check",
         lambda: client.responses.create(
             model=VISION_MODEL,
             input=[{
                 "role": "user",
-                "content": [
-                    {"type": "input_text", "text": prompt},
-                    {"type": "input_image", "image_url": f"data:image/png;base64,{previous_encoded}", "detail": "high"},
-                    {"type": "input_image", "image_url": f"data:image/png;base64,{current_encoded}", "detail": "high"},
-                ],
+                "content": content,
             }],
             text={
                 "format": {
@@ -746,7 +796,7 @@ def try_matching_image_bytes(client, label, prompt, page_text, attempts=IMAGE_AT
     last_raw = None
     retry_prompt = prompt
     for attempt in range(1, attempts + 1):
-        raw = image_bytes(client, retry_prompt)
+        raw = image_bytes(client, retry_prompt, page_text)
         last_raw = raw
         matches, reason = image_matches_page(client, raw, page_text, label)
         if matches:
@@ -885,7 +935,7 @@ def adaptive_story_image(
     retry_prompt = prompt
     last_problem = ""
     for image_attempt in range(1, IMAGE_ATTEMPTS + 1):
-        raw = image_bytes(client, retry_prompt)
+        raw = image_bytes(client, retry_prompt, original_words)
         if earlier_covers:
             distinct, diversity_reason = cover_is_distinct(client, raw, earlier_covers)
             if not distinct:

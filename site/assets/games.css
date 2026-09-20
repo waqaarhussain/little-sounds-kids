@@ -30,3 +30,42 @@
 .odd-choice.wrong,.more-choice.wrong{animation:shake .35s;background:#ffe0e5;border-color:#f15b75}
 @media(max-width:600px){.pattern-row{gap:6px}.pattern-row>span{width:48px;border-width:3px;border-radius:15px;font-size:2rem;padding:2px}.picture-choice{min-height:82px;font-size:2.8rem}.odd-grid{grid-template-columns:repeat(2,1fr);gap:10px}.more-choice{min-height:190px;padding:10px}}
 .hunt-target{font-size:clamp(5rem,18vw,10rem);font-weight:1000;line-height:1;color:#5a42ce;text-shadow:0 7px 0 #d9d2ff}
+
+/* Character puzzles */
+.puzzle-card{min-height:0;padding:clamp(12px,2.5vw,24px)}
+.puzzle-meta{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:10px;font-weight:1000}
+.theme-pill,.difficulty-pill{padding:8px 14px;border-radius:999px;background:#eef1ff;color:#4b3bb6}
+.puzzle-stage{position:relative;width:min(100%,820px);margin:auto;border:5px solid #dce8f8;border-radius:24px;overflow:hidden;background:linear-gradient(145deg,#fff,#f6fbff);box-shadow:inset 0 0 25px #5f79a51b;touch-action:none;user-select:none;-webkit-user-select:none}
+.dot-stage{aspect-ratio:10/7}
+.dot-stage svg{display:block;width:100%;height:100%;touch-action:none}
+.dot-picture{opacity:0;transition:opacity .45s ease;transform-origin:center}
+.dot-stage.finished .dot-picture{opacity:1;animation:puzzleReveal .85s cubic-bezier(.2,.8,.2,1)}
+.dot-stage.finished .dot-markers{opacity:0;transition:opacity .25s ease}
+.dot-line{stroke:#6d50df;stroke-width:7;stroke-linecap:round;filter:drop-shadow(0 2px 1px #fff)}
+.dot-node circle{fill:#fff;stroke:#233b75;stroke-width:3}
+.dot-node text{fill:#18315f;font:900 18px/1 "Trebuchet MS",sans-serif;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.dot-node.next circle{fill:#fff4a5;stroke:#e48517;stroke-width:5;animation:dotPulse 1s ease-in-out infinite}
+.dot-node.done circle{fill:#91e7b3;stroke:#238c58}
+.dot-node.wrong circle{fill:#ffb7c2;stroke:#e23553;animation:shake .35s}
+.maze-stage{aspect-ratio:19/13;background:#fffef3}
+.maze-stage canvas{display:block;width:100%;height:100%;touch-action:none}
+.maze-stage.wrong{animation:mazeFlash .32s}
+.maze-stage.finished{animation:puzzleReveal .85s cubic-bezier(.2,.8,.2,1);box-shadow:0 0 0 8px #fff,0 0 35px 18px #70e6b4}
+.puzzle-controls{display:flex;justify-content:center;flex-wrap:wrap;gap:12px}
+.jigsaw-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,.42fr);gap:16px;align-items:start;width:min(100%,920px);margin:auto}
+.jigsaw-board{display:grid;aspect-ratio:1;border:5px solid #dce8f8;border-radius:22px;overflow:hidden;background:repeating-conic-gradient(#edf2fb 0 25%,#fff 0 50%) 50%/34px 34px}
+.jigsaw-slot{position:relative;min-width:0;min-height:0;border:1px dashed #c2cee2;background:#ffffff45}
+.jigsaw-slot.wrong{background:#ffb7c2;animation:shake .35s}
+.jigsaw-tray{min-height:260px;display:grid;grid-template-columns:repeat(3,minmax(58px,1fr));gap:8px;padding:10px;border:4px solid #e6dcfb;border-radius:22px;background:#f8f3ff}
+.jigsaw-piece{aspect-ratio:1;border:3px solid #fff;border-radius:10px;background-repeat:no-repeat;box-shadow:0 4px 0 #8f7ac4;cursor:grab;touch-action:none}
+.jigsaw-piece:active{cursor:grabbing}
+.jigsaw-piece.selected{outline:5px solid #ffd52e;transform:scale(1.05)}
+.jigsaw-slot .jigsaw-piece{width:100%;height:100%;border:0;border-radius:0;box-shadow:none;pointer-events:none}
+.jigsaw-board.finished{animation:puzzleReveal .85s cubic-bezier(.2,.8,.2,1);box-shadow:0 0 0 8px #fff,0 0 35px 18px #ffdc56}
+.drag-ghost{position:fixed;z-index:1000;pointer-events:none;opacity:.9;transform:translate(-50%,-50%) scale(1.08);filter:drop-shadow(0 12px 10px #24355b55)}
+@keyframes dotPulse{50%{transform:scale(1.22);transform-origin:center}}
+@keyframes mazeFlash{50%{box-shadow:inset 0 0 0 18px #f14f6a88}}
+@keyframes puzzleReveal{0%{transform:scale(.82) rotate(-3deg);opacity:.2}60%{transform:scale(1.05) rotate(2deg)}100%{transform:scale(1) rotate(0);opacity:1}}
+@media(max-width:700px){.jigsaw-layout{grid-template-columns:1fr}.jigsaw-tray{min-height:130px;grid-template-columns:repeat(6,minmax(42px,1fr))}.dot-node text{font-size:21px}.puzzle-stage{border-width:3px;border-radius:18px}}
+@media(max-width:430px){.jigsaw-tray{grid-template-columns:repeat(4,minmax(42px,1fr))}.puzzle-card{padding:10px}.puzzle-meta{font-size:.86rem}}
+@media(prefers-reduced-motion:reduce){.dot-node.next circle,.dot-stage.finished .dot-picture,.maze-stage.finished,.jigsaw-board.finished{animation-duration:.01ms}}

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Character Jigsaw</title>
+  <link rel="stylesheet" href="../assets/site-shell.css">
+  <link rel="stylesheet" href="../assets/games.css">
+</head>
+<body>
+<main class="game-wrap">
+  <h1 class="game-title">🧩 Character Jigsaw</h1>
+  <section class="game-card puzzle-card" id="gameCard">
+    <div class="puzzle-meta"><span class="theme-pill" id="themePill">Choosing a picture…</span><span id="pieceProgress"></span></div>
+    <div class="jigsaw-layout"><div class="jigsaw-board" id="jigsawBoard" aria-label="Jigsaw board"></div><div class="jigsaw-tray" id="jigsawTray" aria-label="Jigsaw pieces"></div></div>
+    <p class="feedback" id="feedback" aria-live="polite">Drag a piece to its matching space. You can also tap a piece, then tap its space.</p>
+  </section>
+</main>
+<script src="../assets/site-shell.js"></script>
+<script>
+(() => {
+  const activity="character-jigsaw",byId=id=>document.getElementById(id);
+  const api=async(path,options={})=>{const response=await fetch(ProfileShell.url(path),{credentials:"same-origin",headers:{"Content-Type":"application/json"},...options});const data=await response.json();if(!response.ok)throw new Error(data.error||"Try again.");return data};
+  let plan,attempt=0,selected=null,placed=0,finished=false,ghost=null,dragPiece=null;
+  function background(piece){const column=piece%plan.columns,row=Math.floor(piece/plan.columns);const x=plan.columns===1?0:column/(plan.columns-1)*100,y=plan.rows===1?0:row/(plan.rows-1)*100;return `background-image:url("${plan.image}");background-size:${plan.columns*100}% ${plan.rows*100}%;background-position:${x}% ${y}%`}
+  function select(piece){document.querySelectorAll(".jigsaw-piece.selected").forEach(item=>item.classList.remove("selected"));selected=piece;piece?.classList.add("selected")}
+  function tryPlace(piece,slot){if(finished||!piece||!slot)return;if(Number(piece.dataset.piece)!==Number(slot.dataset.slot)){slot.classList.add("wrong");byId("feedback").textContent="That piece belongs somewhere else.";setTimeout(()=>slot.classList.remove("wrong"),400);return}slot.appendChild(piece);piece.classList.remove("selected");selected=null;placed+=1;byId("pieceProgress").textContent=placed+" of "+plan.piece_count+" pieces";byId("feedback").textContent="That piece fits!";if(placed===plan.piece_count)complete()}
+  async function complete(){if(finished)return;finished=true;byId("jigsawBoard").classList.add("finished");byId("feedback").textContent="You built the whole picture! ✨";try{const result=await api("/api/progress/complete",{method:"POST",body:JSON.stringify({activity,item:"puzzle",attempt})});if(result.exercise_completed&&result.reward_token)await ProfileShell.claimReward(result.reward_token)}catch(error){byId("feedback").textContent=error.message}}
+  function startDrag(event,piece){if(piece.parentElement.classList.contains("jigsaw-slot"))return;dragPiece=piece;select(piece);ghost=piece.cloneNode(true);ghost.className="jigsaw-piece drag-ghost";const rect=piece.getBoundingClientRect();ghost.style.width=rect.width+"px";ghost.style.height=rect.height+"px";document.body.appendChild(ghost);moveGhost(event);piece.setPointerCapture?.(event.pointerId);event.preventDefault()}
+  function moveGhost(event){if(!ghost)return;ghost.style.left=event.clientX+"px";ghost.style.top=event.clientY+"px"}
+  function stopDrag(event){if(!ghost)return;ghost.remove();ghost=null;const slot=document.elementFromPoint(event.clientX,event.clientY)?.closest(".jigsaw-slot");if(slot)tryPlace(dragPiece,slot);dragPiece=null}
+  function render(value){plan=value;byId("themePill").textContent=plan.theme_label+" surprise";byId("pieceProgress").textContent="0 of "+plan.piece_count+" pieces";const board=byId("jigsawBoard"),tray=byId("jigsawTray");board.style.gridTemplateColumns=`repeat(${plan.columns},1fr)`;board.style.gridTemplateRows=`repeat(${plan.rows},1fr)`;for(let index=0;index<plan.piece_count;index++){const slot=document.createElement("button");slot.type="button";slot.className="jigsaw-slot";slot.dataset.slot=index;slot.setAttribute("aria-label","Jigsaw space "+(index+1));slot.onclick=()=>tryPlace(selected,slot);board.appendChild(slot)}plan.order.forEach(index=>{const piece=document.createElement("button");piece.type="button";piece.className="jigsaw-piece";piece.dataset.piece=index;piece.setAttribute("aria-label","Jigsaw piece "+(index+1));piece.setAttribute("style",background(index));piece.onclick=()=>select(piece);piece.addEventListener("pointerdown",event=>startDrag(event,piece));piece.addEventListener("pointermove",moveGhost);piece.addEventListener("pointerup",stopDrag);piece.addEventListener("pointercancel",stopDrag);tray.appendChild(piece)})}
+  ProfileShell.ready.then(async()=>{try{const variant=await api("/api/activity/variant?activity="+activity);attempt=variant.attempt;render(variant.plan)}catch(error){byId("feedback").textContent=error.message}});
+})();
+</script>
+</body>
+</html>

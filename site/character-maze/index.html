@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Character Maze</title>
+  <link rel="stylesheet" href="../assets/site-shell.css">
+  <link rel="stylesheet" href="../assets/games.css">
+</head>
+<body>
+<main class="game-wrap">
+  <h1 class="game-title">🐾 Character Maze</h1>
+  <section class="game-card puzzle-card" id="gameCard">
+    <div class="puzzle-meta"><span class="theme-pill" id="themePill">Building a maze…</span><span class="difficulty-pill" id="difficultyPill"></span></div>
+    <div class="puzzle-stage maze-stage" id="mazeStage"><canvas id="mazeCanvas" aria-label="Draw a path through the maze"></canvas></div>
+    <div class="puzzle-controls"><button class="next-button" id="resetPath" type="button">Start path again</button></div>
+    <p class="feedback" id="feedback" aria-live="polite">Guide the character to the star with your finger or Apple Pencil.</p>
+  </section>
+</main>
+<script src="../assets/site-shell.js"></script>
+<script>
+(() => {
+  const activity = "character-maze", byId = id => document.getElementById(id);
+  const api = async (path, options = {}) => {
+    const response = await fetch(ProfileShell.url(path), {credentials:"same-origin", headers:{"Content-Type":"application/json"}, ...options});
+    const data = await response.json(); if (!response.ok) throw new Error(data.error || "Try again."); return data;
+  };
+  let plan, attempt=0, canvas, context, cellWidth, cellHeight, path = [], drawing = false, finished = false, hero = new Image();
+  const wallForMove = (from, to) => {
+    const difference = to - from;
+    if (difference === -plan.columns) return 1;
+    if (difference === 1 && Math.floor(from / plan.columns) === Math.floor(to / plan.columns)) return 2;
+    if (difference === plan.columns) return 4;
+    if (difference === -1 && Math.floor(from / plan.columns) === Math.floor(to / plan.columns)) return 8;
+    return 0;
+  };
+  function resize() {
+    const ratio = Math.min(devicePixelRatio || 1, 2), rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * ratio); canvas.height = Math.round(rect.height * ratio);
+    context.setTransform(ratio,0,0,ratio,0,0); cellWidth = rect.width / plan.columns; cellHeight = rect.height / plan.rows; draw();
+  }
+  function centre(cell) { return {x:(cell % plan.columns + .5) * cellWidth, y:(Math.floor(cell / plan.columns) + .5) * cellHeight}; }
+  function draw() {
+    if (!plan || !cellWidth) return;
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    context.clearRect(0,0,width,height); context.fillStyle="#fffef3"; context.fillRect(0,0,width,height);
+    context.strokeStyle="#263d75"; context.lineWidth=Math.max(2,Math.min(cellWidth,cellHeight)*.11); context.lineCap="round";
+    plan.walls.forEach((walls, cell) => {
+      const x=(cell%plan.columns)*cellWidth, y=Math.floor(cell/plan.columns)*cellHeight;
+      context.beginPath();
+      if(walls&1){context.moveTo(x,y);context.lineTo(x+cellWidth,y)}
+      if(walls&2){context.moveTo(x+cellWidth,y);context.lineTo(x+cellWidth,y+cellHeight)}
+      if(walls&4){context.moveTo(x,y+cellHeight);context.lineTo(x+cellWidth,y+cellHeight)}
+      if(walls&8){context.moveTo(x,y);context.lineTo(x,y+cellHeight)}
+      context.stroke();
+    });
+    if(path.length){context.strokeStyle="#7a56e8";context.lineWidth=Math.max(5,Math.min(cellWidth,cellHeight)*.34);context.lineJoin="round";context.beginPath();path.forEach((cell,index)=>{const point=centre(cell);if(index)context.lineTo(point.x,point.y);else context.moveTo(point.x,point.y)});context.stroke()}
+    const goal=centre(plan.finish);context.font=Math.max(22,Math.min(cellWidth,cellHeight)*.72)+"px sans-serif";context.textAlign="center";context.textBaseline="middle";context.fillText("⭐",goal.x,goal.y);
+    const start=centre(path[path.length-1] ?? plan.start), size=Math.min(cellWidth,cellHeight)*.82;
+    if(hero.complete&&hero.naturalWidth)context.drawImage(hero,start.x-size/2,start.y-size/2,size,size);else{context.fillStyle="#ff8b36";context.beginPath();context.arc(start.x,start.y,size*.34,0,Math.PI*2);context.fill()}
+  }
+  function cellAtPoint(clientX,clientY){const rect=canvas.getBoundingClientRect(),x=clientX-rect.left,y=clientY-rect.top;if(x<0||y<0||x>=rect.width||y>=rect.height)return-1;return Math.floor(y/cellHeight)*plan.columns+Math.floor(x/cellWidth)}
+  function cellAt(event){return cellAtPoint(event.clientX,event.clientY)}
+  function wrong(){byId("mazeStage").classList.add("wrong");byId("feedback").textContent="A wall is blocking that way. Try another path!";setTimeout(()=>byId("mazeStage").classList.remove("wrong"),360)}
+  function moveTo(cell){if(finished||cell<0)return false;const current=path[path.length-1];if(cell===current)return true;if(path.length>1&&cell===path[path.length-2]){path.pop();draw();return true}const wall=wallForMove(current,cell);if(!wall||plan.walls[current]&wall){wrong();return false}path.push(cell);draw();if(cell===plan.finish)complete();return true}
+  async function complete(){if(finished)return;finished=true;byId("mazeStage").classList.add("finished");byId("feedback").textContent="You found the way! ✨";try{const result=await api("/api/progress/complete",{method:"POST",body:JSON.stringify({activity,item:"puzzle",attempt})});if(result.exercise_completed&&result.reward_token)await ProfileShell.claimReward(result.reward_token)}catch(error){byId("feedback").textContent=error.message}}
+  function begin(event){if(finished)return;const cell=cellAt(event);if(cell!==path[path.length-1]){if(cell===plan.start){path=[plan.start];draw()}else{wrong();return}}drawing=true;canvas.setPointerCapture?.(event.pointerId);event.preventDefault()}
+  function drag(event){if(!drawing||finished)return;const gathered=event.getCoalescedEvents?event.getCoalescedEvents():[],events=gathered.length?gathered:[event];for(const point of events){const rect=canvas.getBoundingClientRect(),from=centre(path[path.length-1]),startX=rect.left+from.x,startY=rect.top+from.y,dx=point.clientX-startX,dy=point.clientY-startY,steps=Math.max(1,Math.ceil(Math.max(Math.abs(dx)/cellWidth,Math.abs(dy)/cellHeight)*3));for(let step=1;step<=steps;step++){const cell=cellAtPoint(startX+dx*step/steps,startY+dy*step/steps);if(cell!==path[path.length-1]&&!moveTo(cell))break}}}
+  function end(){drawing=false}
+  function render(value){plan=value;canvas=byId("mazeCanvas");context=canvas.getContext("2d");path=[plan.start];hero.src=plan.image;hero.onload=draw;byId("themePill").textContent=plan.theme_label+" maze";byId("difficultyPill").textContent=plan.difficulty;canvas.addEventListener("pointerdown",begin);canvas.addEventListener("pointermove",drag);canvas.addEventListener("pointerup",end);canvas.addEventListener("pointercancel",end);byId("resetPath").onclick=()=>{if(!finished){path=[plan.start];byId("feedback").textContent="Try a fresh path to the star.";draw()}};addEventListener("resize",resize);resize()}
+  ProfileShell.ready.then(async()=>{try{const variant=await api("/api/activity/variant?activity="+activity);attempt=variant.attempt;render(variant.plan)}catch(error){byId("feedback").textContent=error.message}});
+})();
+</script>
+</body>
+</html>
