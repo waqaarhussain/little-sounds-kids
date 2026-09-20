@@ -336,6 +336,27 @@ def has_unpunctuated_character_list(text):
     return False
 
 
+def has_repetitive_character_names(text):
+    sentences = [part.strip() for part in re.split(r"[.!?]+", str(text)) if part.strip()]
+    names = named_characters(text)
+    if not sentences or not names:
+        return False
+    if any(len(re.findall(rf"\b{re.escape(name)}\b", str(text), re.I)) > 2 for name in names):
+        return True
+    name_starts = sum(
+        any(re.match(rf"^{re.escape(name)}\b", sentence, re.I) for name in names)
+        for sentence in sentences
+    )
+    if name_starts >= 3:
+        return True
+    groups = []
+    for sentence in sentences:
+        group = frozenset(name for name in names if text_names_character(sentence, name))
+        if len(group) >= 2:
+            groups.append(group)
+    return len(groups) != len(set(groups))
+
+
 def previous_story_notes(books):
     notes = []
     for book in books[-24:]:
@@ -384,6 +405,8 @@ Return natural=true only when every page sounds like a warm human-written story 
 correct basic grammar and punctuation. Lists of names or items must use commas, such as “Bingo, Bandit,
 Owlette and Sparks.” Reject missing small words, stiff template phrases, odd word order, unclear pronouns,
 unnatural lines such as “The shops are bright as they come in,” and repeated filler that does not move the story.
+Reject pages that repeat the same character names in sentence after sentence. Once the cast is clear, natural
+pronouns, “the friends”, “the pups”, “the team”, “together” and action-led sentences should replace names.
 Keep the wording simple, but never make it broken or robotic.
 """
     response = request_with_retry(
@@ -438,6 +461,10 @@ four-year-old hears often, such as look, find, help, play, happy, big, small, re
 Write natural, warm sentences that a parent would happily read aloud. Use correct grammar, articles and
 prepositions. Put commas between names and items in every list, with “and” before the last item. Never remove
 punctuation merely to make the words simpler. Avoid stiff, repetitive or computer-like phrases.
+Do not keep repeating character names in every sentence. Name each visible character clearly once, then use
+natural pronouns, “the friends”, “the pups”, “the team”, “together”, or begin with the action. Mention one
+character at most twice on a page. No more than two sentences may begin with a character name. Never repeat
+the same full group of names on one page. Keep every pronoun clear.
 Use a simple title of two to five words and simple headings of one to four words. Apart from character
 and theme names, avoid words longer than eight letters. Never use hard words such as adventure,
 amazed, astonished, beautiful, beneath, carefully, celebrated, discovered, enormous, exclaimed,
@@ -505,6 +532,8 @@ Previous attempt problem to fix: {last_problem or "none"}
                     raise ValueError(f"replace sound effects in the {label} with complete spoken sentences")
                 if has_unpunctuated_character_list(text):
                     raise ValueError(f"use commas between character names in the {label}")
+                if has_repetitive_character_names(text):
+                    raise ValueError(f"use names once for clarity in the {label}, then natural pronouns or group words")
             cleaned = []
             new_texts = {normalised(intro), normalised(ending)}
             for scene in scenes:
@@ -530,6 +559,8 @@ Previous attempt problem to fix: {last_problem or "none"}
                     raise ValueError("replace standalone sound effects with complete spoken sentences")
                 if has_unpunctuated_character_list(text):
                     raise ValueError("use commas between character names in every list")
+                if has_repetitive_character_names(text):
+                    raise ValueError("use names once for clarity, then natural pronouns or group words")
                 if text_key in used_texts or text_key in new_texts:
                     raise ValueError("do not repeat page wording from any book")
                 new_texts.add(text_key)
@@ -862,6 +893,9 @@ counts, objects and settings clearly visible in the picture. Keep the page kind,
 Use words a four-year-old knows. No sentence may exceed 11 words. Do not use sound
 effects. Apart from character names, avoid words longer than eight letters. Do not copy another page's
 wording from the story context. Do not mention the picture.
+Name each visible character clearly, but do not repeat names sentence after sentence. Mention one character at
+most twice. After the cast is clear, use a clear pronoun, “the friends”, “the pups”, “the team”, “together”,
+or an action-led sentence. Never repeat the same full group of names on one page.
 """
         response = request_with_retry(
             f"{label} word match attempt {attempt}",
@@ -898,7 +932,7 @@ wording from the story context. Do not mention the picture.
             continue
         hard_words = difficult_story_words(adapted_text)
         blocked_names = banned_story_names(adapted_text)
-        if hard_words or blocked_names or has_long_sentence(adapted_text) or has_standalone_sound_effect(adapted_text):
+        if hard_words or blocked_names or has_long_sentence(adapted_text) or has_standalone_sound_effect(adapted_text) or has_repetitive_character_names(adapted_text):
             last_problem = "use only easy short sentences, with no blocked characters or sound effects"
             continue
         original_details = protected_page_terms(f"{heading} {text}")

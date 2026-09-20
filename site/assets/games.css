@@ -41,7 +41,7 @@
 .dot-picture{opacity:0;transition:opacity .45s ease;transform-origin:center}
 .dot-stage.finished .dot-picture{opacity:1;animation:puzzleReveal .85s cubic-bezier(.2,.8,.2,1)}
 .dot-stage.finished .dot-markers{opacity:0;transition:opacity .25s ease}
-.dot-line{stroke:#6d50df;stroke-width:5;stroke-linecap:round;filter:drop-shadow(0 2px 1px #fff)}
+.dot-line{stroke:var(--dot-line-colour,#6d50df);stroke-width:5;stroke-linecap:round;filter:drop-shadow(0 2px 1px #fff)}
 .dot-node .dot-point{fill:#fff;stroke:#233b75;stroke-width:3}
 .dot-node text{fill:#18315f;font:900 15px/1 "Trebuchet MS",sans-serif;text-anchor:middle;dominant-baseline:central;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;pointer-events:none}
 .dot-node.next .dot-point{fill:#fff4a5;stroke:#e48517;stroke-width:5;animation:dotPulse 1s ease-in-out infinite}

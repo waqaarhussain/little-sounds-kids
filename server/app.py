@@ -1,3 +1,4 @@
+import colorsys
 import hashlib
 import json
 import math
@@ -347,6 +348,40 @@ def sticker_file(image_path):
     return STICKER_ROOT / relative
 
 
+def artwork_line_colour(image_path, theme):
+    fallbacks = {
+        "bluey": "#2864c7",
+        "pj-masks": "#244e9b",
+        "super-kitties": "#8a3db3",
+        "paw-patrol": "#d64045",
+    }
+    source = sticker_file(image_path)
+    with Image.open(source) as opened:
+        image = opened.convert("RGBA")
+        image.thumbnail((96, 96), Image.Resampling.LANCZOS)
+
+    buckets = {}
+    for red, green, blue, alpha in image.getdata():
+        if alpha < 128:
+            continue
+        _, saturation, value = colorsys.rgb_to_hsv(red / 255, green / 255, blue / 255)
+        if saturation < 0.34 or value < 0.2 or value > 0.94:
+            continue
+        key = tuple(min(255, (channel // 32) * 32 + 16) for channel in (red, green, blue))
+        buckets[key] = buckets.get(key, 0.0) + 1.0 + saturation * 2.0
+    if not buckets:
+        return fallbacks.get(theme, "#5a47c7")
+
+    red, green, blue = max(buckets, key=buckets.get)
+    luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255
+    if luminance > 0.62:
+        factor = 0.62 / luminance
+        red, green, blue = (round(channel * factor) for channel in (red, green, blue))
+    elif luminance < 0.2:
+        red, green, blue = (round(channel + (255 - channel) * 0.18) for channel in (red, green, blue))
+    return f"#{red:02x}{green:02x}{blue:02x}"
+
+
 def outline_dots(image_path, count):
     source = sticker_file(image_path)
     with Image.open(source) as opened:
@@ -624,7 +659,13 @@ def build_themed_activity_plan(connection, profile, activity, attempt):
     artwork = choose_activity_sticker(connection, profile, activity, single_character=activity != "character-jigsaw")
     if activity == "dot-to-dot":
         dots = outline_dots(artwork["image"], random.randint(45, 60))
-        plan = {**artwork, "layout_version": 3, "dot_count": len(dots), "dots": dots}
+        plan = {
+            **artwork,
+            "layout_version": 4,
+            "line_colour": artwork_line_colour(artwork["image"], artwork["theme"]),
+            "dot_count": len(dots),
+            "dots": dots,
+        }
     elif activity == "character-maze":
         if attempt <= 2:
             columns, rows, difficulty = 11, 9, "Easy"
@@ -798,7 +839,7 @@ def get_or_create_activity_variant(connection, profile, activity):
     ).fetchone()
     if row:
         existing_plan = json.loads(row["plan_json"])
-        if activity != "dot-to-dot" or int(existing_plan.get("layout_version", 0)) >= 3:
+        if activity != "dot-to-dot" or int(existing_plan.get("layout_version", 0)) >= 4:
             return int(row["attempt"]), existing_plan
         connection.execute(
             "UPDATE activity_variants SET completed = 1 WHERE profile = ? AND activity = ? AND attempt = ?",

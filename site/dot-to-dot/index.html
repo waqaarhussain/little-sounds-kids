@@ -82,6 +82,40 @@
       if (result.exercise_completed) nextTimer = window.setTimeout(loadPuzzle, result.reward_token ? 600 : 0);
     } catch (error) { byId("feedback").textContent = error.message; }
   }
+  function labelPositions() {
+    const boxes = [], positions = new Array(dots.length);
+    const crowdedFirst = dots.map((dot, index) => ({dot, index, nearest:Math.min(...dots.filter((_, other) => other !== index).map(other => Math.hypot(dot.x - other.x, dot.y - other.y)))}))
+      .sort((first, second) => first.nearest - second.nearest);
+    crowdedFirst.forEach(({dot, index}) => {
+      const outward = Math.atan2(dot.y - 350, dot.x - 500);
+      const angles = Array.from({length:16}, (_, step) => step * Math.PI / 8)
+        .sort((first, second) => Math.abs(Math.atan2(Math.sin(first - outward), Math.cos(first - outward))) - Math.abs(Math.atan2(Math.sin(second - outward), Math.cos(second - outward))));
+      const width = String(dot.number).length * 9 + 8, height = 18;
+      let best = null;
+      [19, 25, 31, 37].forEach(radius => angles.forEach(angle => {
+        const x = dot.x + Math.cos(angle) * radius, y = dot.y + Math.sin(angle) * radius;
+        const box = {left:x - width / 2, right:x + width / 2, top:y - height / 2, bottom:y + height / 2};
+        let score = radius;
+        if (box.left < 8 || box.right > 992 || box.top < 8 || box.bottom > 692) score += 100000;
+        boxes.forEach(old => {
+          const overlapX = Math.max(0, Math.min(box.right, old.right) - Math.max(box.left, old.left));
+          const overlapY = Math.max(0, Math.min(box.bottom, old.bottom) - Math.max(box.top, old.top));
+          score += overlapX * overlapY * 100;
+        });
+        dots.forEach((other, otherIndex) => {
+          if (otherIndex === index) return;
+          const distance = Math.hypot(x - other.x, y - other.y);
+          if (distance < 15 + width / 2) score += (15 + width / 2 - distance) * 220;
+        });
+        const angleDifference = Math.abs(Math.atan2(Math.sin(angle - outward), Math.cos(angle - outward)));
+        score += angleDifference * 3;
+        if (!best || score < best.score) best = {x:x - dot.x, y:y - dot.y, box, score};
+      }));
+      positions[index] = best;
+      boxes.push(best.box);
+    });
+    return positions;
+  }
   function render(plan) {
     dots = plan.dots;
     nextIndex = 0; activePointer = null; completing = false;
@@ -92,6 +126,8 @@
     byId("dotProgress").textContent = "0 of " + dots.length + " joined";
     byId("feedback").textContent = "Join the dots in number order. You can use your finger or Apple Pencil.";
     byId("dotPicture").setAttribute("href", plan.image);
+    byId("dotStage").style.setProperty("--dot-line-colour", plan.line_colour || "#6d50df");
+    const labels = labelPositions();
     dots.forEach((dot, index) => {
       const group = document.createElementNS(ns, "g");
       group.setAttribute("class", "dot-node" + (index === 0 ? " next" : ""));
@@ -99,9 +135,8 @@
       group.setAttribute("transform", "translate(" + dot.x + " " + dot.y + ")");
       const circle = document.createElementNS(ns, "circle"); circle.setAttribute("r", "6"); circle.setAttribute("class", "dot-point");
       const text = document.createElementNS(ns, "text"); text.textContent = dot.number;
-      const fromCentreX = dot.x - 500, fromCentreY = dot.y - 350, distance = Math.max(1, Math.hypot(fromCentreX, fromCentreY));
-      text.setAttribute("x", (fromCentreX / distance * 17).toFixed(1));
-      text.setAttribute("y", (fromCentreY / distance * 17).toFixed(1));
+      text.setAttribute("x", labels[index].x.toFixed(1));
+      text.setAttribute("y", labels[index].y.toFixed(1));
       group.append(circle, text);
       group.addEventListener("pointerdown", event => { event.preventDefault(); event.stopPropagation(); acceptDot(index); });
       byId("dotMarkers").appendChild(group);
