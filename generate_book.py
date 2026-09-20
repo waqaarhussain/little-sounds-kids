@@ -655,7 +655,6 @@ def image_bytes(client, prompt, page_text=""):
                     ),
                     size="1536x1024",
                     quality="low",
-                    input_fidelity="high",
                     output_format="png",
                 ),
             )
