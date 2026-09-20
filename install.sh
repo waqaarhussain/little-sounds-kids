@@ -6,6 +6,10 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
+# The web service runs as www-data. Do not inherit a restrictive caller umask,
+# otherwise virtual-environment executables can become root-only.
+umask 022
+
 parent_profile="${LITTLE_SOUNDS_PARENT:-}"
 child_one="${LITTLE_SOUNDS_CHILD_1:-}"
 child_two="${LITTLE_SOUNDS_CHILD_2:-}"
