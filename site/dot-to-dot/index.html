@@ -32,7 +32,7 @@
     if (!response.ok) throw new Error(data.error || "Try again.");
     return data;
   };
-  let dots = [], nextIndex = 0, activePointer = null, completing = false, attempt = 0;
+  let dots = [], nextIndex = 0, activePointer = null, completing = false, attempt = 0, nextTimer = 0;
 
   function svgPoint(event) {
     const point = byId("dotSvg").createSVGPoint();
@@ -83,12 +83,18 @@
     try {
       const result = await api("/api/progress/complete", {method:"POST", body:JSON.stringify({activity, item:"puzzle", attempt})});
       if (result.exercise_completed && result.reward_token) await ProfileShell.claimReward(result.reward_token);
+      if (result.exercise_completed) nextTimer = window.setTimeout(loadPuzzle, 1800);
     } catch (error) { byId("feedback").textContent = error.message; }
   }
   function render(plan) {
     dots = plan.dots;
+    nextIndex = 0; activePointer = null; completing = false;
+    byId("dotStage").classList.remove("finished");
+    byId("dotLines").replaceChildren();
+    byId("dotMarkers").replaceChildren();
     byId("themePill").textContent = plan.theme_label + " surprise";
     byId("dotProgress").textContent = "0 of " + dots.length + " joined";
+    byId("feedback").textContent = "Join the dots in number order. You can use your finger or Apple Pencil.";
     byId("dotPicture").setAttribute("href", plan.image);
     dots.forEach((dot, index) => {
       const group = document.createElementNS(ns, "g");
@@ -101,15 +107,23 @@
       group.addEventListener("pointerdown", event => { event.preventDefault(); event.stopPropagation(); acceptDot(index); });
       byId("dotMarkers").appendChild(group);
     });
-    const svg = byId("dotSvg");
-    svg.addEventListener("pointerdown", event => { activePointer = event.pointerId; svg.setPointerCapture?.(event.pointerId); if (nearestExpected(event)) acceptDot(nextIndex); });
-    svg.addEventListener("pointermove", event => { if (event.pointerId === activePointer && nearestExpected(event)) acceptDot(nextIndex); });
-    const stop = event => { if (event.pointerId === activePointer) activePointer = null; };
-    svg.addEventListener("pointerup", stop); svg.addEventListener("pointercancel", stop);
   }
+  async function loadPuzzle() {
+    window.clearTimeout(nextTimer);
+    byId("feedback").textContent = "Choosing a fresh character puzzle…";
+    try {
+      const variant = await api("/api/activity/variant?activity=" + activity);
+      attempt = variant.attempt;
+      render(variant.plan);
+    } catch (error) { byId("feedback").textContent = error.message; }
+  }
+  const svg = byId("dotSvg");
+  svg.addEventListener("pointerdown", event => { activePointer = event.pointerId; svg.setPointerCapture?.(event.pointerId); if (nearestExpected(event)) acceptDot(nextIndex); });
+  svg.addEventListener("pointermove", event => { if (event.pointerId === activePointer && nearestExpected(event)) acceptDot(nextIndex); });
+    const stop = event => { if (event.pointerId === activePointer) activePointer = null; };
+  svg.addEventListener("pointerup", stop); svg.addEventListener("pointercancel", stop);
   ProfileShell.ready.then(async () => {
-    try { const variant = await api("/api/activity/variant?activity=" + activity); attempt = variant.attempt; render(variant.plan); }
-    catch (error) { byId("feedback").textContent = error.message; }
+    await loadPuzzle();
   });
 })();
 </script>

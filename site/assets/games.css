@@ -63,7 +63,7 @@
 .jigsaw-slot .jigsaw-piece{width:100%;height:100%;border:0;border-radius:0;box-shadow:none;pointer-events:none}
 .jigsaw-board.finished{animation:puzzleReveal .85s cubic-bezier(.2,.8,.2,1);box-shadow:0 0 0 8px #fff,0 0 35px 18px #ffdc56}
 .drag-ghost{position:fixed;z-index:1000;pointer-events:none;opacity:.9;transform:translate(-50%,-50%) scale(1.08);filter:drop-shadow(0 12px 10px #24355b55)}
-@keyframes dotPulse{50%{transform:scale(1.22);transform-origin:center}}
+@keyframes dotPulse{50%{fill:#ffe174;stroke-width:7}}
 @keyframes mazeFlash{50%{box-shadow:inset 0 0 0 18px #f14f6a88}}
 @keyframes puzzleReveal{0%{transform:scale(.82) rotate(-3deg);opacity:.2}60%{transform:scale(1.05) rotate(2deg)}100%{transform:scale(1) rotate(0);opacity:1}}
 @media(max-width:700px){.jigsaw-layout{grid-template-columns:1fr}.jigsaw-tray{min-height:130px;grid-template-columns:repeat(6,minmax(42px,1fr))}.dot-node text{font-size:21px}.puzzle-stage{border-width:3px;border-radius:18px}}
