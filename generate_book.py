@@ -58,20 +58,16 @@ CHARACTER_APPEARANCES = {
     "Zuma": "a slim chocolate-brown Labrador puppy with floppy ears in an orange water-rescue helmet, vest and pup pack",
 }
 CHARACTER_ACCURACY_RULE = (
-    "Every named character must be clearly recognisable from the supplied appearance guide. Keep the correct "
-    "character, species or breed, main body build, signature markings, mask, outfit and signature colours. Never "
-    "use a generic lookalike, blended character, swapped costume or a character from another programme. Small "
-    "illustration differences in shade, fur detail or proportions are acceptable when the identity is unmistakable."
+    "Every named character must match the supplied appearance guide exactly: species or breed, age and relative "
+    "size, body build and proportions, fur or skin colours, facial and body markings, ears and tail, mask, outfit "
+    "and signature colours. Never use a generic lookalike, a blended character, a swapped costume or a noticeably "
+    "fatter, thinner, older or younger version."
 )
 SOUND_EFFECT_WORDS = {"bang", "beep", "boom", "click", "crash", "ding", "pop", "pow", "splash", "whoosh", "zap"}
 PROTECTED_PAGE_TERMS = {
     "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
     "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
     "red", "blue", "green", "yellow", "orange", "pink", "purple", "brown", "black", "white", "grey", "gray",
-}
-EXACT_COUNT_TERMS = {
-    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
-    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
 }
 HARD_STORY_WORDS = {
     "adventure", "amazed", "astonished", "beautiful", "beneath", "carefully", "celebrated",
@@ -510,9 +506,8 @@ signature uniform, mask, hat or costume colour as part of the plot. A separate p
 their normal outfit. For example, Rubble always keeps his yellow builder hat and vest.
 For SuperKitties, the only hero names are Ginny, Sparks, Buddy and Bitsy. There is no character named Kitty.
 Never use, name or show Numberblocks, Alphablocks or Colourblocks. They are not allowed in these books.
-Keep it safe, warm and funny. Centre the story on one gentle idea such as kindness, sharing, helping or taking
-turns. Do not insert unrelated learning games on later pages. Do not put an exact count in the title or make an
-exact number of repeated objects essential to a picture. Say “some”, “a few” or “a small group” instead.
+Keep it safe, warm and funny. Choose only one simple learning idea from kindness, counting, letters or
+colours, and make it help the story's single goal. Do not insert unrelated learning games on later pages.
 Reading level: for a four-year-old who is just starting school. Each scene must have four or five very
 short sentences and 24 to 34 words total. No sentence may have more than 11 words. Use only words a
 four-year-old hears often, such as look, find, help, play, happy, big, small, red, run and jump.
@@ -570,13 +565,8 @@ Previous attempt problem to fix: {last_problem or "none"}
             scenes = data.get("scenes", [])
             if not title or not isinstance(scenes, list) or len(scenes) != 6:
                 raise ValueError("return one title and exactly six scenes")
-            if (
-                not 2 <= len(title.split()) <= 5
-                or difficult_story_words(title)
-                or banned_story_names(title)
-                or protected_page_terms(title).intersection(EXACT_COUNT_TERMS)
-            ):
-                raise ValueError("use a short easy title with no exact number or count")
+            if not 2 <= len(title.split()) <= 5 or difficult_story_words(title) or banned_story_names(title):
+                raise ValueError("use a short title made from easy words for a four-year-old")
             if normalised(title) in used_titles:
                 raise ValueError("use a title that has never been used before")
             for theme, roster in selected_rosters.items():
@@ -652,26 +642,72 @@ Previous attempt problem to fix: {last_problem or "none"}
     raise RuntimeError(f"The story model could not make a unique valid plan: {last_problem}")
 
 
-def image_bytes(client, prompt, page_text=""):
+def image_bytes(
+    client,
+    prompt,
+    page_text="",
+    continuity_reference=None,
+    correction_reference=None,
+):
     reference = superkitties_reference(page_text)
-    if reference:
-        with reference.open("rb") as reference_file:
-            response = request_with_retry(
-                "Illustration",
-                lambda: client.images.edit(
+    if reference or continuity_reference or correction_reference:
+        reference_files = []
+        opened_files = []
+        memory_files = []
+        reference_instructions = []
+        try:
+            if reference:
+                reference_file = reference.open("rb")
+                opened_files.append(reference_file)
+                reference_files.append(reference_file)
+                reference_instructions.append(
+                    "The first supplied image is the canonical SuperKitties character reference sheet. "
+                    "Use it only to preserve the exact face, fur markings, body build, relative size, mask and suit "
+                    "of each named SuperKitties character. Do not copy its background or pose."
+                )
+            if continuity_reference:
+                continuity_file = io.BytesIO(continuity_reference)
+                continuity_file.name = "accepted-previous-page.png"
+                memory_files.append(continuity_file)
+                reference_files.append(continuity_file)
+                reference_instructions.append(
+                    "The supplied image named accepted-previous-page.png is the approved previous page of this "
+                    "same book. Preserve the exact "
+                    "look of recurring characters, the setting and every persistent story object from it. Draw the "
+                    "new page action from the prompt, so do not merely copy the previous pose or event."
+                )
+            if correction_reference:
+                correction_file = io.BytesIO(correction_reference)
+                correction_file.name = "rejected-current-page.png"
+                memory_files.append(correction_file)
+                reference_files.append(correction_file)
+                reference_instructions.append(
+                    "The final supplied image, named rejected-current-page.png, is the rejected attempt for the "
+                    "current page. Keep everything in it that already agrees with the prompt, then correct every "
+                    "problem named in the prompt exactly. Do not redesign correct characters, objects or scenery."
+                )
+
+            def edit_image():
+                for reference_file in reference_files:
+                    reference_file.seek(0)
+                return client.images.edit(
                     model=IMAGE_MODEL,
-                    image=[reference_file],
-                    prompt=(
-                        "The supplied image is the canonical SuperKitties character reference sheet. "
-                        "Use it only to preserve the exact face, fur markings, body build, relative size, mask and suit "
-                        "of each named SuperKitties character. Draw only the characters requested in this scene. "
-                        "Do not copy the reference background or pose. " + prompt
-                    ),
+                    image=reference_files,
+                    prompt=" ".join(reference_instructions) + " Draw only the characters requested. " + prompt,
                     size="1536x1024",
                     quality="low",
                     output_format="png",
-                ),
+                )
+
+            response = request_with_retry(
+                "Illustration",
+                edit_image,
             )
+        finally:
+            for memory_file in memory_files:
+                memory_file.close()
+            for opened_file in opened_files:
+                opened_file.close()
     else:
         response = request_with_retry(
             "Illustration",
@@ -700,18 +736,16 @@ One still picture is not expected to show every sentence or every step that happ
 matches=true when it clearly shows the same central story moment, named main characters, setting and key
 objects, without contradicting the page. Do not reject it merely because a small gesture, pose, facial
 expression or later action is not visible, such as waving, hugging, pointing, smiling, clapping or holding
-hands. Accept a small approximate group of repeated objects without trying to count each one. A few extra or
-missing apples, flowers, blocks or similar background objects must never reject an otherwise correct picture.
-Colour matters only when changing it would alter the main story action or a character's signature outfit.
+hands. Exact colour or object count matters only when that colour or count is central to the page.
 Return false if it shows a different central event, misses a key object, replaces a named main character with
-a character from another world, omits the main kind of object entirely, or shows Numberblocks, Alphablocks or
-Colourblocks. Never reject solely because an approximate repeated-object count cannot be confirmed.
-Return false for a major named-character error such as the wrong character, species, breed, signature mask,
-uniform or signature outfit colour. Do not reject a clearly recognisable character for a small difference in
-fur shade, markings, body proportions or illustration style. A generic lookalike, blended character or different
-character from the same programme does not count as the named character. Buddy must have a sturdy strong
-athletic build, never an obese, round-bellied or ginger-tabby body. A small white SuperKitties cat in blue is
-Bitsy, never Ginny; Ginny must be an orange tabby in pink.
+a character from another world, gets a central learning colour or count wrong, or shows Numberblocks,
+Alphablocks or Colourblocks.
+Return false if any named character has the wrong body shape, proportions, relative size, age, fur or skin
+colour, species or breed, facial or body markings, ears, tail, mask, suit, uniform or signature colours from
+the appearance guide. A generic lookalike, blended character or different character from the same programme
+does not count as the named character. Buddy must have a sturdy strong athletic build, never an obese,
+round-bellied or ginger-tabby body. A small white SuperKitties cat in blue is Bitsy, never Ginny; Ginny must be
+an orange tabby in pink.
 Return false if the picture contains a story heading, caption, sentence, paragraph, speech bubble or page
 wording. A single learning symbol such as A or 3 is allowed only when the page itself needs that object.
 Small background details do not matter. Never require story words to be printed inside the picture.
@@ -887,7 +921,7 @@ def try_matching_image_bytes(client, label, prompt, page_text, attempts=IMAGE_AT
     last_raw = None
     retry_prompt = prompt
     for attempt in range(1, attempts + 1):
-        raw = image_bytes(client, retry_prompt, page_text)
+        raw = image_bytes(client, retry_prompt, page_text, correction_reference=last_raw)
         last_raw = raw
         matches, reason = image_matches_page(client, raw, page_text, label)
         if matches:
@@ -1025,8 +1059,16 @@ def adaptive_story_image(
     original_words = page_match_words(page_type, heading, text)
     retry_prompt = prompt
     last_problem = ""
+    correction_reference = None
     for image_attempt in range(1, IMAGE_ATTEMPTS + 1):
-        raw = image_bytes(client, retry_prompt, original_words)
+        raw = image_bytes(
+            client,
+            retry_prompt,
+            original_words,
+            continuity_reference=previous_raw,
+            correction_reference=correction_reference,
+        )
+        correction_reference = raw
         if earlier_covers:
             distinct, diversity_reason = cover_is_distinct(client, raw, earlier_covers)
             if not distinct:
@@ -1041,6 +1083,20 @@ def adaptive_story_image(
                 continue
         matches, reason = image_matches_page(client, raw, original_words, label)
         if matches:
+            if previous_raw is not None:
+                consistent, continuity_reason = image_continues_previous_page(
+                    client, previous_raw, raw, previous_words, original_words, label
+                )
+                if not consistent:
+                    last_problem = continuity_reason
+                    print(f"{label} broke visual continuity: {continuity_reason}", flush=True)
+                    retry_prompt = (
+                        prompt
+                        + " Keep every recurring character and important story object visually consistent with "
+                          "the prior page. Fix this continuity problem: "
+                        + continuity_reason
+                    )
+                    continue
             print(f"{label} passed its page-picture check.", flush=True)
             return raw, heading, text
         print(f"{label} did not match its first words: {reason}", flush=True)
@@ -1048,6 +1104,21 @@ def adaptive_story_image(
             adapted_heading, adapted_text = adapted_page_from_image(
                 client, raw, label, page_type, heading, text, story_context, reason, forbidden_texts
             )
+            adapted_words = page_match_words(page_type, adapted_heading, adapted_text)
+            if previous_raw is not None:
+                consistent, continuity_reason = image_continues_previous_page(
+                    client, previous_raw, raw, previous_words, adapted_words, label
+                )
+                if not consistent:
+                    last_problem = continuity_reason
+                    print(f"{label} broke visual continuity: {continuity_reason}", flush=True)
+                    retry_prompt = (
+                        prompt
+                        + " Keep every recurring character and important story object visually consistent with "
+                          "the prior page. Fix this continuity problem: "
+                        + continuity_reason
+                    )
+                    continue
             return raw, adapted_heading, adapted_text
         except RuntimeError as error:
             last_problem = str(error)
