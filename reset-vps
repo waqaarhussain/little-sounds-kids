@@ -49,6 +49,11 @@ tar -xzf "$work_dir/source.tar.gz" --strip-components=1 -C "$work_dir/source"
 bash -n "$work_dir/source/install.sh"
 python3 -m py_compile "$work_dir/source/server/app.py" "$work_dir/source/generate_book.py"
 
+echo "Preparing Ubuntu packages before removing anything..."
+apt-get -o DPkg::Lock::Timeout=600 update
+DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 install -y \
+  nginx curl ca-certificates python3-venv fonts-dejavu-core rsync ffmpeg
+
 echo "Removing only the existing Little Learners installation..."
 systemctl disable --now little-sounds.service little-sounds-book-generator.service little-sounds-sticker-generator.service little-sounds-phonics-cache.service 2>/dev/null || true
 rm -f /etc/systemd/system/little-sounds.service /etc/systemd/system/little-sounds-book-generator.service /etc/systemd/system/little-sounds-sticker-generator.service /etc/systemd/system/little-sounds-phonics-cache.service

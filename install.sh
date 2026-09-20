@@ -44,8 +44,8 @@ work_dir="$(mktemp -d /tmp/little-sounds-install.XXXXXX)"
 trap 'rm -rf "$work_dir"' EXIT
 
 echo "[1/4] Installing the web server..."
-apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y nginx curl ca-certificates python3-venv fonts-dejavu-core rsync ffmpeg
+apt-get -o DPkg::Lock::Timeout=600 update
+DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 install -y nginx curl ca-certificates python3-venv fonts-dejavu-core rsync ffmpeg
 
 # The project now deploys directly to live. Remove the retired isolated test stack.
 systemctl disable --now little-sounds-test.service 2>/dev/null || true
