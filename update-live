@@ -19,6 +19,12 @@ main_sha="$(curl -fsSL "https://api.github.com/repos/$repository/branches/main" 
 curl -fL "https://api.github.com/repos/$repository/tarball/$main_sha" -o "$work_dir/live.tar.gz"
 tar -xzf "$work_dir/live.tar.gz" --strip-components=1 -C "$stage"
 
+if [ "${LITTLE_SOUNDS_UPDATE_REEXEC:-0}" != "1" ] && ! cmp -s "$stage/update-live" "$0"; then
+  echo "The updater itself changed. Restarting with the downloaded version..."
+  LITTLE_SOUNDS_UPDATE_REEXEC=1 bash "$stage/update-live"
+  exit $?
+fi
+
 python3 -m py_compile "$stage/server/app.py" "$stage/generate_book.py" "$stage/narrate_books.py" "$stage/cache_phonics_audio.py"
 for script in install.sh generate-book school-dinner-book narrate-books repair-book clean cache-phonics update-live rollback-live reset-vps; do
   bash -n "$stage/$script"
