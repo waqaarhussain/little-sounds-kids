@@ -59,7 +59,7 @@ systemctl disable --now little-sounds.service little-sounds-book-generator.servi
 rm -f /etc/systemd/system/little-sounds.service /etc/systemd/system/little-sounds-book-generator.service /etc/systemd/system/little-sounds-sticker-generator.service /etc/systemd/system/little-sounds-phonics-cache.service
 rm -f /etc/nginx/sites-enabled/little-sounds /etc/nginx/sites-available/little-sounds
 rm -f /etc/little-sounds.env /etc/little-sounds-book-job.env
-rm -f /usr/local/bin/generate-stickers /usr/local/bin/generate-book /usr/local/bin/narrate-books /usr/local/bin/repair-book /usr/local/bin/clean /usr/local/bin/cache-phonics /usr/local/bin/cache-words /usr/local/bin/backup /usr/local/bin/update-live /usr/local/bin/rollback-live /usr/local/bin/reset-vps
+rm -f /usr/local/bin/generate-stickers /usr/local/bin/generate-book /usr/local/bin/school-dinner-book /usr/local/bin/narrate-books /usr/local/bin/repair-book /usr/local/bin/clean /usr/local/bin/cache-phonics /usr/local/bin/cache-words /usr/local/bin/backup /usr/local/bin/update-live /usr/local/bin/rollback-live /usr/local/bin/reset-vps
 rm -rf /var/www/little-sounds /var/lib/little-sounds /opt/little-sounds /opt/little-sounds-venv /opt/little-sounds-ai-venv /root/stickers/catalog /root/little-sounds-snapshots
 systemctl daemon-reload
 

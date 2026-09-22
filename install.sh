@@ -69,6 +69,7 @@ install -m 0755 "$installer_dir/cache_phonics_audio.py" /opt/little-sounds/cache
 rm -f /usr/local/bin/generate /usr/local/bin/backup-stickers
 install -m 0755 "$installer_dir/generate-stickers" /usr/local/bin/generate-stickers
 install -m 0755 "$installer_dir/generate-book" /usr/local/bin/generate-book
+install -m 0755 "$installer_dir/school-dinner-book" /usr/local/bin/school-dinner-book
 install -m 0755 "$installer_dir/narrate-books" /usr/local/bin/narrate-books
 install -m 0755 "$installer_dir/repair-book" /usr/local/bin/repair-book
 install -m 0755 "$installer_dir/clean" /usr/local/bin/clean
@@ -340,6 +341,7 @@ echo "All stickers monitor: http://${server_ip}/allstickers/"
 echo
 echo "Create or refill stickers: generate-stickers"
 echo "Create one or more 16-page books: generate-book"
+echo "Create or delete Nevaeh's temporary school-dinner story: school-dinner-book"
 echo "Keep generated stories but replace their pictures: repair-book"
 echo "Remove all books and narration, but remember old stories: clean"
 echo "Save stickers, albums, game memory and generated books: backup"

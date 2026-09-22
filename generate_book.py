@@ -1242,7 +1242,7 @@ def merge_history(history, books):
     }
     changed = False
     for book in books:
-        if not isinstance(book, dict):
+        if not isinstance(book, dict) or book.get("temporary"):
             continue
         title = normalised(book.get("title", ""))
         if title and title not in known:
@@ -1265,28 +1265,99 @@ def remove_unpublished_directories(before):
             shutil.rmtree(child)
 
 
-def create_book(client, number):
+def school_dinner_book_plan(child_name):
+    return {
+        "title": f"{child_name}'s School Dinner",
+        "intro": (
+            "Bluey walks into the school dining hall. Catboy, Bitsy and Skye walk beside her. It feels bright and "
+            "busy. She remembers Dad saying she is safe. She can ask for help."
+        ),
+        "scenes": [
+            {
+                "heading": "The Busy Hall",
+                "text": (
+                    "Chairs scrape and many children talk. Bluey's tummy feels tight. Catboy, Bitsy and Skye "
+                    "stay close. Bluey takes slow breaths and looks at her friends."
+                ),
+            },
+            {
+                "heading": "Choosing Dinner",
+                "text": (
+                    "Skye shows Bluey where to collect dinner. Bluey chooses a small meal she knows. Bitsy carries "
+                    "the water. Catboy helps everyone find a calm seat."
+                ),
+            },
+            {
+                "heading": "Ready to Try",
+                "text": (
+                    "Bluey sits with Catboy, Bitsy and Skye. Nobody tells her to hurry. She waits until she feels "
+                    "ready. Then Bluey tries one small bite."
+                ),
+            },
+            {
+                "heading": "Asking for Help",
+                "text": (
+                    "The hall grows noisy again. Bluey tells a dinner lady she needs help. The dinner lady speaks "
+                    "softly. She moves the friends to a quieter table."
+                ),
+            },
+            {
+                "heading": "Eating Together",
+                "text": (
+                    "Bluey eats enough for her body and drinks some water. She does not need to clear everything. "
+                    "Her friends eat too. They chat and smile together."
+                ),
+            },
+            {
+                "heading": "Nearly Finished",
+                "text": (
+                    "Dinner time is nearly over. Bluey, Catboy, Bitsy and Skye put their trays away. Bluey feels "
+                    "calm and proud. The friends walk outside together."
+                ),
+            },
+        ],
+        "ending": (
+            "Bluey and her friends play outside. She runs, laughs and feels happy. Dinner time was busy, but Bluey "
+            "used her plan. Tomorrow, she can use it again."
+        ),
+    }
+
+
+def create_book(client, number, special_mode="", special_child=""):
     manifest = read_manifest()
     history = read_history()
     if merge_history(history, manifest["books"]):
         write_json_atomic(HISTORY, history)
     previous_books = history["books"]
-    selected_themes, cover_background, cover_action, composition = book_cover_recipe(number, previous_books)
-    selected_cast = select_story_cast(selected_themes, previous_books)
-    print(
-        f"Book {number} random cast: {selected_themes[0]} ({selected_cast[0]}) and "
-        f"{selected_themes[1]} ({selected_cast[1]}).",
-        flush=True,
-    )
-    plan = story_plan(
-        client,
-        number,
-        previous_books,
-        selected_themes,
-        selected_cast,
-        cover_background,
-        cover_action,
-    )
+    is_school_dinner_book = special_mode == "school-dinner"
+    if is_school_dinner_book:
+        selected_themes = ("Bluey", "PJ Masks", "SuperKitties", "Paw Patrol")
+        selected_cast = ("Bluey", "Catboy", "Bitsy", "Skye")
+        cover_background = "a bright primary school dining hall with long tables and generic pupils in the background"
+        cover_action = "the four named friends standing close together inside the dining hall"
+        composition = "Use a broad welcoming view that clearly feels like a busy but safe school dining hall."
+        plan = school_dinner_book_plan(special_child)
+        print(
+            f"Creating one temporary school-dinner story for {special_child} with Bluey, Catboy, Bitsy and Skye.",
+            flush=True,
+        )
+    else:
+        selected_themes, cover_background, cover_action, composition = book_cover_recipe(number, previous_books)
+        selected_cast = select_story_cast(selected_themes, previous_books)
+        print(
+            f"Book {number} random cast: {selected_themes[0]} ({selected_cast[0]}) and "
+            f"{selected_themes[1]} ({selected_cast[1]}).",
+            flush=True,
+        )
+        plan = story_plan(
+            client,
+            number,
+            previous_books,
+            selected_themes,
+            selected_cast,
+            cover_background,
+            cover_action,
+        )
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     slug = f"{clean_slug(plan['title'])}-{stamp}-{random.randrange(1000, 9999)}"
     directory = BOOK_ROOT / slug
@@ -1296,9 +1367,19 @@ def create_book(client, number):
         *(f"{scene['heading']}. {scene['text']}" for scene in plan["scenes"]),
         f"The final story page. {plan['ending']}",
     ]
+    cover_heading = plan["title"]
+    cover_text = plan["intro"]
+    visual_page_words = list(page_words)
+    if is_school_dinner_book:
+        cover_heading = "Lunch With Friends"
+        cover_text = (
+            "Bluey stands inside a bright school dining hall with Catboy, Bitsy and Skye. Many unnamed pupils sit "
+            "at long tables behind them. The four friends stay close and smile."
+        )
+        visual_page_words[0] = f"{cover_heading}. {cover_text}"
     story_context = " ".join(page_words)
     final_page_texts = existing_values([*history["books"], *manifest["books"]], "text")
-    briefs = visual_briefs(client, page_words)
+    briefs = visual_briefs(client, visual_page_words)
     style = illustration_style()
     print(f"Creating cover for: {plan['title']}", flush=True)
     earlier_covers = existing_cover_bytes(manifest)
@@ -1314,26 +1395,28 @@ def create_book(client, number):
         + ", ".join(selected_themes)
         + "."
         + " Exact named character appearance guide: "
-        + character_appearance_guide(page_words[0])
+        + character_appearance_guide(visual_page_words[0])
         + ". Do not swap one named character for another from the same show."
         + " For this cover only: "
         + composition
     )
-    cover_raw, _, plan["intro"] = adaptive_story_image(
+    cover_raw, final_cover_heading, final_cover_text = adaptive_story_image(
         client,
         "Cover",
         cover_prompt,
         "title",
-        plan["title"],
-        plan["intro"],
+        cover_heading,
+        cover_text,
         story_context,
         final_page_texts,
         earlier_covers,
     )
+    if not is_school_dinner_book:
+        plan["intro"] = final_cover_text
     final_page_texts.add(normalised(plan["intro"]))
     save_webp(cover_raw, directory / "cover.webp")
     previous_raw = cover_raw
-    previous_words = page_match_words("title", plan["title"], plan["intro"])
+    previous_words = page_match_words("title", final_cover_heading, final_cover_text)
     for index, scene in enumerate(plan["scenes"], 1):
         print(f"Creating picture {index} of 7 for: {plan['title']}", flush=True)
         scene_prompt = (
@@ -1408,9 +1491,16 @@ def create_book(client, number):
         "characters": list(selected_cast),
         "pages": pages,
     }
+    if is_school_dinner_book:
+        book.update({
+            "temporary": True,
+            "special_kind": "school-dinner",
+            "for_child": special_child,
+        })
     (directory / "book.json").write_text(json.dumps(book, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    merge_history(history, [book])
-    write_json_atomic(HISTORY, history)
+    if not is_school_dinner_book:
+        merge_history(history, [book])
+        write_json_atomic(HISTORY, history)
     manifest["books"].append(book)
     write_json_atomic(MANIFEST, manifest)
     try:
@@ -1483,9 +1573,21 @@ def main():
     count = int(os.environ.get("BOOK_COUNT", "0"))
     start_count = int(os.environ.get("BOOK_START_COUNT", "0"))
     repair_slug = os.environ.get("REPAIR_SLUG", "").strip()
+    special_mode = os.environ.get("SPECIAL_BOOK_MODE", "").strip()
+    special_child = " ".join(os.environ.get("SPECIAL_CHILD_NAME", "").split())
     repair_mode = bool(repair_slug)
     if not key:
         raise RuntimeError("OPENAI_API_KEY is missing.")
+    if special_mode and special_mode != "school-dinner":
+        raise RuntimeError("SPECIAL_BOOK_MODE is not recognised.")
+    if special_mode and (
+        not special_child
+        or len(special_child) > 30
+        or any(not (character.isalnum() or character in " .'-") for character in special_child)
+    ):
+        raise RuntimeError("SPECIAL_CHILD_NAME must be a valid profile name.")
+    if special_mode and count != 1:
+        raise RuntimeError("A temporary special-book job must create exactly one book.")
     if not repair_mode and not 1 <= count <= 10:
         raise RuntimeError("BOOK_COUNT must be from 1 to 10.")
     BOOK_ROOT.mkdir(parents=True, exist_ok=True)
@@ -1512,7 +1614,7 @@ def main():
         number = completed + 1
         directories_before = {child for child in BOOK_ROOT.iterdir() if child.is_dir()}
         try:
-            create_book(client, number)
+            create_book(client, number, special_mode=special_mode, special_child=special_child)
             completed += 1
             consecutive_failures = 0
         except Exception as error:
@@ -1535,7 +1637,10 @@ def main():
             flush=True,
         )
         raise SystemExit(1)
-    print("SUCCESS: every requested book is ready. Open /books/ to see them.", flush=True)
+    if special_mode == "school-dinner":
+        print(f"SUCCESS: {special_child}'s temporary school-dinner book is ready. Open /books/ to see it.", flush=True)
+    else:
+        print("SUCCESS: every requested book is ready. Open /books/ to see them.", flush=True)
 
 
 if __name__ == "__main__":

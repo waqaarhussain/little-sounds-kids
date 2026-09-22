@@ -49,6 +49,7 @@ Run `install.sh` as root on a fresh Ubuntu VPS and provide the parent profile, t
 - `backup` includes stickers, albums, game-plan memory and generated books.
 - `backup no-books` includes stickers, albums and game-plan memory but excludes generated books.
 - `update-live` installs the latest `main` build while preserving live data.
+- `school-dinner-book` creates one temporary personalised school-dinner story; `school-dinner-book delete` removes only temporary school-dinner books.
 - `rollback-live` restores the latest saved code snapshot.
 - `reset-vps` verifies the published sticker backup, removes only the Little Learners installation and performs a clean reinstall.
 

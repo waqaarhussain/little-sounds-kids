@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+service_name="little-sounds-book-generator.service"
+key_dir="/root/.config/little-sounds"
+key_file="$key_dir/openai.env"
+run_file="/etc/little-sounds-book-job.env"
+profile_file="/etc/little-sounds.env"
+book_root="/var/www/little-sounds/generated-books"
+manifest="$book_root/books.json"
+
+if [ "$(id -u)" -ne 0 ]; then echo "Run school-dinner-book as root."; exit 1; fi
+
+case "${1:-start}" in
+  status) systemctl status "$service_name" --no-pager || true; exit 0 ;;
+  watch) journalctl -u "$service_name" -f; exit 0 ;;
+  log|logs) journalctl -u "$service_name" -n 100 --no-pager; exit 0 ;;
+  delete)
+    if systemctl is-active --quiet "$service_name" 2>/dev/null; then
+      echo "The book generator is still running. Wait for it to finish before deleting the temporary book."
+      exit 1
+    fi
+    mapfile -t temporary_books < <(python3 - "$manifest" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+try:
+    books = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")).get("books", [])
+except (OSError, ValueError, TypeError):
+    books = []
+for book in books:
+    if isinstance(book, dict) and book.get("temporary") is True and book.get("special_kind") == "school-dinner":
+        print(f"{book.get('title', 'School dinner book')} [{book.get('slug', '')}]")
+PY
+)
+    if [ "${#temporary_books[@]}" -eq 0 ]; then
+      echo "There is no temporary school-dinner book to delete."
+      exit 0
+    fi
+    printf 'Temporary book found: %s\n' "${temporary_books[@]}"
+    read -r -p "Delete this temporary book, including its pictures and narration? [y/N]: " confirmation
+    if [[ ! "$confirmation" =~ ^[Yy]$ ]]; then echo "Cancelled."; exit 0; fi
+    python3 - "$manifest" "$book_root" <<'PY'
+import json
+import re
+import shutil
+import sys
+from pathlib import Path
+
+manifest = Path(sys.argv[1])
+root = Path(sys.argv[2])
+data = json.loads(manifest.read_text(encoding="utf-8"))
+kept = []
+removed = []
+for book in data.get("books", []):
+    if isinstance(book, dict) and book.get("temporary") is True and book.get("special_kind") == "school-dinner":
+        slug = str(book.get("slug", ""))
+        if re.fullmatch(r"[a-z0-9][a-z0-9-]{0,95}", slug):
+            removed.append(slug)
+            continue
+    kept.append(book)
+data["books"] = kept
+temporary = manifest.with_suffix(manifest.suffix + ".tmp")
+temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+temporary.replace(manifest)
+for slug in removed:
+    shutil.rmtree(root / slug, ignore_errors=True)
+    shutil.rmtree(root / "narration" / slug, ignore_errors=True)
+print(f"Deleted {len(removed)} temporary school-dinner book(s).")
+PY
+    exit 0
+    ;;
+  start|"") ;;
+  *) echo "Use: school-dinner-book, school-dinner-book watch, school-dinner-book logs, school-dinner-book status, or school-dinner-book delete"; exit 1 ;;
+esac
+
+if systemctl is-active --quiet "$service_name" 2>/dev/null; then
+  echo "A book generator is already running. Watch it with: school-dinner-book watch"
+  exit 0
+fi
+
+existing_special_count="$(python3 - "$manifest" <<'PY'
+import json
+import sys
+from pathlib import Path
+try:
+    books = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")).get("books", [])
+except (OSError, ValueError, TypeError):
+    books = []
+print(sum(
+    1 for book in books
+    if isinstance(book, dict) and book.get("temporary") is True and book.get("special_kind") == "school-dinner"
+))
+PY
+)"
+if [ "$existing_special_count" -gt 0 ]; then
+  echo "A temporary school-dinner book already exists."
+  echo "Delete it first with: school-dinner-book delete"
+  exit 1
+fi
+
+if [ ! -s "$key_file" ]; then
+  while true; do
+    read -r -s -p "Paste your OpenAI API key (you will only be asked once): " openai_key; echo
+    if [[ "$openai_key" =~ ^sk-[A-Za-z0-9_-]{20,}$ ]]; then break; fi
+    echo "That does not look like a complete OpenAI API key. Try again."
+  done
+  install -d -m 0700 "$key_dir"
+  umask 077
+  printf 'OPENAI_API_KEY=%s\n' "$openai_key" > "$key_file"
+  chmod 0600 "$key_file"
+  unset openai_key
+else
+  echo "Using the saved OpenAI API key."
+fi
+
+child_default="$(python3 - "$profile_file" <<'PY'
+import shlex
+import sys
+from pathlib import Path
+
+try:
+    lines = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+except OSError:
+    lines = []
+for line in lines:
+    if line.startswith("LITTLE_SOUNDS_CHILD_1="):
+        value = line.split("=", 1)[1]
+        try:
+            parsed = shlex.split(value)
+            print(parsed[0] if parsed else "Nevaeh")
+        except ValueError:
+            print("Nevaeh")
+        break
+else:
+    print("Nevaeh")
+PY
+)"
+read -r -p "Who is this special story for? [$child_default]: " child_name
+child_name="${child_name:-$child_default}"
+if ! printf '%s' "$child_name" | grep -Eq "^[[:alnum:] .'-]{1,30}$"; then
+  echo "The child's name contains unsupported characters."
+  exit 1
+fi
+
+echo "This creates one temporary 16-page school-dinner story for $child_name."
+echo "It uses Bluey, Catboy, Bitsy and Skye, with strict picture and continuity checks."
+echo "Delete it later with: school-dinner-book delete"
+read -r -p "Start the background book generator? [Y/n]: " confirmation
+if [[ "$confirmation" =~ ^[Nn]$ ]]; then echo "Cancelled."; exit 0; fi
+
+current_book_count="$(python3 - "$manifest" <<'PY'
+import json
+import sys
+from pathlib import Path
+try:
+    books = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")).get("books", [])
+    print(sum(1 for book in books if isinstance(book, dict)))
+except (OSError, ValueError, TypeError):
+    print(0)
+PY
+)"
+umask 077
+{
+  printf 'BOOK_COUNT=1\n'
+  printf 'BOOK_START_COUNT=%s\n' "$current_book_count"
+  printf 'SPECIAL_BOOK_MODE=school-dinner\n'
+  printf 'SPECIAL_CHILD_NAME="%s"\n' "$child_name"
+  printf 'PYTHONUNBUFFERED=1\n'
+} > "$run_file"
+chmod 0600 "$run_file"
+systemctl reset-failed "$service_name" 2>/dev/null || true
+if ! systemctl start "$service_name"; then
+  journalctl -u "$service_name" -n 40 --no-pager
+  exit 1
+fi
+sleep 2
+if systemctl is-failed --quiet "$service_name"; then journalctl -u "$service_name" -n 40 --no-pager; exit 1; fi
+echo "The temporary book is being created in the background; you can close Termius."
+echo "Watch it with: school-dinner-book watch"

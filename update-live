@@ -20,7 +20,7 @@ curl -fL "https://api.github.com/repos/$repository/tarball/$main_sha" -o "$work_
 tar -xzf "$work_dir/live.tar.gz" --strip-components=1 -C "$stage"
 
 python3 -m py_compile "$stage/server/app.py" "$stage/generate_book.py" "$stage/narrate_books.py" "$stage/cache_phonics_audio.py"
-for script in install.sh generate-book narrate-books repair-book clean cache-phonics update-live rollback-live reset-vps; do
+for script in install.sh generate-book school-dinner-book narrate-books repair-book clean cache-phonics update-live rollback-live reset-vps; do
   bash -n "$stage/$script"
 done
 
@@ -29,7 +29,7 @@ snapshot_current() {
   mkdir -p "$destination/site" "$destination/app" "$destination/bin"
   rsync -a --delete --exclude sticker-images --exclude sticker-generator --exclude generated-books --exclude phonics-audio "$live_site/" "$destination/site/"
   rsync -a "$live_app/" "$destination/app/"
-  for command in generate-stickers generate-book narrate-books repair-book clean cache-phonics cache-words backup update-live rollback-live reset-vps; do
+  for command in generate-stickers generate-book school-dinner-book narrate-books repair-book clean cache-phonics cache-words backup update-live rollback-live reset-vps; do
     if [ -f "/usr/local/bin/$command" ]; then install -m 0755 "/usr/local/bin/$command" "$destination/bin/$command"; fi
   done
   if [ -f "$live_app/source-commit" ]; then cp "$live_app/source-commit" "$destination/source-commit"; fi
@@ -64,7 +64,7 @@ install -m 0644 "$stage/references/superkitties.png" "$live_app/references/super
 for python_file in generate_stickers.py generate_book.py narrate_books.py cache_phonics_audio.py sticker_pack.py; do
   install -m 0755 "$stage/$python_file" "$live_app/$python_file"
 done
-for command in generate-stickers generate-book narrate-books repair-book clean cache-phonics backup update-live rollback-live reset-vps; do
+for command in generate-stickers generate-book school-dinner-book narrate-books repair-book clean cache-phonics backup update-live rollback-live reset-vps; do
   install -m 0755 "$stage/$command" "/usr/local/bin/$command"
 done
 install -m 0755 "$stage/cache-phonics" /usr/local/bin/cache-words
