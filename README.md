@@ -16,6 +16,14 @@ A private, mobile-friendly family learning site.
 - Character Maze: procedurally generated touch and Apple Pencil mazes
 - Character Jigsaw: random themed pictures with 12, 20 or 24 pieces
 - Spot the Difference: two fresh themed characters with five to eight visual changes
+- Big Game Zone at `/games/`: seven full-screen replayable games with cross-theme character teams, random worlds, touch controls, sound, scoring and sticker rewards
+  - Little Heroes Rescue World
+  - Character Kart Racing
+  - Endless Rescue Runner
+  - Superhero Training Academy
+  - Pet Café Adventure
+  - Character Dance Party
+  - Hide & Seek World
 - Book shelf placeholder at `/books/`
 - Separate child sticker albums and parent-PIN profile switching
 - Ad-hoc good-behaviour sticker rewards

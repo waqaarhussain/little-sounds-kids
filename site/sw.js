@@ -1,9 +1,13 @@
-const CACHE_NAME = "little-learners-shell-v1";
+const CACHE_NAME = "little-learners-shell-v2";
 const APP_SHELL = [
   "/",
+  "/games/",
+  "/games/play/",
   "/assets/site-shell.css",
   "/assets/site-shell.js",
   "/assets/games.css",
+  "/assets/game-pack.css",
+  "/assets/game-pack.js",
   "/manifest.webmanifest",
   "/icons/app-icon-192.png",
   "/icons/app-icon-512.png",
@@ -33,7 +37,11 @@ self.addEventListener("fetch", event => {
   }
 
   if (request.mode === "navigate") {
-    event.respondWith(fetch(request).catch(() => caches.match("/")));
+    event.respondWith(fetch(request).then(response => {
+      const copy = response.clone();
+      caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+      return response;
+    }).catch(async () => (await caches.match(request, { ignoreSearch: true })) || caches.match("/")));
     return;
   }
 

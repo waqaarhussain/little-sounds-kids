@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#101d49">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Big Game | Little Learners</title>
+  <link rel="stylesheet" href="../../assets/site-shell.css">
+  <link rel="stylesheet" href="../../assets/game-pack.css">
+</head>
+<body class="play-body">
+<main class="game-app">
+  <header class="game-topbar">
+    <a class="game-back" href="../" aria-label="Back to all games">‹ All games</a>
+    <div class="game-heading"><h1 id="gameTitle">Loading game…</h1><p id="teamTitle">Choosing your character team</p></div>
+    <div class="game-actions"><button class="game-sound" id="soundButton" type="button" aria-label="Turn sound on or off">🔊</button><button class="game-round-button" id="pauseButton" type="button" aria-label="Pause game">Ⅱ</button></div>
+  </header>
+  <section class="game-frame" id="gameFrame" aria-label="Game area">
+    <canvas class="game-canvas" id="gameCanvas" width="1280" height="720"></canvas>
+    <div class="hud" id="hud" hidden><div class="hud-card"><strong id="hudScore">0</strong><small id="hudScoreLabel">Score</small></div><div class="hud-card right"><strong id="hudTime">Ready</strong><small id="hudTimeLabel">Mission</small></div></div>
+    <div class="objective-bar" id="objectiveBar" hidden>Get ready!</div>
+    <div class="game-toast" id="gameToast" aria-live="polite"></div>
+    <div class="game-overlay" id="gameOverlay"><div class="overlay-card" id="overlayCard"><div class="loading-spinner"></div><h2>Building your adventure…</h2><p>Choosing two surprise characters and a brand-new world.</p></div></div>
+  </section>
+  <section class="touch-controls" id="touchControls" aria-label="Game controls"></section>
+</main>
+<script>
+(() => {
+  const key = new URLSearchParams(location.search).get("game") || "rescue";
+  const activities = {rescue:"rescue-world",kart:"kart-racing",runner:"rescue-runner",academy:"training-academy",cafe:"pet-cafe",dance:"dance-party",hide:"hide-and-seek"};
+  document.body.dataset.progressActivity = activities[key] || activities.rescue;
+})();
+</script>
+<script src="../../assets/site-shell.js"></script>
+<script src="../../assets/game-pack.js"></script>
+</body>
+</html>

@@ -68,15 +68,34 @@ ACTIVITY_ITEMS = {
     "character-maze": ("puzzle",),
     "character-jigsaw": ("puzzle",),
     "spot-the-difference": ("puzzle",),
+    "rescue-world": ("mission",),
+    "kart-racing": ("mission",),
+    "rescue-runner": ("mission",),
+    "training-academy": ("mission",),
+    "pet-cafe": ("mission",),
+    "dance-party": ("mission",),
+    "hide-and-seek": ("mission",),
     **NUMBER_LEVELS,
+}
+GAME_PACK_ACTIVITIES = {
+    "rescue-world", "kart-racing", "rescue-runner", "training-academy",
+    "pet-cafe", "dance-party", "hide-and-seek",
 }
 RANDOM_ACTIVITIES = {
     "count-and-choose", "match-the-pairs", "sort-colours-shapes",
     "finish-the-pattern", "odd-one-out", "more-or-less",
     "letter-hunt", "number-hunt",
     "dot-to-dot", "character-maze", "character-jigsaw", "spot-the-difference",
+    *GAME_PACK_ACTIVITIES,
 }
-PUZZLE_ACTIVITIES = {"dot-to-dot", "character-maze", "character-jigsaw", "spot-the-difference"}
+PUZZLE_ACTIVITIES = {
+    "dot-to-dot", "character-maze", "character-jigsaw", "spot-the-difference",
+    *GAME_PACK_ACTIVITIES,
+}
+GAME_PACK_WORLDS = (
+    "Rainbow City", "Sunny Farm", "Pirate Island", "Snowy Mountain",
+    "Moon Base", "Magic Forest", "Coral Bay", "School Adventure",
+)
 SPOT_DIFFERENCE_GROUPS = (
     ("sun-colour", "sun-size", "sun-rays", "sun-shape"),
     ("cloud-missing", "cloud-small", "cloud-puff", "cloud-colour"),
@@ -744,6 +763,20 @@ def generate_maze(columns, rows):
 
 
 def build_themed_activity_plan(connection, profile, activity, attempt):
+    if activity in GAME_PACK_ACTIVITIES:
+        characters = choose_activity_sticker_pair(connection, profile, activity)
+        plan = {
+            "layout_version": 1,
+            "characters": characters,
+            "sticker_ids": [character["sticker_id"] for character in characters],
+            "themes": [character["theme"] for character in characters],
+            "theme_labels": [character["theme_label"] for character in characters],
+            "world": random.choice(GAME_PACK_WORLDS),
+            "seed": random.randint(100000, 999999999),
+            "mission_number": attempt,
+        }
+        canonical = json.dumps(plan, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return plan, hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     if activity == "spot-the-difference":
         characters = choose_activity_sticker_pair(connection, profile, activity)
         difference_count = random.randint(5, 8)
@@ -798,7 +831,7 @@ def build_themed_activity_plan(connection, profile, activity, attempt):
 
 
 def build_activity_plan(activity, connection=None, profile="", attempt=1):
-    if activity in {"dot-to-dot", "character-maze", "character-jigsaw", "spot-the-difference"}:
+    if activity in {"dot-to-dot", "character-maze", "character-jigsaw", "spot-the-difference", *GAME_PACK_ACTIVITIES}:
         if connection is None or not profile:
             raise ValueError("The themed activity needs a profile and catalogue.")
         return build_themed_activity_plan(connection, profile, activity, attempt)

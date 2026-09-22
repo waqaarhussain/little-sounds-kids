@@ -372,6 +372,7 @@
     if (pagePath.startsWith("/character-maze")) return "character-maze";
     if (pagePath.startsWith("/character-jigsaw")) return "character-jigsaw";
     if (pagePath.startsWith("/spot-the-difference")) return "spot-the-difference";
+    if (pagePath.startsWith("/games/play")) return document.body.dataset.progressActivity || "";
     return "";
   }
 
